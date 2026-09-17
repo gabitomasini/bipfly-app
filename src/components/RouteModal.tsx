@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Plane, Calendar, DollarSign, AlertCircle, Sparkles, Users } from "lucide-react";
 import { MonitoredRoute } from "@/lib/types";
 import AirportCombobox from "./AirportCombobox";
+import { useModalBehavior } from "@/hooks/useModalBehavior";
 
 interface RouteModalProps {
   isOpen: boolean;
@@ -26,6 +27,8 @@ export default function RouteModal({
   const [isActive, setIsActive] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const { overlayProps, containerRef } = useModalBehavior({ isOpen, onClose });
 
   useEffect(() => {
     if (routeToEdit) {
@@ -131,8 +134,8 @@ export default function RouteModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-      <div className="glass-panel w-full max-w-xl p-6 bg-white border border-slate-200 shadow-2xl rounded-2xl relative max-h-[92vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn" {...overlayProps} role="dialog" aria-modal="true" aria-labelledby="route-modal-title">
+      <div ref={containerRef} className="glass-panel w-full max-w-xl p-6 bg-white border border-slate-200 shadow-2xl rounded-2xl relative max-h-[92vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100">
           <div className="flex items-center gap-3">
@@ -151,6 +154,7 @@ export default function RouteModal({
           <button
             onClick={onClose}
             className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            aria-label="Fechar modal"
           >
             <X className="w-5 h-5" />
           </button>

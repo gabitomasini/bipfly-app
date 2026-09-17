@@ -4,12 +4,12 @@ import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import { AppSettings, SchedulerStatus } from "@/lib/types";
 import { formatDateTimeBR, formatCurrency } from "@/lib/utils";
+import { useToast } from "@/components/Toast";
 import {
   Settings,
   Clock,
   Key,
   Bell,
-  CheckCircle2,
   AlertCircle,
   Send,
   Plus,
@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 export default function ConfiguracoesPage() {
+  const { addToast } = useToast();
   const [settings, setSettings] = useState<AppSettings>({
     scheduleHours: "03:00,14:00",
     searchProvider: "auto",
@@ -27,15 +28,15 @@ export default function ConfiguracoesPage() {
     ntfyTopic: "radar-passagens",
     autoNotify: true,
   });
+  const [initialSettings, setInitialSettings] = useState<AppSettings | null>(null);
 
   const [schedulerStatus, setSchedulerStatus] = useState<SchedulerStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [hoursList, setHoursList] = useState<string[]>(["03:00", "14:00"]);
   const [newHourInput, setNewHourInput] = useState("");
+  const [hourError, setHourError] = useState<string | null>(null);
 
   // Teste de Notificação
   const [testNotificationSending, setTestNotificationSending] = useState(false);
@@ -59,13 +60,16 @@ export default function ConfiguracoesPage() {
           const ntfyTopic = raw.ntfyTopic || "radar-passagens";
           const autoNotify = raw.autoNotify ?? true;
 
-          setSettings({
+          const loadedSettings: AppSettings = {
             scheduleHours,
             searchProvider,
             serpApiKey,
             ntfyTopic,
             autoNotify,
-          });
+          };
+
+          setSettings(loadedSettings);
+          setInitialSettings(loadedSettings);
 
           const parts = scheduleHours
             .split(",")
@@ -80,15 +84,25 @@ export default function ConfiguracoesPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const currentScheduleHours = hoursList.join(",");
+  const isDirty = initialSettings !== null && (
+    settings.searchProvider !== initialSettings.searchProvider ||
+    (settings.serpApiKey || "") !== (initialSettings.serpApiKey || "") ||
+    (settings.ntfyTopic || "") !== (initialSettings.ntfyTopic || "") ||
+    settings.autoNotify !== initialSettings.autoNotify ||
+    currentScheduleHours !== initialSettings.scheduleHours
+  );
+
   const handleAddHour = () => {
+    setHourError(null);
     const val = newHourInput.trim();
     if (!/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(val)) {
-      alert("Por favor, digite um horário válido no formato HH:MM (ex: 08:30 ou 14:00).");
+      setHourError("Por favor, digite um horário válido no formato HH:MM (ex: 08:30 ou 14:00).");
       return;
     }
     const formatted = val.padStart(5, "0");
     if (hoursList.includes(formatted)) {
-      alert("Este horário já está na lista.");
+      setHourError("Este horário já está na lista.");
       return;
     }
     const updated = [...hoursList, formatted].sort();
@@ -98,8 +112,9 @@ export default function ConfiguracoesPage() {
   };
 
   const handleRemoveHour = (hour: string) => {
+    setHourError(null);
     if (hoursList.length <= 1) {
-      alert("Você deve manter pelo menos um horário diário de busca configurado.");
+      setHourError("Você deve manter pelo menos um horário diário de busca configurado.");
       return;
     }
     const updated = hoursList.filter((h) => h !== hour);
@@ -108,15 +123,15 @@ export default function ConfiguracoesPage() {
   };
 
   const handleApplyPreset = (presetHours: string[]) => {
+    setHourError(null);
     setHoursList(presetHours);
     setSettings((prev) => ({ ...prev, scheduleHours: presetHours.join(",") }));
   };
 
-  const handleSaveSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveSettings = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setSaving(true);
-    setSaveSuccess(false);
-    setErrorMsg(null);
+    setHourError(null);
 
     const payload = {
       ...settings,
@@ -136,10 +151,10 @@ export default function ConfiguracoesPage() {
       const schJson = await schRes.json();
       if (schJson.success) setSchedulerStatus(schJson.data);
 
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 4000);
+      setInitialSettings(payload);
+      addToast("Configurações salvas e agendador reprogramado com sucesso!", "success");
     } catch (err: any) {
-      setErrorMsg(err.message);
+      addToast(err.message || "Erro ao salvar configurações", "error");
     } finally {
       setSaving(false);
     }
@@ -215,21 +230,6 @@ export default function ConfiguracoesPage() {
             Personalize os horários de busca, modo Web Scraping / API e notificações no celular.
           </p>
         </div>
-
-        {/* Feedback de salvamento */}
-        {saveSuccess && (
-          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center gap-2 animate-fadeIn font-bold shadow-xs">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            <span>Configurações salvas e agendador reprogramado com sucesso!</span>
-          </div>
-        )}
-
-        {errorMsg && (
-          <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-center gap-2 animate-fadeIn font-bold shadow-xs">
-            <AlertCircle className="w-4 h-4 text-rose-600" />
-            <span>{errorMsg}</span>
-          </div>
-        )}
 
         <form onSubmit={handleSaveSettings} className="space-y-6">
           {/* Seção 0: Provedor de Busca (Web Scraping vs API) */}
@@ -454,21 +454,32 @@ export default function ConfiguracoesPage() {
             </div>
 
             {/* Adicionar Novo Horário */}
-            <div className="flex items-center gap-3 pt-2">
-              <input
-                type="time"
-                value={newHourInput}
-                onChange={(e) => setNewHourInput(e.target.value)}
-                className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-900 font-mono focus:outline-none focus:border-sky-500 focus:bg-white transition-colors"
-              />
-              <button
-                type="button"
-                onClick={handleAddHour}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-900 text-white transition-colors cursor-pointer shadow-xs"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Adicionar Horário</span>
-              </button>
+            <div className="space-y-2 pt-2">
+              <div className="flex items-center gap-3">
+                <input
+                  type="time"
+                  value={newHourInput}
+                  onChange={(e) => {
+                    setNewHourInput(e.target.value);
+                    if (hourError) setHourError(null);
+                  }}
+                  className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-900 font-mono focus:outline-none focus:border-sky-500 focus:bg-white transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddHour}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-900 text-white transition-colors cursor-pointer shadow-xs"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Adicionar Horário</span>
+                </button>
+              </div>
+              {hourError && (
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-600 flex items-center gap-2 font-medium animate-fadeIn">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{hourError}</span>
+                </div>
+              )}
             </div>
 
             {/* Status Atual do Agendador */}
@@ -603,16 +614,24 @@ export default function ConfiguracoesPage() {
             </div>
           </div>
 
-          {/* Botão de Salvar Geral */}
-          <div className="flex items-center justify-end gap-4 pt-4">
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-6 py-3 rounded-xl text-sm font-bold bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white shadow-xs transition-colors cursor-pointer disabled:opacity-50"
-            >
-              {saving ? "Salvando Configurações..." : "Salvar Todas as Configurações"}
-            </button>
-          </div>
+          {/* Sticky Save Bar */}
+          {isDirty && (
+            <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-3 shadow-lg animate-fadeIn">
+              <div className="max-w-4xl mx-auto flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-semibold text-amber-700">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                  <span>Existem alterações não salvas</span>
+                </div>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-6 py-2.5 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {saving ? "Salvando..." : "Salvar Configurações"}
+                </button>
+              </div>
+            </div>
+          )}
         </form>
       </main>
     </div>

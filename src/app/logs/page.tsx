@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Navbar from "@/components/Navbar";
 import { AppLog, LogCategory, LogLevel, LogStats } from "@/lib/types";
-import { formatDateTimeBR } from "@/lib/utils";
+import { formatDateTimeBR, formatRelativeTime } from "@/lib/utils";
 import {
   Terminal,
   RefreshCw,
@@ -16,6 +16,7 @@ import {
   Clock,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   Copy,
   Check,
   Play,
@@ -102,6 +103,10 @@ export default function LogsPage() {
   const [selectedCategory, setSelectedCategory] = useState<LogCategory | "ALL">("ALL");
   const [searchTerm, setSearchTerm] = useState("");
   
+  // Paginação
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   // Real-time Event Stream State
   const [streamActive, setStreamActive] = useState(true);
   const [connectionState, setConnectionState] = useState<"connecting" | "connected" | "disconnected">("connecting");
@@ -121,7 +126,7 @@ export default function LogsPage() {
       if (selectedLevel !== "ALL") params.set("level", selectedLevel);
       if (selectedCategory !== "ALL") params.set("category", selectedCategory);
       if (searchTerm.trim()) params.set("search", searchTerm.trim());
-      params.set("limit", "150");
+      params.set("limit", "200");
 
       const res = await fetch(`/api/logs?${params.toString()}`);
       const json = await res.json();
@@ -140,7 +145,15 @@ export default function LogsPage() {
 
   useEffect(() => {
     fetchInitialLogs();
+    setCurrentPage(1);
   }, [fetchInitialLogs]);
+
+  // Paginated slice
+  const totalPages = Math.max(1, Math.ceil(logs.length / itemsPerPage));
+  const paginatedLogs = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return logs.slice(start, start + itemsPerPage);
+  }, [logs, currentPage, itemsPerPage]);
 
   // Gerenciador de Server-Sent Events (SSE) em Tempo Real
   useEffect(() => {
@@ -521,109 +534,166 @@ export default function LogsPage() {
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
-              {logs.map((log) => {
-                const config = LEVEL_CONFIG[log.level] || LEVEL_CONFIG.INFO;
-                const IconComponent = config.icon;
-                const isExpanded = expandedLogIds.has(log.id);
-                const hasDetails = Boolean(log.details && log.details.trim());
-                const isJustArrived = latestLiveLogId === log.id;
+            <div>
+              <div className="divide-y divide-slate-100">
+                {paginatedLogs.map((log) => {
+                  const config = LEVEL_CONFIG[log.level] || LEVEL_CONFIG.INFO;
+                  const IconComponent = config.icon;
+                  const isExpanded = expandedLogIds.has(log.id);
+                  const hasDetails = Boolean(log.details && log.details.trim());
+                  const isJustArrived = latestLiveLogId === log.id;
 
-                return (
-                  <div
-                    key={log.id}
-                    className={`p-4 transition-all duration-500 hover:bg-slate-50/80 border-l-4 ${config.cardBorder} ${
-                      isJustArrived ? "bg-emerald-50/70 scale-[1.002]" : ""
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      {/* Left: Icon, Badges, Timestamp & Message */}
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
-                        <div className={`p-1.5 rounded-lg ${config.bg} ${config.text} shrink-0 mt-0.5`}>
-                          <IconComponent className="w-4 h-4" />
-                        </div>
+                  return (
+                    <div
+                      key={log.id}
+                      className={`p-4 transition-all duration-500 hover:bg-slate-50/80 border-l-4 ${config.cardBorder} ${
+                        isJustArrived ? "bg-emerald-50/70 scale-[1.002]" : ""
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        {/* Left: Icon, Badges, Timestamp & Message */}
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <div className={`p-1.5 rounded-lg ${config.bg} ${config.text} shrink-0 mt-0.5`}>
+                            <IconComponent className="w-4 h-4" />
+                          </div>
 
-                        <div className="space-y-1 min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {/* Severidade Badge */}
-                            <span
-                              className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md ${config.bg} ${config.text} border ${config.border}`}
-                            >
-                              <span className={`w-1.5 h-1.5 rounded-full ${config.dotBg}`}></span>
-                              {config.label}
-                            </span>
-
-                            {/* Categoria Pill */}
-                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
-                              {log.category}
-                            </span>
-
-                            {/* Timestamp */}
-                            <span className="text-xs text-slate-400 font-medium flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-slate-400" />
-                              {formatDateTimeBR(log.timestamp)}
-                            </span>
-
-                            {/* Live Badge if just arrived */}
-                            {isJustArrived && (
-                              <span className="text-[10px] font-extrabold uppercase tracking-wide px-1.5 py-0.2 bg-emerald-500 text-white rounded animate-bounce">
-                                NOVO
+                          <div className="space-y-1 min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {/* Severidade Badge */}
+                              <span
+                                className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md ${config.bg} ${config.text} border ${config.border}`}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${config.dotBg}`}></span>
+                                {config.label}
                               </span>
-                            )}
-                          </div>
 
-                          {/* Mensagem Principal */}
-                          <div className="text-xs sm:text-sm font-semibold text-slate-800 break-words pt-0.5">
-                            {log.message}
+                              {/* Categoria Pill */}
+                              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                                {log.category}
+                              </span>
+
+                              {/* Timestamp com Formato Relativo e Tooltip */}
+                              <span
+                                className="text-xs text-slate-400 font-medium flex items-center gap-1 cursor-default"
+                                title={formatDateTimeBR(log.timestamp)}
+                              >
+                                <Clock className="w-3 h-3 text-slate-400" />
+                                <span>{formatRelativeTime(log.timestamp)}</span>
+                              </span>
+
+                              {/* Live Badge if just arrived */}
+                              {isJustArrived && (
+                                <span className="text-[10px] font-extrabold uppercase tracking-wide px-1.5 py-0.2 bg-emerald-500 text-white rounded animate-bounce">
+                                  NOVO
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Mensagem Principal */}
+                            <div className="text-xs sm:text-sm font-semibold text-slate-800 break-words pt-0.5">
+                              {log.message}
+                            </div>
                           </div>
                         </div>
+
+                        {/* Right: Expand details toggle */}
+                        {hasDetails && (
+                          <button
+                            onClick={() => toggleExpand(log.id)}
+                            className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer shrink-0"
+                          >
+                            <span>{isExpanded ? "Ocultar JSON" : "Ver JSON"}</span>
+                            {isExpanded ? (
+                              <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                            ) : (
+                              <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+                            )}
+                          </button>
+                        )}
                       </div>
 
-                      {/* Right: Expand details toggle */}
-                      {hasDetails && (
-                        <button
-                          onClick={() => toggleExpand(log.id)}
-                          className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer shrink-0"
-                        >
-                          <span>{isExpanded ? "Ocultar JSON" : "Ver JSON"}</span>
-                          {isExpanded ? (
-                            <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
-                          ) : (
-                            <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
-                          )}
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Detalhes Expansíveis (JSON Payload / Stack Trace) */}
-                    {isExpanded && hasDetails && (
-                      <div className="mt-3 pt-3 border-t border-slate-100 pl-9">
-                        <div className="relative bg-slate-900 text-slate-100 p-3.5 rounded-xl text-xs font-mono overflow-x-auto shadow-inner border border-slate-800">
-                          <button
-                            onClick={() => handleCopyDetails(log.id, log.details || "")}
-                            className="absolute top-2.5 right-2.5 flex items-center gap-1 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] font-sans transition-colors cursor-pointer"
-                          >
-                            {copiedId === log.id ? (
-                              <>
-                                <Check className="w-3 h-3 text-emerald-400" />
-                                <span className="text-emerald-400">Copiado!</span>
-                              </>
-                            ) : (
+                      {/* Detalhes Expansíveis (JSON Payload / Stack Trace) */}
+                      {isExpanded && hasDetails && (
+                        <div className="mt-3 pt-3 border-t border-slate-100 pl-9">
+                          <div className="relative bg-slate-900 text-slate-100 p-3.5 rounded-xl text-xs font-mono overflow-x-auto shadow-inner border border-slate-800">
+                            <button
+                              onClick={() => handleCopyDetails(log.id, log.details || "")}
+                              className="absolute top-2.5 right-2.5 flex items-center gap-1 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] font-sans transition-colors cursor-pointer"
+                            >
+                              {copiedId === log.id ? (
+                                <>
+                                  <Check className="w-3 h-3 text-emerald-400" />
+                                  <span className="text-emerald-400">Copiado!</span>
+                                </>
+                              ) : (
                               <>
                                 <Copy className="w-3 h-3 text-slate-400" />
                                 <span>Copiar JSON</span>
                               </>
                             )}
-                          </button>
-                          <pre className="text-emerald-400/95 whitespace-pre-wrap leading-relaxed pr-24">
-                            {log.details}
-                          </pre>
+                            </button>
+                            <pre className="text-emerald-400/95 whitespace-pre-wrap leading-relaxed pr-24">
+                              {log.details}
+                            </pre>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Controles de Paginação */}
+              {logs.length > 0 && (
+                <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+                  <div className="flex items-center gap-3">
+                    <span>
+                      Mostrando <strong>{Math.min(logs.length, (currentPage - 1) * itemsPerPage + 1)}</strong> a <strong>{Math.min(logs.length, currentPage * itemsPerPage)}</strong> de <strong>{logs.length}</strong> eventos
+                    </span>
+
+                    <div className="flex items-center gap-1.5 ml-2">
+                      <span className="text-slate-400">Por página:</span>
+                      <select
+                        value={itemsPerPage}
+                        onChange={(e) => {
+                          setItemsPerPage(Number(e.target.value));
+                          setCurrentPage(1);
+                        }}
+                        className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:border-sky-500 cursor-pointer"
+                      >
+                        <option value={10}>10</option>
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                      </select>
+                    </div>
                   </div>
-                );
-              })}
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-500 font-medium">
+                      Página {currentPage} de {totalPages}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        title="Página Anterior"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={currentPage >= totalPages}
+                        className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        title="Próxima Página"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

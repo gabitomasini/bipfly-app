@@ -3,6 +3,7 @@
 import { X, Clock, CheckCircle2, ExternalLink } from "lucide-react";
 import { FlightOption, MonitoredRoute } from "@/lib/types";
 import { formatCurrency, formatDuration, getAirportName, getGoogleFlightsUrl } from "@/lib/utils";
+import { useModalBehavior } from "@/hooks/useModalBehavior";
 
 interface FlightSearchResultsDrawerProps {
   isOpen: boolean;
@@ -17,6 +18,11 @@ export default function FlightSearchResultsDrawer({
   options,
   onClose,
 }: FlightSearchResultsDrawerProps) {
+  const { overlayProps, containerRef } = useModalBehavior({
+    isOpen,
+    onClose,
+  });
+
   if (!isOpen || !route) return null;
 
   const origin = route.origin;
@@ -26,8 +32,8 @@ export default function FlightSearchResultsDrawer({
   const passengers = route.passengers;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fadeIn">
-      <div className="glass-panel w-full max-w-2xl max-h-[85vh] flex flex-col bg-white border border-slate-200 shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fadeIn" {...overlayProps} role="dialog" aria-modal="true" aria-labelledby="flight-results-title">
+      <div ref={containerRef} className="glass-panel w-full max-w-2xl max-h-[85vh] flex flex-col bg-white border border-slate-200 shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/70">
           <div>
@@ -47,6 +53,7 @@ export default function FlightSearchResultsDrawer({
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            aria-label="Fechar resultados"
           >
             <X className="w-5 h-5" />
           </button>

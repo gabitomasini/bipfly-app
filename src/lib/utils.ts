@@ -125,3 +125,34 @@ export function getGoogleFlightsUrl(
     flightDate
   )}%20oneway&curr=BRL&hl=pt-BR${paxParam}`;
 }
+
+/**
+ * Returns a human-readable relative timestamp in PT-BR.
+ * e.g. "agora", "há 5 min", "há 2h", "ontem", "há 3 dias"
+ */
+export function formatRelativeTime(dateStr?: string | null): string {
+  if (!dateStr) return "--";
+  try {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    if (isNaN(diffMs)) return "--";
+
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHour = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHour / 24);
+
+    if (diffSec < 60) return "agora";
+    if (diffMin < 60) return `há ${diffMin} min`;
+    if (diffHour < 24) return `há ${diffHour}h`;
+    if (diffDay === 1) return "ontem";
+    if (diffDay < 7) return `há ${diffDay} dias`;
+    if (diffDay < 14) return "há 1 semana";
+    if (diffDay < 30) return `há ${Math.floor(diffDay / 7)} semanas`;
+    if (diffDay < 60) return "há 1 mês";
+    return `há ${Math.floor(diffDay / 30)} meses`;
+  } catch {
+    return "--";
+  }
+}

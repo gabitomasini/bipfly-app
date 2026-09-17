@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import PriceHistoryChart from "@/components/PriceHistoryChart";
 import MultiRoutePriceChart from "@/components/MultiRoutePriceChart";
@@ -32,7 +33,8 @@ import {
 } from "lucide-react";
 import { ROUTE_COLORS } from "@/components/MultiRoutePriceChart";
 
-export default function HistoricoPage() {
+function HistoricoContent() {
+  const searchParams = useSearchParams();
   const [routes, setRoutes] = useState<MonitoredRoute[]>([]);
   const [selectedRouteIds, setSelectedRouteIds] = useState<number[]>([]);
   const [history, setHistory] = useState<FlightHistoryEntry[]>([]);
@@ -79,6 +81,9 @@ export default function HistoricoPage() {
 
   // Carrega rotas e histórico completo inicial
   useEffect(() => {
+    const routeParam = searchParams.get("route") || searchParams.get("route_id");
+    const targetRouteId = routeParam ? parseInt(routeParam, 10) : null;
+
     Promise.all([
       fetch("/api/routes").then((res) => res.json()),
       fetch("/api/history?limit=500").then((res) => res.json()),
@@ -87,7 +92,11 @@ export default function HistoricoPage() {
         if (routesRes.success && routesRes.data?.length > 0) {
           const loadedRoutes: MonitoredRoute[] = routesRes.data;
           setRoutes(loadedRoutes);
-          setSelectedRouteIds(loadedRoutes.map((r) => r.id));
+          if (targetRouteId && loadedRoutes.some((r) => r.id === targetRouteId)) {
+            setSelectedRouteIds([targetRouteId]);
+          } else {
+            setSelectedRouteIds(loadedRoutes.map((r) => r.id));
+          }
         }
         if (historyRes.success && historyRes.data) {
           setAllHistory(historyRes.data);
@@ -95,7 +104,7 @@ export default function HistoricoPage() {
         }
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [searchParams]);
 
   // Quando o usuário seleciona exatamente 1 rota, carrega os dados específicos dela
   useEffect(() => {
@@ -888,5 +897,24 @@ export default function HistoricoPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function HistoricoPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen pb-20 bg-slate-50/60">
+          <Navbar />
+          <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-6">
+            <div className="p-8 bg-white rounded-2xl border border-slate-200 text-center text-xs text-slate-500">
+              Carregando histórico...
+            </div>
+          </main>
+        </div>
+      }
+    >
+      <HistoricoContent />
+    </Suspense>
   );
 }

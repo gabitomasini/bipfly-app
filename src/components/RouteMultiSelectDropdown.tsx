@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, Check, Layers, Plane, CheckSquare, Square } from "lucide-react";
+import { ChevronDown, Check, Layers, Plane, CheckSquare, Square, Search } from "lucide-react";
 import { MonitoredRoute } from "@/lib/types";
 import { formatDateBR, formatCurrency } from "@/lib/utils";
 import { ROUTE_COLORS } from "./MultiRoutePriceChart";
@@ -18,6 +18,7 @@ export default function RouteMultiSelectDropdown({
   onChange,
 }: RouteMultiSelectDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -36,6 +37,16 @@ export default function RouteMultiSelectDropdown({
 
   const allSelected = routes.length > 0 && selectedIds.length === routes.length;
   const isIndeterminate = selectedIds.length > 0 && selectedIds.length < routes.length;
+
+  const filteredRoutes = routes.filter((r) => {
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      r.origin.toLowerCase().includes(term) ||
+      r.destination.toLowerCase().includes(term) ||
+      r.flightDate.toLowerCase().includes(term)
+    );
+  });
 
   const handleToggleAll = () => {
     if (allSelected) {
@@ -118,9 +129,23 @@ export default function RouteMultiSelectDropdown({
             )}
           </div>
 
+          {/* Campo de Busca no Dropdown */}
+          <div className="p-2 border-b border-slate-100 bg-white">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Filtrar rotas..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+          </div>
+
           {/* Lista de Rotas com Checkboxes */}
           <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 p-1">
-            {routes.map((route, idx) => {
+            {filteredRoutes.map((route, idx) => {
               const isChecked = selectedIds.includes(route.id);
               const color = ROUTE_COLORS[idx % ROUTE_COLORS.length];
 

@@ -1,40 +1,65 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import RouteCard from "@/components/RouteCard";
 import RouteModal from "@/components/RouteModal";
 import HistoryModal from "@/components/HistoryModal";
 import FlightSearchResultsDrawer from "@/components/FlightSearchResultsDrawer";
-import CustomSelect from "@/components/CustomSelect";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import SkeletonLoader from "@/components/SkeletonLoader";
+import ExpandableSearch from "@/components/ExpandableSearch";
+import { useToast } from "@/components/Toast";
 import { MonitoredRoute, FlightOption } from "@/lib/types";
 import { formatCurrency, getAirportName } from "@/lib/utils";
 import {
   Plus,
   Search,
-  RefreshCw,
   Layers,
   List,
   ArrowRight,
   ArrowUpDown,
   CheckCircle2,
+  Plane,
+  X,
+  TrendingDown,
+  Target,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
 } from "lucide-react";
 
-type SortOption = "date_asc" | "date_desc" | "price_asc" | "price_desc";
+type SortOption = "date_asc" | "date_desc" | "price_asc" | "price_desc" | "discount_desc" | "route";
 
-export default function RotasPage() {
+function RotasContent() {
+  const searchParams = useSearchParams();
+  const { addToast } = useToast();
   const [routes, setRoutes] = useState<MonitoredRoute[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Filters and sorting
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedAirline, setSelectedAirline] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "paused" | "target">("all");
   const [sortBy, setSortBy] = useState<SortOption>("date_asc");
   const [isGrouped, setIsGrouped] = useState(true);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
+  // Modals & Dialogs
   const [isRouteModalOpen, setIsRouteModalOpen] = useState(false);
   const [editingRoute, setEditingRoute] = useState<MonitoredRoute | null>(null);
   const [historyModalRoute, setHistoryModalRoute] = useState<MonitoredRoute | null>(null);
   const [liveDrawerRoute, setLiveDrawerRoute] = useState<MonitoredRoute | null>(null);
   const [liveOptions, setLiveOptions] = useState<FlightOption[]>([]);
+  const [routeToDelete, setRouteToDelete] = useState<MonitoredRoute | null>(null);
+
+  useEffect(() => {
+    const filterParam = searchParams.get("filter");
+    if (filterParam === "active" || filterParam === "paused" || filterParam === "target") {
+      setStatusFilter(filterParam);
+    }
+  }, [searchParams]);
 
   const fetchRoutes = useCallback(async () => {
     try {
@@ -45,10 +70,11 @@ export default function RotasPage() {
       }
     } catch (err) {
       console.error(err);
+      addToast("Erro ao carregar rotas monitoradas", "error");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [addToast]);
 
   useEffect(() => {
     fetchRoutes();
@@ -56,28 +82,58 @@ export default function RotasPage() {
 
   const handleToggleActive = async (id: number, currentActive: boolean) => {
     try {
-      await fetch(`/api/routes/${id}`, {
+      const res = await fetch(`/api/routes/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: !currentActive, ativo: !currentActive }),
       });
-      fetchRoutes();
+      const json = await res.json();
+      if (json.success) {
+        addToast(
+          currentActive ? "Monitoramento pausado para esta rota" : "Monitoramento reativado com sucesso!",
+          "info"
+        );
+        fetchRoutes();
+      }
     } catch (err) {
       console.error(err);
+      addToast("Erro ao alterar status da rota", "error");
     }
   };
 
-  const handleDeleteRoute = async (id: number) => {
-    if (!confirm("Tem certeza que deseja excluir esta rota monitorada?")) return;
+  const handleDeleteRoute = (id: number) => {
+    const target = routes.find((r) => r.id === id);
+    if (target) {
+      setRouteToDelete(target);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!routeToDelete) return;
     try {
-      await fetch(`/api/routes/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/routes/${routeToDelete.id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (json.success) {
+        addToast(
+          `Rota ${routeToDelete.origin} → ${routeToDelete.destination} excluída com sucesso!`,
+          "success"
+        );
+      }
+      setRouteToDelete(null);
       fetchRoutes();
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      addToast(`Erro ao excluir rota: ${err.message}`, "error");
     }
   };
 
-  // Contadores
+  const toggleGroupCollapse = (key: string) => {
+    setCollapsedGroups((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  // KPIs & Counts
   const counts = useMemo(() => {
     const total = routes.length;
     const active = routes.filter((r) => r.isActive).length;
@@ -86,13 +142,34 @@ export default function RotasPage() {
       const p = r.latestPrice;
       return r.isActive && p !== null && p !== undefined && p <= r.targetPrice;
     }).length;
-    return { total, active, paused, target };
+
+    let lowestPrice: number | null = null;
+    routes.forEach((r) => {
+      if (r.latestPrice !== null && r.latestPrice !== undefined) {
+        if (lowestPrice === null || r.latestPrice < lowestPrice) {
+          lowestPrice = r.latestPrice;
+        }
+      }
+    });
+
+    return { total, active, paused, target, lowestPrice };
+  }, [routes]);
+
+  // Unique Airlines
+  const availableAirlines = useMemo(() => {
+    const set = new Set<string>();
+    routes.forEach((r) => {
+      if (r.lastAirline && r.lastAirline.trim()) {
+        set.add(r.lastAirline.trim());
+      }
+    });
+    return Array.from(set).sort();
   }, [routes]);
 
   // Filtros aplicados
   const filteredRoutes = useMemo(() => {
     return routes.filter((r) => {
-      // Filtro de Status
+      // 1. Status Filter
       if (statusFilter === "active" && !r.isActive) return false;
       if (statusFilter === "paused" && r.isActive) return false;
       if (statusFilter === "target") {
@@ -100,17 +177,28 @@ export default function RotasPage() {
         if (!r.isActive || p === null || p === undefined || p > r.targetPrice) return false;
       }
 
-      // Filtro de Busca
-      if (searchTerm) {
-        const term = searchTerm.toLowerCase();
+      // 2. Airline Filter
+      if (selectedAirline !== "all") {
+        if ((r.lastAirline || "").toLowerCase() !== selectedAirline.toLowerCase()) {
+          return false;
+        }
+      }
+
+      // 3. Text Search
+      if (searchTerm.trim()) {
+        const term = searchTerm.toLowerCase().trim();
         const origin = (r.origin || "").toLowerCase();
         const destination = (r.destination || "").toLowerCase();
+        const originName = (getAirportName(r.origin) || "").toLowerCase();
+        const destName = (getAirportName(r.destination) || "").toLowerCase();
         const flightDate = (r.flightDate || "").toLowerCase();
         const airline = (r.lastAirline || "").toLowerCase();
 
         return (
           origin.includes(term) ||
           destination.includes(term) ||
+          originName.includes(term) ||
+          destName.includes(term) ||
           flightDate.includes(term) ||
           airline.includes(term)
         );
@@ -118,7 +206,7 @@ export default function RotasPage() {
 
       return true;
     });
-  }, [routes, statusFilter, searchTerm]);
+  }, [routes, statusFilter, selectedAirline, searchTerm]);
 
   // Ordenação individual
   const sortedFilteredRoutes = useMemo(() => {
@@ -139,11 +227,19 @@ export default function RotasPage() {
         const priceB = b.latestPrice !== null && b.latestPrice !== undefined ? b.latestPrice : -Infinity;
         return priceB - priceA;
       }
+      if (sortBy === "discount_desc") {
+        const diffA = a.latestPrice !== null && a.latestPrice !== undefined ? a.targetPrice - a.latestPrice : -Infinity;
+        const diffB = b.latestPrice !== null && b.latestPrice !== undefined ? b.targetPrice - b.latestPrice : -Infinity;
+        return diffB - diffA;
+      }
+      if (sortBy === "route") {
+        return `${a.origin}-${a.destination}`.localeCompare(`${b.origin}-${b.destination}`);
+      }
       return 0;
     });
   }, [filteredRoutes, sortBy]);
 
-  // Agrupamento por Origem e Destino exatos (ex: SAO-MIA ou GRU-FCO) com ordenação aplicada
+  // Agrupamento por Origem e Destino exatos (ex: SAO-MIA ou GRU-FCO)
   const routeGroups = useMemo(() => {
     const map = new Map<string, MonitoredRoute[]>();
 
@@ -158,7 +254,7 @@ export default function RotasPage() {
     const groups = Array.from(map.entries()).map(([key, groupRoutes]) => {
       const [origin, destination] = key.split("-");
 
-      // Ordena as rotas internas de acordo com a preferência de ordenação
+      // Ordena as rotas internas
       const sortedRoutes = [...groupRoutes].sort((a, b) => {
         if (sortBy === "date_asc") return a.flightDate.localeCompare(b.flightDate);
         if (sortBy === "date_desc") return b.flightDate.localeCompare(a.flightDate);
@@ -172,14 +268,18 @@ export default function RotasPage() {
           const priceB = b.latestPrice !== null && b.latestPrice !== undefined ? b.latestPrice : -Infinity;
           return priceB - priceA;
         }
+        if (sortBy === "discount_desc") {
+          const diffA = a.latestPrice !== null && a.latestPrice !== undefined ? a.targetPrice - a.latestPrice : -Infinity;
+          const diffB = b.latestPrice !== null && b.latestPrice !== undefined ? b.targetPrice - b.latestPrice : -Infinity;
+          return diffB - diffA;
+        }
         return 0;
       });
 
-      // Menor preço do grupo
       let lowestPrice: number | null = null;
-      let hasTargetHit = false;
-      let earliestDate = sortedRoutes[0]?.flightDate || "";
-      let latestDate = sortedRoutes[sortedRoutes.length - 1]?.flightDate || "";
+      let targetHitsCount = 0;
+      const earliestDate = sortedRoutes[0]?.flightDate || "";
+      const latestDate = sortedRoutes[sortedRoutes.length - 1]?.flightDate || "";
 
       sortedRoutes.forEach((r) => {
         if (r.latestPrice !== null && r.latestPrice !== undefined) {
@@ -187,7 +287,7 @@ export default function RotasPage() {
             lowestPrice = r.latestPrice;
           }
           if (r.isActive && r.latestPrice <= r.targetPrice) {
-            hasTargetHit = true;
+            targetHitsCount += 1;
           }
         }
       });
@@ -198,20 +298,17 @@ export default function RotasPage() {
         destination,
         routes: sortedRoutes,
         lowestPrice,
-        hasTargetHit,
+        targetHitsCount,
+        hasTargetHit: targetHitsCount > 0,
         earliestDate,
         latestDate,
       };
     });
 
-    // Ordena os grupos entre si
+    // Ordena os grupos
     return groups.sort((a, b) => {
-      if (sortBy === "date_asc") {
-        return a.earliestDate.localeCompare(b.earliestDate);
-      }
-      if (sortBy === "date_desc") {
-        return b.latestDate.localeCompare(a.latestDate);
-      }
+      if (sortBy === "date_asc") return a.earliestDate.localeCompare(b.earliestDate);
+      if (sortBy === "date_desc") return b.latestDate.localeCompare(a.latestDate);
       if (sortBy === "price_asc") {
         const priceA = a.lowestPrice !== null ? a.lowestPrice : Infinity;
         const priceB = b.lowestPrice !== null ? b.lowestPrice : Infinity;
@@ -222,33 +319,50 @@ export default function RotasPage() {
         const priceB = b.lowestPrice !== null ? b.lowestPrice : -Infinity;
         return priceB - priceA;
       }
+      if (sortBy === "route") {
+        return a.key.localeCompare(b.key);
+      }
       return 0;
     });
   }, [filteredRoutes, sortBy]);
 
+  const hasActiveFilters = searchTerm !== "" || selectedAirline !== "all" || statusFilter !== "all";
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setSelectedAirline("all");
+    setStatusFilter("all");
+    setSortBy("date_asc");
+  };
+
   return (
-    <div className="min-h-screen pb-24 bg-slate-50/60">
+    <div className="min-h-screen pb-24 bg-slate-50/70">
       <Navbar onSearchTriggered={fetchRoutes} />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-6">
-        {/* Header */}
+        {/* Header com Ação Primária */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-              Rotas Monitoradas
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-500 font-normal mt-0.5">
-              Gerencie seus destinos, cotações e importação de histórico retroativo.
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-black tracking-tight text-slate-900">
+                Rotas Monitoradas
+              </h1>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                {counts.total} destinos
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
+              Gerenciamento completo de cotações, parâmetros de alerta e histórico retroativo.
             </p>
           </div>
 
-          <div>
+          <div className="flex items-center gap-2.5">
             <button
               onClick={() => {
                 setEditingRoute(null);
                 setIsRouteModalOpen(true);
               }}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white shadow-xs transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white shadow-xs hover:shadow-sm transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Nova Rota</span>
@@ -256,145 +370,227 @@ export default function RotasPage() {
           </div>
         </div>
 
-        {/* Clean Filter, Sort and Search Bar */}
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-          {/* Status Tabs */}
-          <div className="inline-flex rounded-xl bg-slate-200/60 p-1 text-xs font-medium overflow-x-auto shrink-0">
-            <button
-              onClick={() => setStatusFilter("all")}
-              className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
-                statusFilter === "all"
-                  ? "bg-white text-slate-900 shadow-xs font-semibold"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              Todas ({counts.total})
-            </button>
-            <button
-              onClick={() => setStatusFilter("active")}
-              className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
-                statusFilter === "active"
-                  ? "bg-white text-slate-900 shadow-xs font-semibold"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              Ativas ({counts.active})
-            </button>
-            <button
-              onClick={() => setStatusFilter("target")}
-              className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
-                statusFilter === "target"
-                  ? "bg-white text-emerald-700 shadow-xs font-semibold"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              No Alvo ({counts.target})
-            </button>
-            <button
-              onClick={() => setStatusFilter("paused")}
-              className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
-                statusFilter === "paused"
-                  ? "bg-white text-slate-900 shadow-xs font-semibold"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              Pausadas ({counts.paused})
-            </button>
+        {/* Micro-KPI Strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600 shrink-0">
+              <Plane className="w-4.5 h-4.5" />
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                Total Monitorado
+              </span>
+              <span className="text-base font-black text-slate-900 tabular-nums">
+                {counts.total} <span className="text-xs font-medium text-slate-400">rotas</span>
+              </span>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Seletor de Ordenação Customizado */}
-            <CustomSelect<SortOption>
-              value={sortBy}
-              onChange={setSortBy}
-              icon={<ArrowUpDown className="w-3.5 h-3.5" />}
-              options={[
-                { value: "date_asc", label: "Data (Próximos)" },
-                { value: "date_desc", label: "Data (Distantes)" },
-                { value: "price_asc", label: "Menor Preço" },
-                { value: "price_desc", label: "Maior Preço" },
-              ]}
-            />
-
-            {/* Toggle de Agrupamento por Origem e Destino */}
-            <div className="inline-flex rounded-xl bg-slate-200/60 p-1 text-xs font-medium shrink-0">
-              <button
-                onClick={() => setIsGrouped(true)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                  isGrouped
-                    ? "bg-white text-slate-900 shadow-xs font-semibold"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-                title="Agrupar por origem e destino"
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Agrupado</span>
-              </button>
-              <button
-                onClick={() => setIsGrouped(false)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                  !isGrouped
-                    ? "bg-white text-slate-900 shadow-xs font-semibold"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-                title="Exibir lista contínua individual"
-              >
-                <List className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Lista</span>
-              </button>
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+              <CheckCircle2 className="w-4.5 h-4.5" />
             </div>
+            <div>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                Ativas
+              </span>
+              <span className="text-base font-black text-slate-900 tabular-nums">
+                {counts.active} <span className="text-xs font-medium text-slate-400">em varredura</span>
+              </span>
+            </div>
+          </div>
 
-            {/* Quick Search */}
-            <div className="relative w-full sm:w-52">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Buscar rota, cidade..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-8.5 pr-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-400 transition-colors"
-              />
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 shrink-0">
+              <Target className="w-4.5 h-4.5" />
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                No Alvo
+              </span>
+              <span className="text-base font-black text-emerald-600 tabular-nums">
+                {counts.target} <span className="text-xs font-medium text-slate-400">prontas</span>
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+              <TrendingDown className="w-4.5 h-4.5" />
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                Menor Tarifa
+              </span>
+              <span className="text-base font-black text-slate-900 tabular-nums">
+                {counts.lowestPrice ? formatCurrency(counts.lowestPrice) : "—"}
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Route List / Groups */}
-        {loading ? (
-          <div className="py-20 flex flex-col items-center justify-center text-slate-400">
-            <RefreshCw className="w-6 h-6 animate-spin text-slate-400 mb-2" />
-            <span className="text-xs">Carregando rotas...</span>
+        {/* SaaS Filter & Control Bar */}
+        <div className="p-3 bg-white rounded-2xl border border-slate-200/90 shadow-2xs">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            {/* Status Filter Tabs */}
+            <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/60 overflow-x-auto text-[11px] shrink-0">
+              <button
+                onClick={() => setStatusFilter("all")}
+                className={`py-1 px-3 rounded-lg font-semibold transition-all whitespace-nowrap cursor-pointer ${
+                  statusFilter === "all"
+                    ? "bg-white text-slate-900 shadow-2xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Todas ({counts.total})
+              </button>
+              <button
+                onClick={() => setStatusFilter("active")}
+                className={`py-1 px-3 rounded-lg font-semibold transition-all whitespace-nowrap cursor-pointer ${
+                  statusFilter === "active"
+                    ? "bg-white text-slate-900 shadow-2xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Ativas ({counts.active})
+              </button>
+              <button
+                onClick={() => setStatusFilter("target")}
+                className={`py-1 px-3 rounded-lg font-semibold transition-all whitespace-nowrap cursor-pointer ${
+                  statusFilter === "target"
+                    ? "bg-white text-emerald-700 shadow-2xs font-bold"
+                    : "text-slate-600 hover:text-emerald-700"
+                }`}
+              >
+                Alvo ({counts.target})
+              </button>
+              <button
+                onClick={() => setStatusFilter("paused")}
+                className={`py-1 px-3 rounded-lg font-semibold transition-all whitespace-nowrap cursor-pointer ${
+                  statusFilter === "paused"
+                    ? "bg-white text-slate-900 shadow-2xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Pausadas ({counts.paused})
+              </button>
+            </div>
+
+            {/* Controls Group: Airline + Sort + Mode Toggle + Expandable Search */}
+            <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap justify-end">
+              {/* Airline Dropdown */}
+              <select
+                value={selectedAirline}
+                onChange={(e) => setSelectedAirline(e.target.value)}
+                className="py-1.5 px-3 text-xs font-medium rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 outline-none transition-all cursor-pointer"
+              >
+                <option value="all">Todas as Cias</option>
+                {availableAirlines.map((cia) => (
+                  <option key={cia} value={cia}>
+                    {cia}
+                  </option>
+                ))}
+              </select>
+
+              {/* Sort Selector */}
+              <div className="relative">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="py-1.5 pl-3 pr-7 text-xs font-medium rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 outline-none transition-all cursor-pointer"
+                >
+                  <option value="date_asc">Data (Mais Próxima)</option>
+                  <option value="date_desc">Data (Mais Distante)</option>
+                  <option value="price_asc">Menor Preço</option>
+                  <option value="discount_desc">Maior Desconto</option>
+                  <option value="price_desc">Maior Preço</option>
+                  <option value="route">Trecho A-Z</option>
+                </select>
+                <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+
+              {/* View Mode Switch */}
+              <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/60 justify-center">
+                <button
+                  onClick={() => setIsGrouped(true)}
+                  className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                    isGrouped ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500 hover:text-slate-900"
+                  }`}
+                  title="Visualização agrupada por trecho"
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setIsGrouped(false)}
+                  className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                    !isGrouped ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500 hover:text-slate-900"
+                  }`}
+                  title="Visualização em lista individual"
+                >
+                  <List className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Expandable Search Button */}
+              <ExpandableSearch
+                value={searchTerm}
+                onChange={setSearchTerm}
+                placeholder="Buscar trecho, cia..."
+              />
+            </div>
           </div>
+
+          {/* Active Filter Indicator */}
+          {hasActiveFilters && (
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+              <span className="text-slate-500 font-medium">
+                Mostrando <strong>{filteredRoutes.length}</strong> de {routes.length} rotas cadastradas
+              </span>
+              <button
+                onClick={clearFilters}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+                <span>Limpar filtros</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Route List / Groups Container */}
+        {loading ? (
+          <SkeletonLoader variant="card" count={4} />
         ) : filteredRoutes.length === 0 ? (
           <div className="bg-white p-12 text-center rounded-2xl border border-dashed border-slate-300">
-            <p className="text-sm font-medium text-slate-700 mb-1">
-              {searchTerm || statusFilter !== "all"
-                ? "Nenhuma rota encontrada para os filtros aplicados."
-                : "Nenhuma rota monitorada no momento."}
+            <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center mx-auto mb-3">
+              <Plane className="w-6 h-6" />
+            </div>
+            <h3 className="text-sm font-bold text-slate-900 mb-1">
+              {routes.length === 0
+                ? "Nenhuma rota cadastrada no momento"
+                : "Nenhuma rota corresponde aos filtros"}
+            </h3>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto mb-4 font-medium">
+              {routes.length === 0
+                ? "Cadastre sua primeira rota para iniciar o rastreamento automático de tarifas aéreas."
+                : "Tente alterar os termos de busca ou redefinir os filtros aplicados."}
             </p>
-            <p className="text-xs text-slate-400 max-w-sm mx-auto mb-4">
-              {searchTerm || statusFilter !== "all"
-                ? "Tente ajustar os termos de busca ou mudar a aba de filtro."
-                : "Cadastre uma nova rota para começar o rastreamento de tarifas."}
-            </p>
-            {searchTerm || statusFilter !== "all" ? (
-              <button
-                onClick={() => {
-                  setSearchTerm("");
-                  setStatusFilter("all");
-                }}
-                className="px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-800 transition-colors cursor-pointer"
-              >
-                Limpar Filtros
-              </button>
-            ) : (
+            {routes.length === 0 ? (
               <button
                 onClick={() => {
                   setEditingRoute(null);
                   setIsRouteModalOpen(true);
                 }}
-                className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-sky-600 hover:bg-sky-700 text-white transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white transition-colors cursor-pointer"
               >
-                Cadastrar Rota
+                Cadastrar Nova Rota
+              </button>
+            ) : (
+              <button
+                onClick={clearFilters}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+              >
+                Limpar Filtros
               </button>
             )}
           </div>
@@ -402,80 +598,106 @@ export default function RotasPage() {
           /* ========================================================== */
           /* MODO AGRUPADO POR ORIGEM E DESTINO                         */
           /* ========================================================== */
-          <div className="space-y-6">
-            {routeGroups.map((group) => (
-              <div
-                key={group.key}
-                className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden"
-              >
-                {/* Cabeçalho do Grupo */}
-                <div className="p-4 bg-slate-50/80 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-base font-bold text-slate-900 tracking-tight">
-                        {group.origin}
-                      </span>
-                      <ArrowRight className="w-4 h-4 text-slate-400" />
-                      <span className="text-base font-bold text-slate-900 tracking-tight">
-                        {group.destination}
-                      </span>
+          <div className="space-y-4">
+            {routeGroups.map((group) => {
+              const isCollapsed = Boolean(collapsedGroups[group.key]);
 
-                      <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-200/70 text-slate-700">
-                        {group.routes.length} {group.routes.length === 1 ? "data" : "datas"}
-                      </span>
+              return (
+                <div
+                  key={group.key}
+                  className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden transition-all"
+                >
+                  {/* Cabeçalho do Grupo */}
+                  <div
+                    onClick={() => toggleGroupCollapse(group.key)}
+                    className="p-4 bg-slate-50/80 hover:bg-slate-100/70 border-b border-slate-200/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 cursor-pointer select-none transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-1 rounded-lg text-slate-400 hover:text-slate-700">
+                        {isCollapsed ? (
+                          <ChevronDown className="w-4 h-4" />
+                        ) : (
+                          <ChevronUp className="w-4 h-4" />
+                        )}
+                      </div>
 
-                      {group.hasTargetHit && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          No Alvo
-                        </span>
-                      )}
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 font-black text-slate-900 tracking-tight text-base">
+                            <span className="px-2 py-0.5 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-800 shadow-2xs">
+                              {group.origin}
+                            </span>
+                            <ArrowRight className="w-4 h-4 text-slate-400 shrink-0" />
+                            <span className="px-2 py-0.5 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-800 shadow-2xs">
+                              {group.destination}
+                            </span>
+                          </div>
+
+                          <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-200/80 text-slate-700">
+                            {group.routes.length} {group.routes.length === 1 ? "data monitorada" : "datas monitoradas"}
+                          </span>
+
+                          {group.hasTargetHit && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              {group.targetHitsCount} no alvo
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="text-xs text-slate-500 font-medium mt-0.5">
+                          {getAirportName(group.origin)} → {getAirportName(group.destination)}
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="text-xs text-slate-500 font-normal mt-0.5">
-                      {getAirportName(group.origin)} → {getAirportName(group.destination)}
+                    {/* Preço Mínimo do Grupo */}
+                    <div className="flex items-center gap-3 sm:justify-end">
+                      {group.lowestPrice !== null && (
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                            A partir de
+                          </span>
+                          <span className="text-base font-black text-emerald-600 tabular-nums">
+                            {formatCurrency(group.lowestPrice)}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {group.lowestPrice !== null && (
-                    <div className="flex items-baseline gap-1.5 text-xs text-slate-600">
-                      <span className="text-slate-400">A partir de:</span>
-                      <span className="text-sm font-bold text-emerald-600">
-                        {formatCurrency(group.lowestPrice)}
-                      </span>
+                  {/* Lista de cards do grupo */}
+                  {!isCollapsed && (
+                    <div className="p-3.5 space-y-3 bg-slate-50/30 animate-fadeIn">
+                      {group.routes.map((route) => (
+                        <RouteCard
+                          key={route.id}
+                          route={route}
+                          onEdit={(r) => {
+                            setEditingRoute(r);
+                            setIsRouteModalOpen(true);
+                          }}
+                          onDelete={handleDeleteRoute}
+                          onToggleActive={handleToggleActive}
+                          onViewHistory={(r) => setHistoryModalRoute(r)}
+                          onViewLiveResults={(r, opts) => {
+                            setLiveDrawerRoute(r);
+                            setLiveOptions(opts);
+                          }}
+                          onRefreshList={fetchRoutes}
+                        />
+                      ))}
                     </div>
                   )}
                 </div>
-
-                {/* Lista de cards retangulares ordenados */}
-                <div className="p-3 space-y-2.5 bg-slate-50/30">
-                  {group.routes.map((route) => (
-                    <RouteCard
-                      key={route.id}
-                      route={route}
-                      onEdit={(r) => {
-                        setEditingRoute(r);
-                        setIsRouteModalOpen(true);
-                      }}
-                      onDelete={handleDeleteRoute}
-                      onToggleActive={handleToggleActive}
-                      onViewHistory={(r) => setHistoryModalRoute(r)}
-                      onViewLiveResults={(r, opts) => {
-                        setLiveDrawerRoute(r);
-                        setLiveOptions(opts);
-                      }}
-                      onRefreshList={fetchRoutes}
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           /* ========================================================== */
-          /* MODO LISTA CONTÍNUA INDIVIDUAL ORDENADA                    */
+          /* MODO LISTA CONTÍNUA INDIVIDUAL                             */
           /* ========================================================== */
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             {sortedFilteredRoutes.map((route) => (
               <RouteCard
                 key={route.id}
@@ -498,6 +720,7 @@ export default function RotasPage() {
         )}
       </main>
 
+      {/* Modais & Dialogs */}
       <RouteModal
         isOpen={isRouteModalOpen}
         routeToEdit={editingRoute}
@@ -517,6 +740,33 @@ export default function RotasPage() {
         options={liveOptions}
         onClose={() => setLiveDrawerRoute(null)}
       />
+
+      <ConfirmDialog
+        isOpen={Boolean(routeToDelete)}
+        onConfirm={confirmDelete}
+        onCancel={() => setRouteToDelete(null)}
+        title="Excluir Rota Monitorada"
+        message={`Tem certeza que deseja excluir a rota ${routeToDelete?.origin} → ${routeToDelete?.destination} (${routeToDelete?.flightDate})? Todo o histórico de preços associado será perdido.`}
+        confirmLabel="Excluir Rota"
+        variant="danger"
+      />
     </div>
+  );
+}
+
+export default function RotasPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen pb-24 bg-slate-50/60">
+          <Navbar />
+          <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-6">
+            <SkeletonLoader variant="card" count={4} />
+          </main>
+        </div>
+      }
+    >
+      <RotasContent />
+    </Suspense>
   );
 }
