@@ -1,0 +1,159 @@
+export interface MonitoredRoute {
+  id: number;
+  origin: string;
+  destination: string;
+  flightDate: string;
+  passengers: number;
+  targetPrice: number;
+  intervalHours?: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  // Computed / aggregated fields
+  latestPrice?: number | null;
+  lowestHistoricalPrice?: number | null;
+  lastSearchedAt?: string | null;
+  lastAirline?: string | null;
+  lastFlightNumber?: string | null;
+  lastBookingLink?: string | null;
+  totalSearches?: number;
+}
+
+export interface FlightHistoryEntry {
+  id: number;
+  searchedAt: string;
+  origin: string;
+  destination: string;
+  flightDate: string;
+  lowestPrice: number;
+  currency: string;
+  routeId: number | null;
+  airline?: string | null;
+  flightNumber?: string | null;
+  departureTime?: string | null;
+  arrivalTime?: string | null;
+  stops?: number | null;
+  durationMinutes?: number | null;
+  bookingLink?: string | null;
+}
+
+export interface HistoricalPricePoint {
+  date: string; // YYYY-MM-DD
+  timestampMs?: number;
+  price: number;
+  currency?: string;
+  source?: string;
+}
+
+export interface BackfillResult {
+  success: boolean;
+  routeId: number;
+  origin: string;
+  destination: string;
+  flightDate: string;
+  importedCount: number;
+  message: string;
+  points?: HistoricalPricePoint[];
+}
+
+export interface FlightOption {
+  origin: string;
+  destination: string;
+  flightDate: string;
+  price: number;
+  currency: string;
+  airline?: string;
+  flightNumber?: string;
+  departureTime?: string;
+  arrivalTime?: string;
+  durationMinutes?: number;
+  stops?: number;
+  provider?: string;
+  bookingLink?: string;
+}
+
+export interface AppSettings {
+  scheduleHours: string; // e.g. "00:00,03:00,06:00,09:00,12:00,15:00,18:00,21:00"
+  searchProvider: "auto" | "scraper" | "serpapi";
+  serpApiKey?: string;
+  ntfyTopic?: string;
+  autoNotify: boolean;
+}
+
+export interface SchedulerStatus {
+  running: boolean;
+  scheduleHours: string[];
+  nextRun?: string | null;
+  lastRun?: string | null;
+  lastRunStatus?: "success" | "error" | "running" | "idle";
+  lastRunSummary?: string | null;
+}
+
+export type DealLevel = "NORMAL" | "OPORTUNIDADE" | "IMPERDIVEL";
+
+export interface FlightPriceRecord {
+  id: number;
+  origin: string;
+  destination: string;
+  departureDate: string;
+  price: number;
+  recordedAt: string;
+}
+
+export interface PriceAnalysisResult {
+  sampleSize: number;
+  mean: number | null;
+  stdDev: number | null;
+  zScore: number | null;
+  dealLevel: DealLevel;
+  isDeal: boolean;
+  discountPercent: number | null;
+  message: string;
+}
+
+export type LogLevel = "INFO" | "SUCCESS" | "WARN" | "ERROR";
+export type LogCategory = "SCHEDULER" | "SCRAPER" | "SCANNER" | "NOTIFICATION" | "API" | "SYSTEM";
+
+export interface AppLog {
+  id: number;
+  timestamp: string;
+  level: LogLevel;
+  category: LogCategory;
+  message: string;
+  details?: string | null;
+  routeId?: number | null;
+}
+
+export interface LogStats {
+  total: number;
+  info: number;
+  success: number;
+  warn: number;
+  error: number;
+}
+
+export interface LogFilterOptions {
+  level?: LogLevel | "ALL";
+  category?: LogCategory | "ALL";
+  search?: string;
+  routeId?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ScanResult {
+  success: boolean;
+  routeId: number;
+  origin: string;
+  destination: string;
+  flightDate: string;
+  lowestPrice?: number;
+  currency?: string;
+  targetPrice: number;
+  isBelowTarget: boolean;
+  notified: boolean;
+  foundOptions: FlightOption[];
+  providerUsed?: string;
+  error?: string;
+  searchedAt: string;
+}

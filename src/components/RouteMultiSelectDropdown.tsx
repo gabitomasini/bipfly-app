@@ -1,0 +1,195 @@
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+import { ChevronDown, Check, Layers, Plane, CheckSquare, Square } from "lucide-react";
+import { MonitoredRoute } from "@/lib/types";
+import { formatDateBR, formatCurrency } from "@/lib/utils";
+import { ROUTE_COLORS } from "./MultiRoutePriceChart";
+
+interface RouteMultiSelectDropdownProps {
+  routes: MonitoredRoute[];
+  selectedIds: number[];
+  onChange: (newSelectedIds: number[]) => void;
+}
+
+export default function RouteMultiSelectDropdown({
+  routes,
+  selectedIds,
+  onChange,
+}: RouteMultiSelectDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const allSelected = routes.length > 0 && selectedIds.length === routes.length;
+  const isIndeterminate = selectedIds.length > 0 && selectedIds.length < routes.length;
+
+  const handleToggleAll = () => {
+    if (allSelected) {
+      // Se todos estiverem selecionados, desseleciona tudo (ou deixa o primeiro)
+      onChange([]);
+    } else {
+      onChange(routes.map((r) => r.id));
+    }
+  };
+
+  const handleToggleRoute = (id: number) => {
+    if (selectedIds.includes(id)) {
+      onChange(selectedIds.filter((item) => item !== id));
+    } else {
+      onChange([...selectedIds, id]);
+    }
+  };
+
+  // Label do botão principal
+  const getButtonLabel = () => {
+    if (routes.length === 0) return "Nenhuma rota cadastrada";
+    if (allSelected) return `Todas as rotas (${routes.length})`;
+    if (selectedIds.length === 0) return "Nenhuma rota selecionada";
+    if (selectedIds.length === 1) {
+      const r = routes.find((item) => item.id === selectedIds[0]);
+      return r ? `${r.origin} → ${r.destination} (${formatDateBR(r.flightDate)})` : "1 rota selecionada";
+    }
+    return `${selectedIds.length} de ${routes.length} rotas selecionadas`;
+  };
+
+  return (
+    <div className="relative" ref={containerRef}>
+      {/* Botão Trigger Customizado */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200/90 hover:border-slate-300 text-xs font-medium text-slate-800 shadow-xs transition-all cursor-pointer min-w-[230px] justify-between"
+      >
+        <div className="flex items-center gap-2 truncate">
+          <Layers className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+          <span className="truncate font-semibold">{getButtonLabel()}</span>
+        </div>
+
+        <ChevronDown
+          className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${
+            isOpen ? "rotate-180 text-indigo-600" : ""
+          }`}
+        />
+      </button>
+
+      {/* Popover Customizado */}
+      {isOpen && (
+        <div className="absolute right-0 sm:left-0 top-full mt-1.5 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden animate-fadeIn text-xs">
+          {/* Header do Menu */}
+          <div className="p-3 bg-slate-50/90 border-b border-slate-100 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={handleToggleAll}
+              className="flex items-center gap-2 font-bold text-slate-800 hover:text-slate-950 cursor-pointer"
+            >
+              <div
+                className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                  allSelected
+                    ? "bg-indigo-600 border-indigo-600 text-white"
+                    : isIndeterminate
+                    ? "bg-indigo-100 border-indigo-400 text-indigo-700"
+                    : "border-slate-300 bg-white"
+                }`}
+              >
+                {allSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                {isIndeterminate && <span className="w-2 h-0.5 bg-indigo-700 rounded-full" />}
+              </div>
+              <span>Selecionar Todas ({routes.length})</span>
+            </button>
+
+            {selectedIds.length > 0 && selectedIds.length < routes.length && (
+              <span className="text-[11px] font-semibold text-indigo-600">
+                {selectedIds.length} ativas
+              </span>
+            )}
+          </div>
+
+          {/* Lista de Rotas com Checkboxes */}
+          <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 p-1">
+            {routes.map((route, idx) => {
+              const isChecked = selectedIds.includes(route.id);
+              const color = ROUTE_COLORS[idx % ROUTE_COLORS.length];
+
+              return (
+                <button
+                  key={route.id}
+                  type="button"
+                  onClick={() => handleToggleRoute(route.id)}
+                  className={`w-full px-3 py-2.5 text-left flex items-center justify-between gap-3 hover:bg-slate-50 transition-colors rounded-xl cursor-pointer ${
+                    isChecked ? "bg-indigo-50/40" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${
+                        isChecked
+                          ? "bg-indigo-600 border-indigo-600 text-white"
+                          : "border-slate-300 bg-white"
+                      }`}
+                    >
+                      {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                    </div>
+
+                    <div className="truncate">
+                      <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: color }}
+                        />
+                        <span>{route.origin} → {route.destination}</span>
+                        <span className="text-slate-400 font-normal text-[11px]">
+                          ({formatDateBR(route.flightDate)})
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-400 font-medium">
+                        Meta: {formatCurrency(route.targetPrice)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {route.latestPrice !== null && route.latestPrice !== undefined && (
+                    <span className="text-xs font-bold text-slate-700 shrink-0">
+                      {formatCurrency(route.latestPrice)}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Footer com Ações */}
+          <div className="p-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px]">
+            <button
+              type="button"
+              onClick={() => onChange(routes.map((r) => r.id))}
+              className="text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer"
+            >
+              Marcar todas
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="text-slate-500 hover:text-slate-700 font-medium cursor-pointer"
+            >
+              Desmarcar todas
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
