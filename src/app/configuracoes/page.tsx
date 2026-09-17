@@ -219,7 +219,7 @@ export default function ConfiguracoesPage() {
     <div className="min-h-screen pb-16 bg-slate-50">
       <Navbar />
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
         {/* Header */}
         <div>
           <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2.5">
@@ -617,7 +617,7 @@ export default function ConfiguracoesPage() {
           {/* Sticky Save Bar */}
           {isDirty && (
             <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-3 shadow-lg animate-fadeIn">
-              <div className="max-w-4xl mx-auto flex items-center justify-between">
+              <div className="max-w-6xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-2 text-xs font-semibold text-amber-700">
                   <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
                   <span>Existem alterações não salvas</span>
