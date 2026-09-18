@@ -1,0 +1,22 @@
+services:
+  radar-passagens:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: radar-passagens
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - SCHEDULE_HOURS=00:00,03:00,06:00,09:00,12:00,15:00,18:00,21:00
+      - SEARCH_PROVIDER=auto
+      - SERPAPI_API_KEY=${SERPAPI_API_KEY:-}
+      - NTFY_TOPIC=${NTFY_TOPIC:-radar-passagens}
+      - AUTO_NOTIFY=true
+    volumes:
+      - radar-data:/app/data
+      - ./radar_passagens.db:/app/radar_passagens.db
+
+volumes:
+  radar-data:
