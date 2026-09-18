@@ -8,6 +8,8 @@ import MultiRoutePriceChart from "@/components/MultiRoutePriceChart";
 import StatisticalAnalysisCard from "@/components/StatisticalAnalysisCard";
 import RouteMultiSelectDropdown from "@/components/RouteMultiSelectDropdown";
 import ExpandableSearch from "@/components/ExpandableSearch";
+import CustomSelect from "@/components/CustomSelect";
+import Tooltip from "@/components/Tooltip";
 import AirlineBadge from "@/components/AirlineBadge";
 import { MonitoredRoute, FlightHistoryEntry } from "@/lib/types";
 import {
@@ -332,25 +334,26 @@ function HistoricoContent() {
   const renderSortHeader = (label: string, field: "searchedAt" | "lowestPrice", align: "left" | "right" | "center" = "left") => {
     const isActive = sortField === field;
     return (
-      <button
-        type="button"
-        onClick={() => handleToggleSort(field)}
-        className={`inline-flex items-center gap-1.5 uppercase font-bold text-[10px] tracking-wider transition-colors cursor-pointer select-none hover:text-slate-950 ${
-          isActive ? "text-sky-700 font-black" : "text-slate-500"
-        } ${align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start"}`}
-        title={`Ordenar por ${label}`}
-      >
-        <span>{label}</span>
-        {isActive ? (
-          sortDirection === "asc" ? (
-            <ArrowUp className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+      <Tooltip content={`Ordenar por ${label}`} position="top">
+        <button
+          type="button"
+          onClick={() => handleToggleSort(field)}
+          className={`inline-flex items-center gap-1.5 uppercase font-bold text-[10px] tracking-wider transition-colors cursor-pointer select-none hover:text-slate-950 ${
+            isActive ? "text-sky-700 font-black" : "text-slate-500"
+          } ${align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start"}`}
+        >
+          <span>{label}</span>
+          {isActive ? (
+            sortDirection === "asc" ? (
+              <ArrowUp className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+            ) : (
+              <ArrowDown className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+            )
           ) : (
-            <ArrowDown className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-          )
-        ) : (
-          <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60 shrink-0" />
-        )}
-      </button>
+            <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60 shrink-0" />
+          )}
+        </button>
+      </Tooltip>
     );
   };
 
@@ -558,18 +561,20 @@ function HistoricoContent() {
 
                   {/* Airline Filter */}
                   {historyAirlines.length > 0 && (
-                    <select
-                      value={airlineFilter}
-                      onChange={(e) => setAirlineFilter(e.target.value)}
-                      className="py-1.5 px-3 text-xs font-medium rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 outline-none transition-all cursor-pointer"
-                    >
-                      <option value="all">Todas as Cias</option>
-                      {historyAirlines.map((cia) => (
-                        <option key={cia} value={cia}>
-                          {cia}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="w-36">
+                      <CustomSelect
+                        value={airlineFilter}
+                        onChange={(val) => setAirlineFilter(val)}
+                        options={[
+                          { value: "all", label: "Todas as Cias" },
+                          ...historyAirlines.map((cia) => ({
+                            value: cia,
+                            label: cia,
+                          })),
+                        ]}
+                        size="sm"
+                      />
+                    </div>
                   )}
 
                   {/* Expandable Search */}

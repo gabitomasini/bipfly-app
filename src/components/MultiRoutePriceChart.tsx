@@ -14,6 +14,7 @@ import {
 import { FlightHistoryEntry, MonitoredRoute } from "@/lib/types";
 import { formatCurrency, formatDateTimeBR, formatDateBR } from "@/lib/utils";
 import { Eye, EyeOff, Layers, Percent, DollarSign, Filter, Calendar } from "lucide-react";
+import CustomTooltip from "./Tooltip";
 
 export const ROUTE_COLORS = [
   "#0284c7", // Sky 600
@@ -263,18 +264,19 @@ export default function MultiRoutePriceChart({
               <DollarSign className="w-3 h-3" />
               <span>R$ Reais</span>
             </button>
-            <button
-              onClick={() => setViewMode("normalized")}
-              className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                viewMode === "normalized"
-                  ? "bg-indigo-600 text-white shadow-xs"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-              title="Compara a proximidade da meta percentual de cada voo"
-            >
-              <Percent className="w-3 h-3" />
-              <span>% da Meta</span>
-            </button>
+            <CustomTooltip content="Compara a proximidade da meta percentual de cada voo">
+              <button
+                onClick={() => setViewMode("normalized")}
+                className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === "normalized"
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Percent className="w-3 h-3" />
+                <span>% da Meta</span>
+              </button>
+            </CustomTooltip>
           </div>
         </div>
 

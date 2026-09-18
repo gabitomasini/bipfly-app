@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Search, X } from "lucide-react";
+import Tooltip from "./Tooltip";
 
 interface ExpandableSearchProps {
   value: string;
@@ -73,15 +74,16 @@ export default function ExpandableSearch({
   return (
     <div ref={containerRef} className={`relative flex items-center ${className}`}>
       {!isOpen ? (
-        <button
-          type="button"
-          onClick={handleToggle}
-          className="flex items-center justify-center w-8.5 h-8.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-white hover:border-slate-300 text-slate-500 hover:text-slate-900 transition-all cursor-pointer shadow-2xs"
-          title="Buscar"
-          aria-label="Abrir campo de busca"
-        >
-          <Search className="w-4 h-4" />
-        </button>
+        <Tooltip content="Buscar">
+          <button
+            type="button"
+            onClick={handleToggle}
+            className="flex items-center justify-center w-8.5 h-8.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-white hover:border-slate-300 text-slate-500 hover:text-slate-900 transition-all cursor-pointer shadow-2xs"
+            aria-label="Abrir campo de busca"
+          >
+            <Search className="w-4 h-4" />
+          </button>
+        </Tooltip>
       ) : (
         <div className="relative flex items-center animate-fadeIn">
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 pointer-events-none" />
@@ -94,15 +96,16 @@ export default function ExpandableSearch({
             placeholder={placeholder}
             className="w-44 sm:w-52 pl-8 pr-7 py-1.5 text-xs font-medium rounded-xl border border-sky-400 bg-white shadow-2xs focus:outline-none focus:ring-2 focus:ring-sky-500/20 text-slate-900 placeholder-slate-400 transition-all"
           />
-          <button
-            type="button"
-            onClick={handleClear}
-            className="absolute right-2 text-slate-400 hover:text-slate-700 p-0.5 rounded cursor-pointer"
-            title="Fechar busca"
-            aria-label="Fechar busca"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+          <Tooltip content="Fechar busca">
+            <button
+              type="button"
+              onClick={handleClear}
+              className="absolute right-2 text-slate-400 hover:text-slate-700 p-0.5 rounded cursor-pointer"
+              aria-label="Fechar busca"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </Tooltip>
         </div>
       )}
     </div>

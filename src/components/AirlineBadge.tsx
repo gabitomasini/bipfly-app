@@ -162,6 +162,8 @@ function resolveAirline(nameStr?: string | null): AirlineConfig {
   };
 }
 
+import Tooltip from "./Tooltip";
+
 export default function AirlineBadge({ airline, className = "", size = "md" }: AirlineBadgeProps) {
   if (!airline) {
     return <span className="text-slate-400 text-xs">—</span>;
@@ -171,31 +173,33 @@ export default function AirlineBadge({ airline, className = "", size = "md" }: A
 
   if (size === "sm") {
     return (
-      <span
-        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[11px] font-medium ${config.badgeBg} ${config.textColor} ${className}`}
-        title={config.name}
-      >
+      <Tooltip content={config.name}>
         <span
-          className={`w-4 h-4 rounded text-[9px] font-bold flex items-center justify-center shrink-0 ${config.accentBg}`}
+          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[11px] font-medium ${config.badgeBg} ${config.textColor} ${className}`}
         >
-          {config.shortCode}
+          <span
+            className={`w-4 h-4 rounded text-[9px] font-bold flex items-center justify-center shrink-0 ${config.accentBg}`}
+          >
+            {config.shortCode}
+          </span>
+          <span className="truncate max-w-[110px]">{config.name}</span>
         </span>
-        <span className="truncate max-w-[110px]">{config.name}</span>
-      </span>
+      </Tooltip>
     );
   }
 
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold ${config.badgeBg} ${config.textColor} shadow-2xs ${className}`}
-      title={config.name}
-    >
+    <Tooltip content={config.name}>
       <span
-        className={`w-4.5 h-4.5 rounded-sm text-[10px] font-black flex items-center justify-center shrink-0 shadow-2xs ${config.accentBg}`}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold ${config.badgeBg} ${config.textColor} shadow-2xs ${className}`}
       >
-        {config.shortCode}
+        <span
+          className={`w-4.5 h-4.5 rounded-sm text-[10px] font-black flex items-center justify-center shrink-0 shadow-2xs ${config.accentBg}`}
+        >
+          {config.shortCode}
+        </span>
+        <span className="truncate max-w-[130px]">{config.name}</span>
       </span>
-      <span className="truncate max-w-[130px]">{config.name}</span>
-    </span>
+    </Tooltip>
   );
 }

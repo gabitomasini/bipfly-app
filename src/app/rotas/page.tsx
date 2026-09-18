@@ -10,6 +10,8 @@ import FlightSearchResultsDrawer from "@/components/FlightSearchResultsDrawer";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import SkeletonLoader from "@/components/SkeletonLoader";
 import ExpandableSearch from "@/components/ExpandableSearch";
+import CustomSelect from "@/components/CustomSelect";
+import Tooltip from "@/components/Tooltip";
 import { useToast } from "@/components/Toast";
 import { MonitoredRoute, FlightOption } from "@/lib/types";
 import { formatCurrency, getAirportName } from "@/lib/utils";
@@ -478,57 +480,55 @@ function RotasContent() {
 
             {/* Controls Group: Airline + Sort + Mode Toggle + Expandable Search */}
             <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap justify-end">
-              {/* Airline Dropdown */}
-              <select
+              {/* Airline CustomSelect */}
+              <CustomSelect
                 value={selectedAirline}
-                onChange={(e) => setSelectedAirline(e.target.value)}
-                className="py-1.5 px-3 text-xs font-medium rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 outline-none transition-all cursor-pointer"
-              >
-                <option value="all">Todas as Cias</option>
-                {availableAirlines.map((cia) => (
-                  <option key={cia} value={cia}>
-                    {cia}
-                  </option>
-                ))}
-              </select>
+                onChange={setSelectedAirline}
+                options={[
+                  { value: "all", label: "Todas as Cias" },
+                  ...availableAirlines.map((cia) => ({ value: cia, label: cia })),
+                ]}
+              />
 
-              {/* Sort Selector */}
-              <div className="relative">
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="py-1.5 pl-3 pr-7 text-xs font-medium rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 outline-none transition-all cursor-pointer"
-                >
-                  <option value="date_asc">Data (Mais Próxima)</option>
-                  <option value="date_desc">Data (Mais Distante)</option>
-                  <option value="price_asc">Menor Preço</option>
-                  <option value="discount_desc">Maior Desconto</option>
-                  <option value="price_desc">Maior Preço</option>
-                  <option value="route">Trecho A-Z</option>
-                </select>
-                <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
+              {/* Sort CustomSelect */}
+              <CustomSelect
+                value={sortBy}
+                onChange={(val) => setSortBy(val as any)}
+                icon={<ArrowUpDown className="w-3.5 h-3.5" />}
+                options={[
+                  { value: "date_asc", label: "Data (Mais Próxima)" },
+                  { value: "date_desc", label: "Data (Mais Distante)" },
+                  { value: "price_asc", label: "Menor Preço" },
+                  { value: "discount_desc", label: "Maior Desconto" },
+                  { value: "price_desc", label: "Maior Preço" },
+                  { value: "route", label: "Trecho A-Z" },
+                ]}
+              />
 
               {/* View Mode Switch */}
               <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/60 justify-center">
-                <button
-                  onClick={() => setIsGrouped(true)}
-                  className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                    isGrouped ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500 hover:text-slate-900"
-                  }`}
-                  title="Visualização agrupada por trecho"
-                >
-                  <Layers className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => setIsGrouped(false)}
-                  className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                    !isGrouped ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500 hover:text-slate-900"
-                  }`}
-                  title="Visualização em lista individual"
-                >
-                  <List className="w-3.5 h-3.5" />
-                </button>
+                <Tooltip content="Visualização agrupada por trecho">
+                  <button
+                    onClick={() => setIsGrouped(true)}
+                    className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                      isGrouped ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500 hover:text-slate-900"
+                    }`}
+                    aria-label="Visualização agrupada por trecho"
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                  </button>
+                </Tooltip>
+                <Tooltip content="Visualização em lista individual">
+                  <button
+                    onClick={() => setIsGrouped(false)}
+                    className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                      !isGrouped ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500 hover:text-slate-900"
+                    }`}
+                    aria-label="Visualização em lista individual"
+                  >
+                    <List className="w-3.5 h-3.5" />
+                  </button>
+                </Tooltip>
               </div>
 
               {/* Expandable Search Button */}

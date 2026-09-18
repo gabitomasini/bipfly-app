@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Plane, Check, ChevronDown, X, Sparkles } from "lucide-react";
 import { AirportInfo, searchAirports, AIRPORTS } from "@/lib/airports-data";
+import Tooltip from "./Tooltip";
 
 interface AirportComboboxProps {
   label: string;
@@ -132,14 +133,15 @@ export default function AirportCombobox({
 
         <div className="flex items-center gap-1 shrink-0">
           {(value || query) && (
-            <button
-              type="button"
-              onClick={handleClear}
-              className="p-1 text-slate-400 hover:text-slate-600 rounded-md cursor-pointer"
-              title="Limpar"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+            <Tooltip content="Limpar">
+              <button
+                type="button"
+                onClick={handleClear}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-md cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </Tooltip>
           )}
           <ChevronDown
             className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${

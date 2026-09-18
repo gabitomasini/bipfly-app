@@ -5,6 +5,7 @@ import { Sparkles, Flame, CheckCircle, Info, TrendingDown, HelpCircle, Activity,
 import { formatCurrency } from "@/lib/utils";
 import { analyzeFlightPrice } from "@/lib/stats/flight-anomaly-detector";
 import { FlightHistoryEntry } from "@/lib/types";
+import Tooltip from "./Tooltip";
 
 interface StatisticalAnalysisCardProps {
   history: FlightHistoryEntry[];
@@ -204,13 +205,21 @@ export default function StatisticalAnalysisCard({
 
           <div className="relative h-4 rounded-full bg-slate-100 overflow-hidden flex border border-slate-200">
             {/* Faixa Imperdível (Z <= -2.0) */}
-            <div className="w-1/4 bg-emerald-400/80 border-r border-white" title="Imperdível (Z <= -2.0)" />
+            <Tooltip content="Imperdível (Z <= -2.0)">
+              <div className="w-1/4 bg-emerald-400/80 border-r border-white h-full" />
+            </Tooltip>
             {/* Faixa Oportunidade (-2.0 < Z <= -1.5) */}
-            <div className="w-1/6 bg-sky-300/80 border-r border-white" title="Oportunidade (-2.0 < Z <= -1.5)" />
+            <Tooltip content="Oportunidade (-2.0 < Z <= -1.5)">
+              <div className="w-1/6 bg-sky-300/80 border-r border-white h-full" />
+            </Tooltip>
             {/* Faixa Normal (-1.5 < Z < +1.5) */}
-            <div className="w-1/3 bg-slate-200/90 border-r border-white" title="Normal (-1.5 a +1.5)" />
+            <Tooltip content="Normal (-1.5 a +1.5)">
+              <div className="w-1/3 bg-slate-200/90 border-r border-white h-full" />
+            </Tooltip>
             {/* Faixa Alto (Z >= +1.5) */}
-            <div className="w-1/4 bg-rose-300/80" title="Preço Alto (Z >= +1.5)" />
+            <Tooltip content="Preço Alto (Z >= +1.5)">
+              <div className="w-1/4 bg-rose-300/80 h-full" />
+            </Tooltip>
           </div>
 
           <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1 font-medium px-1">

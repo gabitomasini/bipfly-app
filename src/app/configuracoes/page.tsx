@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import { AppSettings, SchedulerStatus } from "@/lib/types";
 import { formatDateTimeBR, formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/Toast";
+import Tooltip from "@/components/Tooltip";
 import {
   Settings,
   Clock,
@@ -440,14 +441,16 @@ export default function ConfiguracoesPage() {
                   >
                     <Clock className="w-3.5 h-3.5 text-sky-600" />
                     <span>{hour}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveHour(hour)}
-                      className="text-slate-400 hover:text-rose-600 transition-colors ml-1 cursor-pointer"
-                      title="Remover horário"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <Tooltip content="Remover horário">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveHour(hour)}
+                        className="text-slate-400 hover:text-rose-600 transition-colors ml-1 cursor-pointer"
+                        aria-label="Remover horário"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </Tooltip>
                   </div>
                 ))}
               </div>

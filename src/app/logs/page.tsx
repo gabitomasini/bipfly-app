@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Navbar from "@/components/Navbar";
+import CustomSelect from "@/components/CustomSelect";
+import Tooltip from "@/components/Tooltip";
 import { AppLog, LogCategory, LogLevel, LogStats } from "@/lib/types";
 import { formatDateTimeBR, formatRelativeTime } from "@/lib/utils";
 import {
@@ -312,15 +314,16 @@ export default function LogsPage() {
           {/* Botões de Ação Rápida */}
           <div className="flex items-center gap-2.5 flex-wrap">
             {/* Botão Disparar Busca Imediata (Para testar live stream) */}
-            <button
-              onClick={handleTriggerSearchNow}
-              disabled={isSearchingNow}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
-              title="Disparar consulta agora para acompanhar os eventos ao vivo"
-            >
-              <Zap className={`w-3.5 h-3.5 ${isSearchingNow ? "animate-spin text-white" : "text-amber-300"}`} />
-              <span>{isSearchingNow ? "Executando..." : "Disparar Busca Agora"}</span>
-            </button>
+            <Tooltip content="Disparar consulta agora para acompanhar os eventos ao vivo">
+              <button
+                onClick={handleTriggerSearchNow}
+                disabled={isSearchingNow}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <Zap className={`w-3.5 h-3.5 ${isSearchingNow ? "animate-spin text-white" : "text-amber-300"}`} />
+                <span>{isSearchingNow ? "Executando..." : "Disparar Busca Agora"}</span>
+              </button>
+            </Tooltip>
 
             {/* Toggle Stream Ao Vivo */}
             <button
@@ -345,26 +348,28 @@ export default function LogsPage() {
             </button>
 
             {/* Botão Recarregar Histórico */}
-            <button
-              onClick={() => fetchInitialLogs()}
-              disabled={loading}
-              className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
-              title="Recarregar logs do banco de dados"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-sky-600" : ""}`} />
-              <span>Recarregar</span>
-            </button>
+            <Tooltip content="Recarregar logs do banco de dados">
+              <button
+                onClick={() => fetchInitialLogs()}
+                disabled={loading}
+                className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-sky-600" : ""}`} />
+                <span>Recarregar</span>
+              </button>
+            </Tooltip>
 
             {/* Botão Limpar */}
-            <button
-              onClick={handleClearLogs}
-              disabled={isClearing || stats.total === 0}
-              className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Apagar todos os logs gravados"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Limpar</span>
-            </button>
+            <Tooltip content="Apagar todos os logs gravados">
+              <button
+                onClick={handleClearLogs}
+                disabled={isClearing || stats.total === 0}
+                className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Limpar</span>
+              </button>
+            </Tooltip>
           </div>
         </div>
 
@@ -573,13 +578,12 @@ export default function LogsPage() {
                               </span>
 
                               {/* Timestamp com Formato Relativo e Tooltip */}
-                              <span
-                                className="text-xs text-slate-400 font-medium flex items-center gap-1 cursor-default"
-                                title={formatDateTimeBR(log.timestamp)}
-                              >
-                                <Clock className="w-3 h-3 text-slate-400" />
-                                <span>{formatRelativeTime(log.timestamp)}</span>
-                              </span>
+                              <Tooltip content={formatDateTimeBR(log.timestamp)}>
+                                <span className="text-xs text-slate-400 font-medium flex items-center gap-1 cursor-default">
+                                  <Clock className="w-3 h-3 text-slate-400" />
+                                  <span>{formatRelativeTime(log.timestamp)}</span>
+                                </span>
+                              </Tooltip>
 
                               {/* Live Badge if just arrived */}
                               {isJustArrived && (
@@ -653,19 +657,22 @@ export default function LogsPage() {
 
                     <div className="flex items-center gap-1.5 ml-2">
                       <span className="text-slate-400">Por página:</span>
-                      <select
-                        value={itemsPerPage}
-                        onChange={(e) => {
-                          setItemsPerPage(Number(e.target.value));
-                          setCurrentPage(1);
-                        }}
-                        className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:border-sky-500 cursor-pointer"
-                      >
-                        <option value={10}>10</option>
-                        <option value={25}>25</option>
-                        <option value={50}>50</option>
-                        <option value={100}>100</option>
-                      </select>
+                      <div className="w-20">
+                        <CustomSelect
+                          value={String(itemsPerPage)}
+                          onChange={(val) => {
+                            setItemsPerPage(Number(val));
+                            setCurrentPage(1);
+                          }}
+                          options={[
+                            { value: "10", label: "10" },
+                            { value: "25", label: "25" },
+                            { value: "50", label: "50" },
+                            { value: "100", label: "100" },
+                          ]}
+                          size="sm"
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -674,22 +681,24 @@ export default function LogsPage() {
                       Página {currentPage} de {totalPages}
                     </span>
                     <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                        disabled={currentPage === 1}
-                        className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                        title="Página Anterior"
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                        disabled={currentPage >= totalPages}
-                        className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                        title="Próxima Página"
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
+                      <Tooltip content="Página Anterior">
+                        <button
+                          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                          disabled={currentPage === 1}
+                          className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="Próxima Página">
+                        <button
+                          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                          disabled={currentPage >= totalPages}
+                          className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </Tooltip>
                     </div>
                   </div>
                 </div>

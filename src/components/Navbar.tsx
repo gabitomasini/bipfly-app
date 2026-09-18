@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Plane, Compass, Settings, RefreshCw, BarChart2, Terminal, Sparkles } from "lucide-react";
 import { SchedulerStatus, AppSettings } from "@/lib/types";
+import Tooltip from "@/components/Tooltip";
 import { useToast } from "@/components/Toast";
 
 interface NavbarProps {
@@ -32,38 +33,37 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
 
   useEffect(() => {
     fetchStatusAndSettings();
-    const interval = setInterval(fetchStatusAndSettings, 30000);
+    const interval = setInterval(fetchStatusAndSettings, 15000);
     return () => clearInterval(interval);
   }, []);
 
   const handleRunAllNow = async () => {
-    if (isSearching) return;
     setIsSearching(true);
-    addToast("Consultando passagens de todas as rotas...", "info");
     try {
-      const res = await fetch("/api/scheduler", {
+      const res = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "run_now" }),
+        body: JSON.stringify({}),
       });
-      const json = await res.json();
-      if (json.success) {
-        const successes = json.data?.successes ?? json.data?.sucessos ?? 0;
-        addToast(`Varredura concluída! ${successes} rota(s) atualizadas.`, "success");
-        fetchStatusAndSettings();
-        if (onSearchTriggered) onSearchTriggered();
+      const data = await res.json();
+      if (data.success) {
+        addToast(
+          `Busca iniciada! ${data.searched || "Todas as"} rotas ativas estão sendo atualizadas.`,
+          "success"
+        );
+        onSearchTriggered?.();
       } else {
-        addToast(`Erro: ${json.error || "Falha na busca"}`, "error");
+        addToast(data.error || "Não foi possível iniciar a busca agora.", "error");
       }
-    } catch (err: any) {
-      addToast(`Erro de conexão: ${err.message}`, "error");
+    } catch {
+      addToast("Erro de conexão. Verifique o servidor.", "error");
     } finally {
       setIsSearching(false);
     }
   };
 
   const navLinks = [
-    { href: "/", label: "Dashboard", icon: Compass },
+    { href: "/", label: "Dashboard", icon: Sparkles },
     { href: "/rotas", label: "Rotas", icon: Plane },
     { href: "/historico", label: "Histórico", icon: BarChart2 },
     { href: "/logs", label: "Logs", icon: Terminal },
@@ -71,44 +71,54 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
   ];
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200/90 bg-white/95 backdrop-blur-md shadow-2xs">
+    <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/80">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-15 gap-4">
-          {/* Brand / Logo */}
-          <Link href="/" className="flex items-center gap-2.5 shrink-0 group py-1">
-            <div className="flex items-center justify-center w-8.5 h-8.5 rounded-xl bg-slate-900 text-white shadow-xs group-hover:bg-sky-600 transition-colors">
-              <Plane className="w-4.5 h-4.5 transform -rotate-45" />
+        <div className="flex items-center justify-between h-16 gap-4">
+          {/* Logo & Brand */}
+          <Link
+            href="/"
+            className="flex items-center gap-2.5 group shrink-0 transition-opacity hover:opacity-90"
+          >
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-600 to-indigo-600 flex items-center justify-center text-white shadow-xs shadow-sky-500/20 group-hover:scale-105 transition-transform">
+              <Plane className="w-5 h-5 -rotate-45" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="text-sm font-bold tracking-tight text-slate-900">
-                  Radar de Passagens
+                <span className="font-black text-base text-slate-900 tracking-tight">
+                  Radar Passagens
                 </span>
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200/60">
+                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200/60">
                   SaaS
                 </span>
               </div>
+              <p className="text-[11px] text-slate-400 font-medium hidden sm:block">
+                Monitor de Ofertas Aéreas
+              </p>
             </div>
           </Link>
 
-          {/* Navigation Links - Centered & Prominent active state */}
-          <nav className="hidden md:flex items-center p-1 bg-slate-100/80 rounded-xl border border-slate-200/60">
+          {/* Navigation Links with Active Indicator Pill */}
+          <nav className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-2xl border border-slate-200/60 overflow-x-auto max-w-full">
             {navLinks.map((link) => {
               const Icon = link.icon;
-              const isActive = pathname === link.href;
+              const isActive =
+                link.href === "/"
+                  ? pathname === "/"
+                  : pathname.startsWith(link.href);
+
               return (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 whitespace-nowrap select-none ${
                     isActive
-                      ? "bg-white text-slate-900 shadow-xs border border-slate-200/60"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                      ? "bg-white text-slate-900 shadow-2xs font-bold ring-1 ring-slate-900/5"
+                      : "text-slate-500 hover:text-slate-900 hover:bg-slate-200/50"
                   }`}
                 >
                   <Icon
-                    className={`w-3.5 h-3.5 transition-colors ${
-                      isActive ? "text-sky-600" : "text-slate-400"
+                    className={`w-3.5 h-3.5 ${
+                      isActive ? "text-sky-600 font-bold" : "text-slate-400"
                     }`}
                   />
                   <span>{link.label}</span>
@@ -119,23 +129,24 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
 
           {/* Search Trigger CTA */}
           <div className="flex items-center gap-2.5 shrink-0">
-            <button
-              onClick={handleRunAllNow}
-              disabled={isSearching}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-xs ${
-                isSearching
-                  ? "bg-sky-50 border border-sky-200 text-sky-700"
-                  : "bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white"
-              } disabled:opacity-75`}
-              title="Executar varredura agora para todas as rotas ativas"
-            >
-              <RefreshCw
-                className={`w-3.5 h-3.5 ${
-                  isSearching ? "animate-spin text-sky-600" : "text-slate-300"
-                }`}
-              />
-              <span>{isSearching ? "Varrendo rotas..." : "Buscar Todos"}</span>
-            </button>
+            <Tooltip content="Executar varredura agora para todas as rotas ativas">
+              <button
+                onClick={handleRunAllNow}
+                disabled={isSearching}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-xs ${
+                  isSearching
+                    ? "bg-sky-50 border border-sky-200 text-sky-700"
+                    : "bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white"
+                } disabled:opacity-75`}
+              >
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${
+                    isSearching ? "animate-spin text-sky-600" : "text-slate-300"
+                  }`}
+                />
+                <span>{isSearching ? "Varrendo rotas..." : "Buscar Todos"}</span>
+              </button>
+            </Tooltip>
           </div>
         </div>
       </div>

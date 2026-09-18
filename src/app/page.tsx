@@ -18,6 +18,8 @@ import {
 } from "@/lib/utils";
 import SkeletonLoader from "@/components/SkeletonLoader";
 import ExpandableSearch from "@/components/ExpandableSearch";
+import CustomSelect from "@/components/CustomSelect";
+import Tooltip from "@/components/Tooltip";
 import { useToast } from "@/components/Toast";
 import {
   Plus,
@@ -390,35 +392,29 @@ export default function DashboardPage() {
 
               {/* Controls Group: Airline + Sort + Search */}
               <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap justify-end">
-                {/* Airline Dropdown */}
-                <select
+                {/* Airline CustomSelect */}
+                <CustomSelect
                   value={selectedAirline}
-                  onChange={(e) => setSelectedAirline(e.target.value)}
-                  className="py-1.5 px-3 text-xs font-medium rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 outline-none transition-all cursor-pointer"
-                >
-                  <option value="all">Todas as Cias</option>
-                  {availableAirlines.map((cia) => (
-                    <option key={cia} value={cia}>
-                      {cia}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setSelectedAirline}
+                  options={[
+                    { value: "all", label: "Todas as Cias" },
+                    ...availableAirlines.map((cia) => ({ value: cia, label: cia })),
+                  ]}
+                />
 
-                {/* Sort Dropdown */}
-                <div className="relative">
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as any)}
-                    className="py-1.5 pl-3 pr-7 text-xs font-medium rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 outline-none transition-all cursor-pointer"
-                  >
-                    <option value="price_asc">Menor Preço</option>
-                    <option value="discount_desc">Maior Desconto</option>
-                    <option value="price_desc">Maior Preço</option>
-                    <option value="date_asc">Data do Voo</option>
-                    <option value="route">Trecho A-Z</option>
-                  </select>
-                  <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
+                {/* Sort CustomSelect */}
+                <CustomSelect
+                  value={sortBy}
+                  onChange={(val) => setSortBy(val as any)}
+                  icon={<ArrowUpDown className="w-3.5 h-3.5" />}
+                  options={[
+                    { value: "price_asc", label: "Menor Preço" },
+                    { value: "discount_desc", label: "Maior Desconto" },
+                    { value: "price_desc", label: "Maior Preço" },
+                    { value: "date_asc", label: "Data do Voo" },
+                    { value: "route", label: "Trecho A-Z" },
+                  ]}
+                />
 
                 {/* Expandable Search Button */}
                 <ExpandableSearch
@@ -584,47 +580,57 @@ export default function DashboardPage() {
                             {/* Ações Rápidas */}
                             <td className="py-3.5 px-4 text-right whitespace-nowrap">
                               <div className="inline-flex items-center gap-1">
-                                <button
-                                  onClick={() => handleSingleRouteSearch(route)}
-                                  disabled={isSearchingThis}
-                                  className="p-1.5 rounded-lg text-slate-500 hover:text-sky-600 hover:bg-sky-50 transition-colors cursor-pointer disabled:opacity-50"
-                                  title="Buscar cotação agora"
-                                >
-                                  <RefreshCw className={`w-3.5 h-3.5 ${isSearchingThis ? "animate-spin text-sky-600" : ""}`} />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setEditingRoute(route);
-                                    setIsRouteModalOpen(true);
-                                  }}
-                                  className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
-                                  title="Editar Rota"
-                                >
-                                  <Edit2 className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => setHistoryModalRoute(route)}
-                                  className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
-                                  title="Ver Gráfico e Histórico"
-                                >
-                                  <BarChart2 className="w-3.5 h-3.5" />
-                                </button>
-                                <a
-                                  href={flightUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="p-1.5 rounded-lg text-slate-500 hover:text-sky-600 hover:bg-sky-50 transition-colors"
-                                  title="Ver no Google Flights"
-                                >
-                                  <ExternalLink className="w-3.5 h-3.5" />
-                                </a>
-                                <button
-                                  onClick={() => setRouteToDelete(route)}
-                                  className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                                  title="Excluir Rota"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                <Tooltip content="Buscar cotação agora">
+                                  <button
+                                    onClick={() => handleSingleRouteSearch(route)}
+                                    disabled={isSearchingThis}
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-sky-600 hover:bg-sky-50 transition-colors cursor-pointer disabled:opacity-50"
+                                    aria-label="Buscar cotação agora"
+                                  >
+                                    <RefreshCw className={`w-3.5 h-3.5 ${isSearchingThis ? "animate-spin text-sky-600" : ""}`} />
+                                  </button>
+                                </Tooltip>
+                                <Tooltip content="Editar Rota">
+                                  <button
+                                    onClick={() => {
+                                      setEditingRoute(route);
+                                      setIsRouteModalOpen(true);
+                                    }}
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                                    aria-label="Editar Rota"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </Tooltip>
+                                <Tooltip content="Ver Gráfico e Histórico">
+                                  <button
+                                    onClick={() => setHistoryModalRoute(route)}
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                                    aria-label="Ver Gráfico e Histórico"
+                                  >
+                                    <BarChart2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </Tooltip>
+                                <Tooltip content="Ver no Google Flights">
+                                  <a
+                                    href={flightUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-sky-600 hover:bg-sky-50 transition-colors inline-flex items-center"
+                                    aria-label="Ver no Google Flights"
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                  </a>
+                                </Tooltip>
+                                <Tooltip content="Excluir Rota">
+                                  <button
+                                    onClick={() => setRouteToDelete(route)}
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                    aria-label="Excluir Rota"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </Tooltip>
                               </div>
                             </td>
                           </tr>
@@ -728,38 +734,46 @@ export default function DashboardPage() {
                       {/* Mobile Actions */}
                       <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                         <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => handleSingleRouteSearch(route)}
-                            disabled={isSearchingThis}
-                            className="p-1.5 rounded-lg text-slate-500 bg-slate-50 border border-slate-200 hover:text-sky-600 hover:bg-sky-50 transition-colors cursor-pointer"
-                            title="Buscar agora"
-                          >
-                            <RefreshCw className={`w-3.5 h-3.5 ${isSearchingThis ? "animate-spin text-sky-600" : ""}`} />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setEditingRoute(route);
-                              setIsRouteModalOpen(true);
-                            }}
-                            className="p-1.5 rounded-lg text-slate-500 bg-slate-50 border border-slate-200 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
-                            title="Editar"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => setHistoryModalRoute(route)}
-                            className="p-1.5 rounded-lg text-slate-500 bg-slate-50 border border-slate-200 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
-                            title="Histórico"
-                          >
-                            <BarChart2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => setRouteToDelete(route)}
-                            className="p-1.5 rounded-lg text-slate-500 bg-slate-50 border border-slate-200 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                            title="Excluir"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <Tooltip content="Buscar agora">
+                            <button
+                              onClick={() => handleSingleRouteSearch(route)}
+                              disabled={isSearchingThis}
+                              className="p-1.5 rounded-lg text-slate-500 bg-slate-50 border border-slate-200 hover:text-sky-600 hover:bg-sky-50 transition-colors cursor-pointer"
+                              aria-label="Buscar agora"
+                            >
+                              <RefreshCw className={`w-3.5 h-3.5 ${isSearchingThis ? "animate-spin text-sky-600" : ""}`} />
+                            </button>
+                          </Tooltip>
+                          <Tooltip content="Editar rota">
+                            <button
+                              onClick={() => {
+                                setEditingRoute(route);
+                                setIsRouteModalOpen(true);
+                              }}
+                              className="p-1.5 rounded-lg text-slate-500 bg-slate-50 border border-slate-200 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                              aria-label="Editar rota"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                          </Tooltip>
+                          <Tooltip content="Histórico de preços">
+                            <button
+                              onClick={() => setHistoryModalRoute(route)}
+                              className="p-1.5 rounded-lg text-slate-500 bg-slate-50 border border-slate-200 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                              aria-label="Histórico de preços"
+                            >
+                              <BarChart2 className="w-3.5 h-3.5" />
+                            </button>
+                          </Tooltip>
+                          <Tooltip content="Excluir rota">
+                            <button
+                              onClick={() => setRouteToDelete(route)}
+                              className="p-1.5 rounded-lg text-slate-500 bg-slate-50 border border-slate-200 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                              aria-label="Excluir rota"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </Tooltip>
                         </div>
 
                         <a

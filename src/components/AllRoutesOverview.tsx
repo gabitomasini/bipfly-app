@@ -13,6 +13,7 @@ import {
   Calendar,
   Building,
 } from "lucide-react";
+import Tooltip from "./Tooltip";
 import { ROUTE_COLORS } from "./MultiRoutePriceChart";
 
 interface AllRoutesOverviewProps {
@@ -268,16 +269,17 @@ export default function AllRoutesOverview({
                     Focar Rota
                   </button>
 
-                  <a
-                    href={flightUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 active:bg-sky-800 transition-colors cursor-pointer shadow-2xs"
-                    title="Ver no Google Flights"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Ver Voo</span>
-                  </a>
+                  <Tooltip content="Ver no Google Flights">
+                    <a
+                      href={flightUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 active:bg-sky-800 transition-colors cursor-pointer shadow-2xs"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Ver Voo</span>
+                    </a>
+                  </Tooltip>
                 </div>
               </div>
             );

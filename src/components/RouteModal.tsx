@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Plane, Calendar, DollarSign, AlertCircle, Sparkles, Users } from "lucide-react";
 import { MonitoredRoute } from "@/lib/types";
 import AirportCombobox from "./AirportCombobox";
+import CustomSelect from "./CustomSelect";
 import { useModalBehavior } from "@/hooks/useModalBehavior";
 
 interface RouteModalProps {
@@ -260,17 +261,15 @@ export default function RouteModal({
                 <Users className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Passageiros (Adultos)</span>
               </label>
-              <select
-                value={passengers}
-                onChange={(e) => setPassengers(Number(e.target.value))}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold focus:outline-none focus:border-sky-500 focus:bg-white transition-colors cursor-pointer"
-              >
-                {[1, 2, 3, 4, 5, 6].map((num) => (
-                  <option key={num} value={num}>
-                    {num} {num === 1 ? "Adulto" : "Adultos"}
-                  </option>
-                ))}
-              </select>
+              <CustomSelect
+                value={String(passengers)}
+                onChange={(val) => setPassengers(Number(val))}
+                options={[1, 2, 3, 4, 5, 6].map((num) => ({
+                  value: String(num),
+                  label: `${num} ${num === 1 ? "Adulto" : "Adultos"}`,
+                }))}
+                size="md"
+              />
             </div>
           </div>
 

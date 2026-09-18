@@ -27,6 +27,7 @@ import {
   getGoogleFlightsUrl,
 } from "@/lib/utils";
 import AirlineBadge from "@/components/AirlineBadge";
+import Tooltip from "@/components/Tooltip";
 
 interface RouteCardProps {
   route: MonitoredRoute;
@@ -250,51 +251,59 @@ export default function RouteCard({
         {/* Bloco 3: Barra de Ações Rápidas */}
         <div className="flex items-center justify-between lg:justify-end gap-1.5 border-t lg:border-t-0 pt-3 lg:pt-0 border-slate-100 shrink-0">
           {/* Botão Buscar Agora */}
-          <button
-            onClick={handleSearchNow}
-            disabled={isSearching || !route.isActive}
-            className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs ${
-              isSearching
-                ? "bg-sky-100 text-sky-800 border border-sky-300"
-                : "bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200/80"
-            } disabled:opacity-40`}
-            title="Buscar cotação instantânea no Google Flights"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSearching ? "animate-spin text-sky-600" : "text-sky-600"}`} />
-            <span>{isSearching ? "Buscando..." : "Buscar"}</span>
-          </button>
+          <Tooltip content="Buscar cotação instantânea no Google Flights">
+            <button
+              onClick={handleSearchNow}
+              disabled={isSearching || !route.isActive}
+              className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+                isSearching
+                  ? "bg-sky-100 text-sky-800 border border-sky-300"
+                  : "bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200/80"
+              } disabled:opacity-40`}
+              aria-label="Buscar cotação instantânea no Google Flights"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSearching ? "animate-spin text-sky-600" : "text-sky-600"}`} />
+              <span>{isSearching ? "Buscando..." : "Buscar"}</span>
+            </button>
+          </Tooltip>
 
           {/* Ver Voo Google Flights */}
-          <a
-            href={flightUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-2xs"
-            title="Abrir no Google Flights"
-          >
-            <span>Ver Voo</span>
-            <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-          </a>
+          <Tooltip content="Abrir no Google Flights">
+            <a
+              href={flightUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-2xs"
+              aria-label="Abrir no Google Flights"
+            >
+              <span>Ver Voo</span>
+              <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+            </a>
+          </Tooltip>
 
           {/* Gráfico & Histórico */}
-          <button
-            onClick={() => onViewHistory(route)}
-            className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-2xs cursor-pointer"
-            title="Ver histórico de preços e gráfico"
-          >
-            <BarChart2 className="w-3.5 h-3.5 text-indigo-600" />
-            <span className="hidden sm:inline">Histórico</span>
-          </button>
+          <Tooltip content="Ver histórico de preços e gráfico">
+            <button
+              onClick={() => onViewHistory(route)}
+              className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-2xs cursor-pointer"
+              aria-label="Ver histórico de preços e gráfico"
+            >
+              <BarChart2 className="w-3.5 h-3.5 text-indigo-600" />
+              <span className="hidden sm:inline">Histórico</span>
+            </button>
+          </Tooltip>
 
           {/* Menu de Mais Ações (...) */}
           <div className="relative" ref={menuRef}>
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="p-1.5 rounded-xl text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-800 transition-all cursor-pointer shadow-2xs"
-              title="Mais opções"
-            >
-              <MoreHorizontal className="w-4 h-4" />
-            </button>
+            <Tooltip content="Mais opções">
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="p-1.5 rounded-xl text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-800 transition-all cursor-pointer shadow-2xs"
+                aria-label="Mais opções"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+            </Tooltip>
 
             {isMenuOpen && (
               <div className="absolute right-0 top-full mt-1.5 w-48 bg-white border border-slate-200 rounded-2xl shadow-xl z-20 py-1.5 text-xs animate-fadeIn">

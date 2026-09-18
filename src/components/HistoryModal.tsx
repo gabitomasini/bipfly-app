@@ -21,6 +21,7 @@ import {
   Tooltip,
 } from "recharts";
 import { FlightHistoryEntry, MonitoredRoute } from "@/lib/types";
+import CustomTooltip from "./Tooltip";
 import {
   formatCurrency,
   formatDateBR,
@@ -242,9 +243,11 @@ export default function HistoryModal({ isOpen, route, onClose }: HistoryModalPro
                         return (
                           <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
                             <td className="px-3 py-2 text-slate-500 whitespace-nowrap">
-                              <span title={formatDateTimeBR(item.searchedAt)}>
-                                {formatRelativeTime(item.searchedAt)}
-                              </span>
+                              <CustomTooltip content={formatDateTimeBR(item.searchedAt)}>
+                                <span className="cursor-default">
+                                  {formatRelativeTime(item.searchedAt)}
+                                </span>
+                              </CustomTooltip>
                             </td>
                             <td className="px-3 py-2 font-bold text-slate-900 whitespace-nowrap">
                               {formatCurrency(item.lowestPrice, item.currency)}
