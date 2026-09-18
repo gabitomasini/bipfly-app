@@ -147,7 +147,7 @@ export default function RouteCard({
 
   return (
     <div
-      className={`relative p-4 sm:p-5 rounded-2xl border bg-white shadow-2xs transition-all hover:shadow-md ${
+      className={`relative p-3.5 sm:p-4 rounded-2xl border bg-white shadow-2xs transition-all hover:shadow-md ${
         isMenuOpen ? "z-30" : "z-0"
       } ${
         !route.isActive
@@ -157,58 +157,25 @@ export default function RouteCard({
           : "border-slate-200/90"
       }`}
     >
-      {/* Top Bar: Status / Delta Chip on Left (+ standalone Route Code if not in group) */}
-      <div className="flex items-center justify-between gap-2 pb-2.5 mb-3 border-b border-slate-100">
-        <div className="flex items-center gap-2 flex-wrap">
+      {/* UMA ÚNICA LINHA HORIZONTAL */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
+        {/* Bloco Esquerdo (Contexto): GRU → CWB (se simples) • Data • LATAM • 1 Adult */}
+        <div className="flex items-center gap-3 text-xs text-slate-600 flex-wrap shrink-0">
           {!isInsideGroup && (
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 text-xs font-mono font-black mr-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 text-xs font-mono font-black shadow-2xs">
               <span>{route.origin}</span>
               <ArrowRight className="w-3 h-3 text-slate-400" />
               <span>{route.destination}</span>
             </div>
           )}
 
-          {/* Status / Delta Chip on Top Left */}
-          {!hasPrice ? (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-              <Clock className="w-3 h-3" />
-              <span>{t.dashboard.table.pendingScan}</span>
-            </span>
-          ) : isBelowLimit ? (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
-              <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-              <span>
-                -{formatCurrency(diff)} {t.dashboard.table.targetMet.toLowerCase()}
-              </span>
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200/80">
-              <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
-              <span>
-                +{formatCurrency(currentPrice - target)} {t.dashboard.table.aboveTargetDiff}
-              </span>
-            </span>
-          )}
-        </div>
-
-        {!route.isActive && (
-          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
-            {t.common.paused}
-          </span>
-        )}
-      </div>
-
-      {/* Main Row: Metadata (Left), Prices (Center), CTAs & Time (Right) in ONE PERFECT HORIZONTAL AXIS */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6">
-        {/* Left: Metadata (Date, Airline, Flight Number, Passengers) */}
-        <div className="flex items-center gap-3 text-xs text-slate-600 flex-wrap shrink-0">
           {/* Flight Date */}
-          <span className="inline-flex items-center gap-1.5 font-bold text-slate-900">
+          <span className="inline-flex items-center gap-1.5 font-bold text-slate-900 text-xs sm:text-sm">
             <Calendar className="w-4 h-4 text-sky-600 shrink-0" />
             <span>{formatDate(route.flightDate)}</span>
           </span>
 
-          {/* Airline */}
+          {/* Airline Badge */}
           <AirlineBadge airline={route.lastAirline} size="sm" />
 
           {/* Flight Number */}
@@ -226,13 +193,20 @@ export default function RouteCard({
               {(route.passengers || 1) === 1 ? t.routes.adult : t.routes.adults}
             </span>
           </span>
+
+          {/* Paused status badge if paused */}
+          {!route.isActive && (
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+              {t.common.paused}
+            </span>
+          )}
         </div>
 
-        {/* Center: Price & Target in pure single row */}
-        <div className="flex items-baseline gap-2.5 flex-wrap shrink-0">
-          {/* Current Price (Hero) */}
+        {/* Bloco Central (Preço): Preço Principal Grande + Meta e Delta abaixo */}
+        <div className="flex flex-col items-start lg:items-center justify-center shrink-0">
+          {/* Main Price */}
           <span
-            className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums ${
+            className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums leading-none ${
               hasPrice
                 ? isBelowLimit
                   ? "text-emerald-600"
@@ -243,31 +217,38 @@ export default function RouteCard({
             {hasPrice ? formatCurrency(currentPrice) : "—"}
           </span>
 
-          {/* Target Price Reference & USD estimate */}
-          <div className="text-xs text-slate-500 font-medium flex items-center gap-1">
+          {/* Subtitle: Target & Delta & USD */}
+          <div className="text-xs text-slate-500 font-medium flex items-center gap-1.5 mt-1">
             <span>{t.common.target}:</span>
-            <strong className="text-slate-700 font-bold tabular-nums">{formatCurrency(target)}</strong>
+            <strong className="text-slate-700 font-bold tabular-nums">
+              {formatCurrency(target)}
+            </strong>
+
+            {hasPrice ? (
+              isBelowLimit ? (
+                <span className="text-emerald-600 font-bold tabular-nums">
+                  (-{formatCurrency(diff)})
+                </span>
+              ) : (
+                <span className="text-rose-600 font-bold tabular-nums">
+                  (+{formatCurrency(currentPrice - target)})
+                </span>
+              )
+            ) : null}
+
             {locale === "en" && hasPrice && (
-              <span className="text-slate-400 font-normal ml-1">
+              <span className="text-slate-400 font-normal">
                 ({formatUsdEstimate(currentPrice)})
               </span>
             )}
           </div>
         </div>
 
-        {/* Right Side: Last Checked Time + Unified Blue CTAs */}
-        <div className="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap">
-          {/* Last Checked Time */}
-          <div className="text-xs text-slate-400 font-medium flex items-center gap-1 whitespace-nowrap">
-            <Clock className="w-3 h-3 text-slate-400 shrink-0" />
-            <span>
-              {route.lastSearchedAt ? formatRelativeTime(route.lastSearchedAt) : t.dashboard.table.pendingScan}
-            </span>
-          </div>
-
-          {/* Action Buttons */}
+        {/* Bloco Direito (Ações + Verificado há 2h empilhado) */}
+        <div className="flex flex-col items-start lg:items-end justify-center gap-1 shrink-0">
+          {/* Action Buttons Row */}
           <div className="flex items-center gap-1.5 shrink-0">
-            {/* Primary Action: View Flight (Solid Blue & Contrast) */}
+            {/* Primary Action: View Flight */}
             <Tooltip content={t.routes.cardViewFlightTooltip}>
               <a
                 href={flightUrl}
@@ -374,12 +355,22 @@ export default function RouteCard({
               )}
             </div>
           </div>
+
+          {/* Time text directly beneath buttons */}
+          <div className="text-[11px] text-slate-400 font-medium flex items-center gap-1 justify-end w-full whitespace-nowrap pr-0.5">
+            <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+            <span>
+              {route.lastSearchedAt
+                ? `${locale === "en" ? "Checked" : "Verificado"} ${formatRelativeTime(route.lastSearchedAt)}`
+                : t.dashboard.table.pendingScan}
+            </span>
+          </div>
         </div>
       </div>
 
       {/* Internal Feedback Banner */}
       {feedback && (
-        <div className="mt-3 px-3.5 py-2 rounded-xl bg-sky-50 border border-sky-200/80 text-xs text-sky-900 font-semibold flex items-center gap-2 animate-fadeIn">
+        <div className="mt-2.5 px-3.5 py-2 rounded-xl bg-sky-50 border border-sky-200/80 text-xs text-sky-900 font-semibold flex items-center gap-2 animate-fadeIn">
           <Sparkles className="w-3.5 h-3.5 text-sky-600 shrink-0" />
           <span>{feedback}</span>
         </div>

@@ -29,6 +29,8 @@ import {
   Target,
   ChevronDown,
   ChevronUp,
+  AlertCircle,
+  Clock,
 } from "lucide-react";
 
 type SortOption = "date_asc" | "date_desc" | "price_asc" | "price_desc" | "discount_desc" | "route";
@@ -36,7 +38,7 @@ type SortOption = "date_asc" | "date_desc" | "price_asc" | "price_desc" | "disco
 function RotasContent() {
   const searchParams = useSearchParams();
   const { addToast } = useToast();
-  const { t, formatCurrency, formatUsdEstimate, locale } = useTranslation();
+  const { t, formatCurrency, formatUsdEstimate, formatDate, locale } = useTranslation();
   const [routes, setRoutes] = useState<MonitoredRoute[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -268,6 +270,7 @@ function RotasContent() {
 
       let lowestPrice: number | null = null;
       let targetHitsCount = 0;
+      let lowestPriceRoute: MonitoredRoute | null = null;
       const earliestDate = sortedRoutes[0]?.flightDate || "";
       const latestDate = sortedRoutes[sortedRoutes.length - 1]?.flightDate || "";
 
@@ -275,12 +278,16 @@ function RotasContent() {
         if (r.latestPrice !== null && r.latestPrice !== undefined) {
           if (lowestPrice === null || r.latestPrice < lowestPrice) {
             lowestPrice = r.latestPrice;
+            lowestPriceRoute = r;
           }
           if (r.isActive && r.latestPrice <= r.targetPrice) {
             targetHitsCount += 1;
           }
         }
       });
+      if (!lowestPriceRoute && sortedRoutes.length > 0) {
+        lowestPriceRoute = sortedRoutes[0];
+      }
 
       return {
         key,
@@ -288,6 +295,7 @@ function RotasContent() {
         destination,
         routes: sortedRoutes,
         lowestPrice,
+        lowestPriceRoute,
         targetHitsCount,
         hasTargetHit: targetHitsCount > 0,
         earliestDate,
@@ -308,6 +316,17 @@ function RotasContent() {
         const priceA = a.lowestPrice !== null ? a.lowestPrice : -Infinity;
         const priceB = b.lowestPrice !== null ? b.lowestPrice : -Infinity;
         return priceB - priceA;
+      }
+      if (sortBy === "discount_desc") {
+        const diffA =
+          a.lowestPrice !== null && a.lowestPriceRoute
+            ? a.lowestPriceRoute.targetPrice - a.lowestPrice
+            : -Infinity;
+        const diffB =
+          b.lowestPrice !== null && b.lowestPriceRoute
+            ? b.lowestPriceRoute.targetPrice - b.lowestPrice
+            : -Infinity;
+        return diffB - diffA;
       }
       if (sortBy === "route") {
         return a.key.localeCompare(b.key);
@@ -640,33 +659,62 @@ function RotasContent() {
                             : "datas monitoradas"}
                         </span>
 
-                        {group.hasTargetHit && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                            {group.targetHitsCount} {locale === "en" ? "target met" : "no alvo"}
+                        {/* Date summary in muted text */}
+                        {group.earliestDate && (
+                          <span className="text-xs sm:text-sm text-slate-500 font-medium">
+                            {group.routes.length === 1 || group.earliestDate === group.latestDate
+                              ? formatDate(group.earliestDate)
+                              : `${formatDate(group.earliestDate)} – ${formatDate(group.latestDate)}`}
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {/* Preço Mínimo do Grupo */}
-                    <div className="flex items-center gap-3 sm:justify-end shrink-0">
-                      {group.lowestPrice !== null && (
-                        <div className="text-right">
-                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                    {/* Preço e Status Empilhados Verticalmente */}
+                    {group.lowestPrice !== null && group.lowestPriceRoute ? (
+                      <div className="flex flex-col items-end gap-1 shrink-0 text-right">
+                        {/* Linha superior: STARTING FROM R$667.00 (~$120 USD) */}
+                        <div className="flex items-baseline gap-1.5 flex-wrap justify-end">
+                          <span className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider">
                             {locale === "en" ? "Starting from" : "A partir de"}
                           </span>
-                          <span className="text-lg sm:text-xl font-black text-emerald-600 tabular-nums">
+                          <span className="text-base sm:text-lg font-black text-slate-900 tabular-nums">
                             {formatCurrency(group.lowestPrice)}
                           </span>
                           {locale === "en" && (
-                            <span className="text-[11px] text-slate-400 font-normal ml-1">
+                            <span className="text-xs text-slate-400 font-normal">
                               ({formatUsdEstimate(group.lowestPrice, "~")})
                             </span>
                           )}
                         </div>
-                      )}
-                    </div>
+
+                        {/* Linha inferior alinhada à direita: badge compacto */}
+                        {group.lowestPrice <= group.lowestPriceRoute.targetPrice ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                            <span>
+                              -{formatCurrency(group.lowestPriceRoute.targetPrice - group.lowestPrice)}{" "}
+                              {locale === "en" ? "target met" : "no alvo"}
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200/80">
+                            <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
+                            <span>
+                              +{formatCurrency(group.lowestPrice - group.lowestPriceRoute.targetPrice)}{" "}
+                              {locale === "en" ? "above target" : "acima da meta"}
+                            </span>
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-end gap-1 shrink-0 text-right">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                          <Clock className="w-3 h-3" />
+                          <span>{t.dashboard.table.pendingScan}</span>
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Lista de cards do grupo */}
