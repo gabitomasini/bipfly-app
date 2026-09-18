@@ -38,13 +38,24 @@ export async function POST(request: Request) {
       );
     }
 
+    const onlyDirect = body.onlyDirect !== undefined ? Boolean(body.onlyDirect) : Boolean(body.apenas_diretos || body.apenasDiretos);
+    const returnDate = body.returnDate || body.return_date || null;
+    const tripType = body.tripType || body.trip_type || (returnDate ? "round_trip" : "one_way");
+    const children = body.children !== undefined ? Number(body.children) : (body.criancas !== undefined ? Number(body.criancas) : 0);
+    const infantsInLap = body.infantsInLap !== undefined ? Number(body.infantsInLap) : (body.infants_in_lap !== undefined ? Number(body.infants_in_lap) : (body.bebes !== undefined ? Number(body.bebes) : 0));
+
     const id = createRoute({
       origin,
       destination,
       flightDate,
+      returnDate,
+      tripType,
       passengers: Number(passengers) || 1,
+      children: isNaN(children) ? 0 : children,
+      infantsInLap: isNaN(infantsInLap) ? 0 : infantsInLap,
       targetPrice: Number(targetPrice),
       intervalHours: Number(intervalHours) || 12,
+      onlyDirect,
     });
 
     return NextResponse.json({ success: true, data: { id } }, { status: 201 });

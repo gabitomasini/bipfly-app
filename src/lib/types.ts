@@ -3,9 +3,14 @@ export interface MonitoredRoute {
   origin: string;
   destination: string;
   flightDate: string;
-  passengers: number;
+  returnDate?: string | null;
+  tripType?: "one_way" | "round_trip";
+  passengers: number; // adults (12+ years)
+  children?: number; // children (2-11 years)
+  infantsInLap?: number; // infants in lap (< 2 years)
   targetPrice: number;
   intervalHours?: number;
+  onlyDirect?: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -15,7 +20,13 @@ export interface MonitoredRoute {
   lastSearchedAt?: string | null;
   lastAirline?: string | null;
   lastFlightNumber?: string | null;
+  lastStops?: number | null;
   lastBookingLink?: string | null;
+  latestDirectPrice?: number | null;
+  latestDirectAirline?: string | null;
+  latestStopPrice?: number | null;
+  latestStopAirline?: string | null;
+  latestStopCount?: number | null;
   totalSearches?: number;
 }
 
@@ -25,6 +36,11 @@ export interface FlightHistoryEntry {
   origin: string;
   destination: string;
   flightDate: string;
+  returnDate?: string | null;
+  tripType?: "one_way" | "round_trip";
+  passengers?: number;
+  children?: number;
+  infantsInLap?: number;
   lowestPrice: number;
   currency: string;
   routeId: number | null;
@@ -35,6 +51,11 @@ export interface FlightHistoryEntry {
   stops?: number | null;
   durationMinutes?: number | null;
   bookingLink?: string | null;
+  lowestDirectPrice?: number | null;
+  directAirline?: string | null;
+  lowestStopPrice?: number | null;
+  stopAirline?: string | null;
+  stopCount?: number | null;
 }
 
 export interface HistoricalPricePoint {
@@ -60,6 +81,11 @@ export interface FlightOption {
   origin: string;
   destination: string;
   flightDate: string;
+  returnDate?: string | null;
+  tripType?: "one_way" | "round_trip";
+  passengers?: number;
+  children?: number;
+  infantsInLap?: number;
   price: number;
   currency: string;
   airline?: string;
@@ -147,6 +173,11 @@ export interface ScanResult {
   origin: string;
   destination: string;
   flightDate: string;
+  returnDate?: string | null;
+  tripType?: "one_way" | "round_trip";
+  passengers?: number;
+  children?: number;
+  infantsInLap?: number;
   lowestPrice?: number;
   currency?: string;
   targetPrice: number;
@@ -154,6 +185,6 @@ export interface ScanResult {
   notified: boolean;
   foundOptions: FlightOption[];
   providerUsed?: string;
-  error?: string;
   searchedAt: string;
+  error?: string;
 }

@@ -198,7 +198,7 @@ export default function AllRoutesOverview({
             const hasPrice = price !== null && price !== undefined;
             const isBelow = hasPrice && (price as number) <= target;
             const color = ROUTE_COLORS[idx % ROUTE_COLORS.length];
-            const flightUrl = bookingLink || getGoogleFlightsUrl(origin, destination, flightDate, passengers);
+            const flightUrl = bookingLink || getGoogleFlightsUrl(origin, destination, flightDate, passengers, r.returnDate, r.tripType, r.children || 0, r.infantsInLap || 0);
 
             return (
               <div
@@ -216,6 +216,11 @@ export default function AllRoutesOverview({
                       <span className="font-extrabold text-slate-900 text-sm">
                         {origin} → {destination}
                       </span>
+                      {r.tripType === "round_trip" && (
+                        <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-1.5 py-0.2 rounded">
+                          🔁 {locale === "en" ? "Round Trip" : "Ida e Volta"}
+                        </span>
+                      )}
                     </div>
 
                     {isBelow && (
@@ -236,7 +241,10 @@ export default function AllRoutesOverview({
                       <span className="text-slate-500 flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5 text-sky-600" /> {t.common.date}:
                       </span>
-                      <strong className="text-slate-800">{formatDateBR(flightDate)}</strong>
+                      <strong className="text-slate-800">
+                        {formatDateBR(flightDate)}
+                        {r.tripType === "round_trip" && r.returnDate && ` → ${formatDateBR(r.returnDate)}`}
+                      </strong>
                     </div>
 
                     <div className="flex items-center justify-between">

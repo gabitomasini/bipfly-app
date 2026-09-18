@@ -50,7 +50,11 @@ export async function scanRoute(routeId: number): Promise<ScanResult> {
         route.destination,
         route.flightDate,
         route.passengers || 1,
-        5
+        5,
+        route.returnDate,
+        route.tripType,
+        route.children || 0,
+        route.infantsInLap || 0
       );
     } catch (err: any) {
       lastError = err.message;
@@ -65,7 +69,11 @@ export async function scanRoute(routeId: number): Promise<ScanResult> {
         route.flightDate,
         route.passengers || 1,
         apiKey,
-        5
+        5,
+        route.returnDate,
+        route.tripType,
+        route.children || 0,
+        route.infantsInLap || 0
       );
     } catch (err: any) {
       lastError = err.message;
@@ -79,7 +87,11 @@ export async function scanRoute(routeId: number): Promise<ScanResult> {
         route.destination,
         route.flightDate,
         route.passengers || 1,
-        5
+        5,
+        route.returnDate,
+        route.tripType,
+        route.children || 0,
+        route.infantsInLap || 0
       );
       providerUsed = "Web Scraping Direto (Playwright)";
     } catch (scraperErr: any) {
@@ -96,7 +108,11 @@ export async function scanRoute(routeId: number): Promise<ScanResult> {
           route.flightDate,
           route.passengers || 1,
           apiKey,
-          5
+          5,
+          route.returnDate,
+          route.tripType,
+          route.children || 0,
+          route.infantsInLap || 0
         );
         providerUsed = "Google Flights API (Fallback SerpApi)";
       } catch (apiErr: any) {
@@ -130,38 +146,113 @@ export async function scanRoute(routeId: number): Promise<ScanResult> {
     };
   }
 
-  const bestOption = options[0];
-  const lowestPrice = bestOption.price;
+  // Segrega voos diretos e com conexões
+  const directOptions = options.filter((o) => (o.stops ?? 0) === 0).sort((a, b) => a.price - b.price);
+  const stopsOptions = options.filter((o) => (o.stops ?? 0) > 0).sort((a, b) => a.price - b.price);
+
+  const bestDirect = directOptions[0] || null;
+  const bestWithStops = stopsOptions[0] || null;
+
+  // Se a rota estiver configurada exclusivamente para "Apenas voos diretos"
+  let primaryOption: FlightOption;
+  if (route.onlyDirect) {
+    if (!bestDirect) {
+      const msg = "Nenhum voo direto encontrado para esta data/rota.";
+      logger.info("SCANNER", `${route.origin}→${route.destination} [Apenas Diretos]: ${msg}`, undefined, route.id);
+      if (bestWithStops) {
+        recordFlightHistory({
+          origin: route.origin,
+          destination: route.destination,
+          flightDate: route.flightDate,
+          returnDate: route.returnDate || null,
+          tripType: route.tripType || (route.returnDate ? "round_trip" : "one_way"),
+          passengers: route.passengers || 1,
+          children: route.children || 0,
+          infantsInLap: route.infantsInLap || 0,
+          lowestPrice: bestWithStops.price,
+          currency: bestWithStops.currency || "BRL",
+          routeId: route.id,
+          airline: bestWithStops.airline || null,
+          flightNumber: bestWithStops.flightNumber || null,
+          departureTime: bestWithStops.departureTime || null,
+          arrivalTime: bestWithStops.arrivalTime || null,
+          stops: bestWithStops.stops ?? 1,
+          durationMinutes: bestWithStops.durationMinutes ?? null,
+          bookingLink: bestWithStops.bookingLink || null,
+          lowestDirectPrice: null,
+          directAirline: null,
+          lowestStopPrice: bestWithStops.price,
+          stopAirline: bestWithStops.airline || null,
+          stopCount: bestWithStops.stops ?? 1,
+          searchedAt,
+        });
+      }
+      return {
+        success: true,
+        routeId: route.id,
+        origin: route.origin,
+        destination: route.destination,
+        flightDate: route.flightDate,
+        returnDate: route.returnDate || null,
+        tripType: route.tripType || (route.returnDate ? "round_trip" : "one_way"),
+        targetPrice: route.targetPrice,
+        isBelowTarget: false,
+        notified: false,
+        foundOptions: options,
+        providerUsed,
+        searchedAt,
+      };
+    }
+    primaryOption = bestDirect;
+  } else {
+    // Por default: o menor preço geral encontrado
+    primaryOption = options[0];
+  }
+
+  const lowestPrice = primaryOption.price;
   const isBelowTarget = lowestPrice <= route.targetPrice;
 
-  // Registra no banco SQLite
+  // Registra no banco SQLite com dados segregados
   recordFlightHistory({
     origin: route.origin,
     destination: route.destination,
     flightDate: route.flightDate,
+    returnDate: route.returnDate || null,
+    tripType: route.tripType || (route.returnDate ? "round_trip" : "one_way"),
+    passengers: route.passengers || 1,
+    children: route.children || 0,
+    infantsInLap: route.infantsInLap || 0,
     lowestPrice,
-    currency: bestOption.currency || "BRL",
+    currency: primaryOption.currency || "BRL",
     routeId: route.id,
-    airline: bestOption.airline || null,
-    flightNumber: bestOption.flightNumber || null,
-    departureTime: bestOption.departureTime || null,
-    arrivalTime: bestOption.arrivalTime || null,
-    stops: bestOption.stops ?? null,
-    durationMinutes: bestOption.durationMinutes ?? null,
-    bookingLink: bestOption.bookingLink || null,
+    airline: primaryOption.airline || null,
+    flightNumber: primaryOption.flightNumber || null,
+    departureTime: primaryOption.departureTime || null,
+    arrivalTime: primaryOption.arrivalTime || null,
+    stops: primaryOption.stops ?? null,
+    durationMinutes: primaryOption.durationMinutes ?? null,
+    bookingLink: primaryOption.bookingLink || null,
+    lowestDirectPrice: bestDirect ? bestDirect.price : null,
+    directAirline: bestDirect ? bestDirect.airline || null : null,
+    lowestStopPrice: bestWithStops ? bestWithStops.price : null,
+    stopAirline: bestWithStops ? bestWithStops.airline || null : null,
+    stopCount: bestWithStops ? (bestWithStops.stops ?? 1) : null,
     searchedAt,
   });
 
   logger.success(
     "SCANNER",
-    `Tarifa coletada: ${route.origin} → ${route.destination} por R$ ${lowestPrice.toFixed(2)} (${bestOption.airline || "Companhia"}) via ${providerUsed}.`,
+    `Tarifa coletada: ${route.origin} → ${route.destination} por R$ ${lowestPrice.toFixed(2)} (${primaryOption.airline || "Companhia"}${primaryOption.stops === 0 ? " - Direto" : ` - ${primaryOption.stops} parada(s)`}) via ${providerUsed}.`,
     {
       lowestPrice,
-      airline: bestOption.airline,
-      stops: bestOption.stops,
-      durationMinutes: bestOption.durationMinutes,
+      airline: primaryOption.airline,
+      stops: primaryOption.stops,
+      durationMinutes: primaryOption.durationMinutes,
       targetPrice: route.targetPrice,
       isBelowTarget,
+      onlyDirect: Boolean(route.onlyDirect),
+      lowestDirectPrice: bestDirect?.price,
+      lowestStopPrice: bestWithStops?.price,
     },
     route.id
   );
@@ -175,13 +266,13 @@ export async function scanRoute(routeId: number): Promise<ScanResult> {
       flightDate: route.flightDate,
       price: lowestPrice,
       targetPrice: route.targetPrice,
-      currency: bestOption.currency || "BRL",
-      airline: bestOption.airline,
-      flightNumber: bestOption.flightNumber,
-      departureTime: bestOption.departureTime,
-      arrivalTime: bestOption.arrivalTime,
-      stops: bestOption.stops,
-      bookingLink: bestOption.bookingLink,
+      currency: primaryOption.currency || "BRL",
+      airline: primaryOption.airline,
+      flightNumber: primaryOption.flightNumber,
+      departureTime: primaryOption.departureTime,
+      arrivalTime: primaryOption.arrivalTime,
+      stops: primaryOption.stops,
+      bookingLink: primaryOption.bookingLink,
     });
     if (notified) {
       logger.success(
@@ -200,7 +291,7 @@ export async function scanRoute(routeId: number): Promise<ScanResult> {
     destination: route.destination,
     flightDate: route.flightDate,
     lowestPrice,
-    currency: bestOption.currency || "BRL",
+    currency: primaryOption.currency || "BRL",
     targetPrice: route.targetPrice,
     isBelowTarget,
     notified,

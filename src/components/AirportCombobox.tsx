@@ -92,9 +92,7 @@ export default function AirportCombobox({
             : "border-slate-300 hover:border-slate-400 bg-white"
         }`}
       >
-        <div className="flex items-center gap-2.5 flex-1 min-w-0">
-          <Plane className="w-4 h-4 text-slate-400 shrink-0" />
-
+        <div className="flex items-center gap-2 flex-1 min-w-0">
           {isOpen ? (
             <input
               ref={inputRef}
@@ -106,30 +104,32 @@ export default function AirportCombobox({
               autoFocus={autoFocus}
             />
           ) : selectedAirport ? (
-            <div className="flex items-center gap-2 truncate">
-              <span className="text-base leading-none">{selectedAirport.flag}</span>
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <span className="text-base leading-none shrink-0">{selectedAirport.flag}</span>
               <span
-                className={`text-xs font-black font-mono px-1.5 py-0.5 rounded ${
+                className={`text-xs font-black font-mono px-2 py-0.5 rounded-md border shrink-0 ${
                   selectedAirport.isMetropolitan
-                    ? "bg-indigo-100 text-indigo-800"
-                    : "bg-sky-100 text-sky-800"
+                    ? "bg-indigo-50 text-indigo-700 border-indigo-200/80"
+                    : "bg-sky-50 text-sky-700 border-sky-200/80"
                 }`}
               >
                 {selectedAirport.iata}
               </span>
-              <span className="text-xs font-bold text-slate-800 truncate">
-                {selectedAirport.city}
-              </span>
-              <span className="text-[11px] text-slate-500 truncate hidden sm:inline">
-                - {selectedAirport.name}
-              </span>
+              <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
+                <span className="text-xs font-bold text-slate-900 truncate">
+                  {selectedAirport.city}
+                </span>
+                <span className="text-[11px] text-slate-500 truncate">
+                  • {selectedAirport.name}
+                </span>
+              </div>
             </div>
           ) : value ? (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black text-slate-900 font-mono bg-slate-200 px-1.5 py-0.5 rounded">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <span className="text-xs font-black font-mono bg-sky-50 text-sky-700 border border-sky-200/80 px-2 py-0.5 rounded-md shrink-0">
                 {value.toUpperCase()}
               </span>
-              <span className="text-xs text-slate-600 font-medium">
+              <span className="text-xs text-slate-600 font-medium truncate">
                 {locale === "en" ? "Custom Airport Code" : "Código Personalizado"}
               </span>
             </div>

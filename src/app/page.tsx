@@ -428,7 +428,11 @@ export default function DashboardPage() {
                           route.origin,
                           route.destination,
                           route.flightDate,
-                          route.passengers || 1
+                          route.passengers || 1,
+                          route.returnDate,
+                          route.tripType,
+                          route.children || 0,
+                          route.infantsInLap || 0
                         );
 
                       const isSearchingThis = searchingRouteId === route.id;
@@ -440,13 +444,18 @@ export default function DashboardPage() {
                         >
                           {/* Coluna 1: ROTA & VOO */}
                           <td className="py-3.5 px-3 sm:px-4 text-left align-middle">
-                            {/* Linha superior: IATA + Companhia Aérea Inline */}
-                            <div className="flex items-center gap-2 min-w-0">
+                            {/* Linha superior: IATA + Companhia Aérea Inline + Tag de Apenas Direto */}
+                            <div className="flex items-center gap-2 min-w-0 flex-wrap">
                               <div className="inline-flex items-center gap-1.5 font-black text-slate-900 text-sm tracking-tight shrink-0">
                                 <span>{route.origin}</span>
                                 <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                 <span>{route.destination}</span>
                               </div>
+                              {route.tripType === "round_trip" && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60 shrink-0">
+                                  🔁 {locale === "en" ? "Round Trip" : "Ida e Volta"}
+                                </span>
+                              )}
                               {route.lastAirline && (
                                 <>
                                   <span className="text-slate-300 font-normal shrink-0">•</span>
@@ -455,18 +464,24 @@ export default function DashboardPage() {
                                   </span>
                                 </>
                               )}
+                              {route.onlyDirect && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200/60 shrink-0">
+                                  {locale === "en" ? "Direct only" : "Apenas direto"}
+                                </span>
+                              )}
                             </div>
 
                             {/* Linha inferior: Data • Origem → Destino */}
                             <div className="text-xs text-slate-400 font-normal truncate mt-0.5">
-                              {formatDate(route.flightDate)} • {getAirportCity(route.origin)} → {getAirportCity(route.destination)}
+                              {formatDate(route.flightDate)}
+                              {route.tripType === "round_trip" && route.returnDate && ` → ${formatDate(route.returnDate)}`} • {getAirportCity(route.origin)} → {getAirportCity(route.destination)}
                             </div>
                           </td>
 
                           {/* Coluna 2: PREÇO ATUAL & META */}
                           <td className="py-3.5 px-3 sm:px-4 text-left tabular-nums align-middle">
-                            {/* Linha superior: Preço atual */}
-                            <div className="flex items-baseline gap-1.5">
+                            {/* Linha superior: Preço atual + Stop Badge */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <span
                                 className={`text-sm sm:text-base font-black tracking-tight tabular-nums ${
                                   hasPrice
@@ -483,11 +498,30 @@ export default function DashboardPage() {
                                   ({formatUsdEstimate(price, "~")})
                                 </span>
                               )}
+                              {hasPrice && (
+                                route.lastStops === 0 || route.onlyDirect ? (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60 shrink-0">
+                                    {t.dashboard.table.directBadge}
+                                  </span>
+                                ) : route.lastStops && route.lastStops > 0 ? (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200/60 shrink-0">
+                                    {route.lastStops === 1 ? t.dashboard.table.stopBadge : `${route.lastStops} ${t.dashboard.table.stopsBadge}`}
+                                  </span>
+                                ) : null
+                              )}
                             </div>
 
-                            {/* Linha inferior: Meta */}
-                            <div className="text-xs text-slate-400 font-medium tabular-nums mt-0.5">
-                              {t.common.target}: {formatCurrency(route.targetPrice)}
+                            {/* Linha inferior: Meta + Cotação de Voo Direto Opcional */}
+                            <div className="text-xs text-slate-400 font-medium tabular-nums mt-0.5 flex items-center gap-1.5 flex-wrap">
+                              <span>{t.common.target}: {formatCurrency(route.targetPrice)}</span>
+                              {!route.onlyDirect && route.lastStops && route.lastStops > 0 && route.latestDirectPrice && (
+                                <>
+                                  <span className="text-slate-300 font-normal">•</span>
+                                  <span className="text-[11px] text-sky-700 font-semibold">
+                                    {t.dashboard.table.directFrom} {formatCurrency(route.latestDirectPrice)}
+                                  </span>
+                                </>
+                              )}
                             </div>
                           </td>
 
@@ -617,7 +651,11 @@ export default function DashboardPage() {
                       route.origin,
                       route.destination,
                       route.flightDate,
-                      route.passengers || 1
+                      route.passengers || 1,
+                      route.returnDate,
+                      route.tripType,
+                      route.children || 0,
+                      route.infantsInLap || 0
                     );
 
                   const isSearchingThis = searchingRouteId === route.id;
@@ -634,7 +672,7 @@ export default function DashboardPage() {
                       }`}
                     >
                       {/* Route Header */}
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-1.5 font-bold text-slate-900 text-sm">
                           <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-xs font-bold text-slate-800">
                             {route.origin}
@@ -643,9 +681,15 @@ export default function DashboardPage() {
                           <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-xs font-bold text-slate-800">
                             {route.destination}
                           </span>
+                          {route.tripType === "round_trip" && (
+                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-1.5 py-0.2 rounded">
+                              🔁
+                            </span>
+                          )}
                         </div>
                         <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
                           {formatDate(route.flightDate)}
+                          {route.tripType === "round_trip" && route.returnDate && ` → ${formatDate(route.returnDate)}`}
                         </span>
                       </div>
 

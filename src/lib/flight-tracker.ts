@@ -56,10 +56,15 @@ export async function fetchSerpApiFlights(
   flightDate: string,
   adults = 1,
   apiKey: string,
-  topN = 5
+  topN = 5,
+  returnDate?: string | null,
+  tripType?: "one_way" | "round_trip",
+  children = 0,
+  infantsInLap = 0
 ): Promise<FlightOption[]> {
   const normOrigin = origin.trim().toUpperCase();
   const normDestination = destination.trim().toUpperCase();
+  const isRoundTrip = tripType === "round_trip" || (Boolean(returnDate) && tripType !== "one_way");
 
   if (!apiKey || !apiKey.trim()) {
     throw new FlightTrackerError(
@@ -70,11 +75,20 @@ export async function fetchSerpApiFlights(
 
   const url = new URL("https://serpapi.com/search");
   url.searchParams.set("engine", "google_flights");
-  url.searchParams.set("type", "2"); // 2 = one-way (somente ida)
+  url.searchParams.set("type", isRoundTrip && returnDate ? "1" : "2"); // 1 = Round trip, 2 = One way
   url.searchParams.set("departure_id", normOrigin);
   url.searchParams.set("arrival_id", normDestination);
   url.searchParams.set("outbound_date", flightDate);
+  if (isRoundTrip && returnDate) {
+    url.searchParams.set("return_date", returnDate);
+  }
   url.searchParams.set("adults", String(adults || 1));
+  if (children > 0) {
+    url.searchParams.set("children", String(children));
+  }
+  if (infantsInLap > 0) {
+    url.searchParams.set("infants_on_lap", String(infantsInLap));
+  }
   url.searchParams.set("currency", "BRL");
   url.searchParams.set("hl", "pt");
   url.searchParams.set("gl", "br");
@@ -82,14 +96,18 @@ export async function fetchSerpApiFlights(
 
   logger.info(
     "API",
-    `🌐 [Requisição SerpApi] Consultando Google Flights API para ${normOrigin} → ${normDestination} (${flightDate})`,
+    `🌐 [Requisição SerpApi] Consultando Google Flights API (${isRoundTrip ? "Ida e Volta" : "Somente Ida"}) para ${normOrigin} → ${normDestination} (${flightDate}${returnDate ? ` até ${returnDate}` : ""})`,
     {
       type: "HTTP_API_FETCH",
       engine: "google_flights",
       origin: normOrigin,
       destination: normDestination,
       flightDate,
+      returnDate: returnDate || null,
+      tripType: isRoundTrip ? "round_trip" : "one_way",
       adults,
+      children,
+      infantsInLap,
     }
   );
 
@@ -200,16 +218,28 @@ export async function fetchSerpApiFlights(
     const totalDuration = item.total_duration || firstLeg.duration || null;
     const stops = Math.max(0, flights.length - 1);
 
-    const flightSearchUrl = `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(
-      legDestination
-    )}%20from%20${encodeURIComponent(legOrigin)}%20on%20${encodeURIComponent(
-      flightDate
-    )}%20oneway&curr=BRL&hl=pt-BR${adults > 1 ? `&passengers=${adults}` : ""}`;
+    const totalPax = (adults || 1) + (children || 0) + (infantsInLap || 0);
+    const flightSearchUrl = isRoundTrip && returnDate
+      ? `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(
+          legDestination
+        )}%20from%20${encodeURIComponent(legOrigin)}%20on%20${encodeURIComponent(
+          flightDate
+        )}%20through%20${encodeURIComponent(returnDate)}&curr=BRL&hl=pt-BR${totalPax > 1 ? `&passengers=${totalPax}` : ""}`
+      : `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(
+          legDestination
+        )}%20from%20${encodeURIComponent(legOrigin)}%20on%20${encodeURIComponent(
+          flightDate
+        )}%20oneway&curr=BRL&hl=pt-BR${totalPax > 1 ? `&passengers=${totalPax}` : ""}`;
 
     results.push({
       origin: legOrigin,
       destination: legDestination,
       flightDate,
+      returnDate: isRoundTrip && returnDate ? returnDate : null,
+      tripType: isRoundTrip ? "round_trip" : "one_way",
+      passengers: adults,
+      children,
+      infantsInLap,
       price,
       currency: "BRL",
       airline,

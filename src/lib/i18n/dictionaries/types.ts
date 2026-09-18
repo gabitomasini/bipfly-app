@@ -113,6 +113,10 @@ export interface TranslationDictionary {
       aboveTargetDiff: string;
       emptyState: string;
       emptyStateDesc: string;
+      directBadge: string;
+      stopBadge: string;
+      stopsBadge: string;
+      directFrom: string;
     };
   };
   routes: {
@@ -134,11 +138,19 @@ export interface TranslationDictionary {
     passengers: string;
     adult: string;
     adults: string;
+    child: string;
+    children: string;
+    infantInLap: string;
+    infantsInLap: string;
     cardSearchTooltip: string;
     cardEditTooltip: string;
     cardHistoryTooltip: string;
     cardDeleteTooltip: string;
     cardViewFlightTooltip: string;
+    oneWay: string;
+    roundTrip: string;
+    days: string;
+    day: string;
   };
   modal: {
     newRouteTitle: string;
@@ -147,11 +159,26 @@ export interface TranslationDictionary {
     editRouteDesc: string;
     originLabel: string;
     destinationLabel: string;
+    tripTypeLabel: string;
+    oneWay: string;
+    roundTrip: string;
     departureDateLabel: string;
+    returnDateLabel: string;
+    returnDatePlaceholder: string;
     targetPriceLabel: string;
     targetPriceDesc: string;
     targetPricePlaceholder: string;
     passengersLabel: string;
+    adultsTitle: string;
+    adultsSubtitle: string;
+    childrenTitle: string;
+    childrenSubtitle: string;
+    infantsInLapTitle: string;
+    infantsInLapSubtitle: string;
+    flightPreferenceLabel: string;
+    flightPreferenceAny: string;
+    flightPreferenceDirect: string;
+    flightPreferenceDirectDisclaimer: string;
     activeLabel: string;
     activeDesc: string;
     saveButton: string;
@@ -164,6 +191,15 @@ export interface TranslationDictionary {
     errorRequired: string;
     errorDatePast: string;
     errorPriceInvalid: string;
+    errorReturnBeforeDeparture: string;
+    errorInfantsExceedAdults: string;
+  };
+  flightDrawer: {
+    bestDirect: string;
+    bestWithStops: string;
+    allOptions: string;
+    directOptions: string;
+    stopsOptions: string;
   };
   history: {
     title: string;

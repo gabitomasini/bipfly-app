@@ -15,24 +15,37 @@ export async function scrapeGoogleFlights(
   destination: string,
   flightDate: string,
   passengers = 1,
-  topN = 5
+  topN = 5,
+  returnDate?: string | null,
+  tripType?: "one_way" | "round_trip",
+  children = 0,
+  infantsInLap = 0
 ): Promise<FlightOption[]> {
   const normOrigin = origin.trim().toUpperCase();
   const normDestination = destination.trim().toUpperCase();
+  const totalPax = (passengers || 1) + (children || 0) + (infantsInLap || 0);
+  const paxParam = totalPax > 1 ? `&passengers=${totalPax}` : "";
+  const isRoundTrip = tripType === "round_trip" || (Boolean(returnDate) && tripType !== "one_way");
 
-  // URL direta de voos no Google Flights em BRL e idioma pt-BR
-  const searchUrl = `https://www.google.com/travel/flights?q=Flights%20to%20${normDestination}%20from%20${normOrigin}%20on%20${flightDate}%20oneway&curr=BRL&hl=pt-BR`;
+  // URL direta de voos no Google Flights em BRL e idioma pt-BR (one-way ou ida e volta)
+  const searchUrl = isRoundTrip && returnDate
+    ? `https://www.google.com/travel/flights?q=Flights%20to%20${normDestination}%20from%20${normOrigin}%20on%20${flightDate}%20through%20${returnDate}&curr=BRL&hl=pt-BR${paxParam}`
+    : `https://www.google.com/travel/flights?q=Flights%20to%20${normDestination}%20from%20${normOrigin}%20on%20${flightDate}%20oneway&curr=BRL&hl=pt-BR${paxParam}`;
 
   logger.info(
     "SCRAPER",
-    `🌐 [Requisição Playwright] Abrindo Google Flights: ${normOrigin} → ${normDestination} (${flightDate})`,
+    `🌐 [Requisição Playwright] Abrindo Google Flights (${isRoundTrip ? "Ida e Volta" : "Somente Ida"}): ${normOrigin} → ${normDestination} (${flightDate}${returnDate ? ` até ${returnDate}` : ""})`,
     {
       type: "HTTP_PAGE_NAVIGATION",
       url: searchUrl,
       origin: normOrigin,
       destination: normDestination,
       flightDate,
+      returnDate: returnDate || null,
+      tripType: isRoundTrip ? "round_trip" : "one_way",
       passengers,
+      children,
+      infantsInLap,
     }
   );
 
@@ -255,6 +268,8 @@ export async function scrapeGoogleFlights(
           origin: normOrigin,
           destination: normDestination,
           flightDate,
+          returnDate: isRoundTrip && returnDate ? returnDate : null,
+          tripType: isRoundTrip ? "round_trip" : "one_way",
           price: unitPrice,
           currency: "BRL",
           airline: raw.airline,

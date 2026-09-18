@@ -115,16 +115,31 @@ export function getGoogleFlightsUrl(
   origin: string,
   destination: string,
   flightDate: string,
-  passengers: number = 1
+  passengers: number = 1,
+  returnDate?: string | null,
+  tripType?: "one_way" | "round_trip",
+  children: number = 0,
+  infantsInLap: number = 0
 ): string {
   const normOrigin = (origin || "").trim().toUpperCase();
   const normDestination = (destination || "").trim().toUpperCase();
-  const paxParam = passengers > 1 ? `&passengers=${passengers}` : "";
+  const totalPax = (passengers || 1) + (children || 0) + (infantsInLap || 0);
+  const paxParam = totalPax > 1 ? `&passengers=${totalPax}` : "";
+  const isRoundTrip = tripType === "round_trip" || (Boolean(returnDate) && tripType !== "one_way");
+
+  if (isRoundTrip && returnDate) {
+    return `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(
+      normDestination
+    )}%20from%20${encodeURIComponent(normOrigin)}%20on%20${encodeURIComponent(
+      flightDate
+    )}%20through%20${encodeURIComponent(returnDate)}&curr=BRL&hl=pt-BR${paxParam}`;
+  }
+
   return `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(
     normDestination
   )}%20from%20${encodeURIComponent(normOrigin)}%20on%20${encodeURIComponent(
     flightDate
-  )}%20oneway&curr=BRL&hl=en${paxParam}`;
+  )}%20oneway&curr=BRL&hl=pt-BR${paxParam}`;
 }
 
 export function formatRelativeTime(dateStr?: string | null, locale: SupportedLocale = "en"): string {

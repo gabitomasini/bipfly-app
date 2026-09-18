@@ -70,8 +70,9 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
   };
 
   const navLinks = [
-    { href: "/", label: t.nav.dashboard, icon: BarChart2 },
+    { href: "/", label: t.nav.dashboard, icon: Sparkles },
     { href: "/routes", label: t.nav.routes, icon: Plane },
+    { href: "/history", label: t.nav.history, icon: BarChart2 },
     { href: "/settings", label: t.nav.settings, icon: Settings },
     { href: "/logs", label: t.nav.logs, icon: Terminal },
   ];

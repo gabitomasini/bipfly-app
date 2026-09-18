@@ -35,18 +35,28 @@ export async function PATCH(
     const origin = body.origin || body.origem;
     const destination = body.destination || body.destino;
     const flightDate = body.flightDate || body.data_voo || body.dataVoo;
+    const returnDate = body.returnDate !== undefined ? body.returnDate : (body.return_date !== undefined ? body.return_date : undefined);
+    const tripType = body.tripType || body.trip_type;
     const targetPrice = body.targetPrice !== undefined ? body.targetPrice : (body.preco_limite || body.precoLimite);
     const passengers = body.passengers !== undefined ? body.passengers : body.passageiros;
+    const children = body.children !== undefined ? body.children : body.criancas;
+    const infantsInLap = body.infantsInLap !== undefined ? body.infantsInLap : (body.infants_in_lap !== undefined ? body.infants_in_lap : body.bebes);
     const intervalHours = body.intervalHours !== undefined ? body.intervalHours : body.intervalo_horas;
+    const onlyDirect = body.onlyDirect !== undefined ? Boolean(body.onlyDirect) : (body.apenas_diretos !== undefined ? Boolean(body.apenas_diretos) : undefined);
     const isActive = body.isActive !== undefined ? body.isActive : body.ativo;
 
     const ok = updateRoute(routeId, {
       origin,
       destination,
       flightDate,
+      returnDate,
+      tripType,
       targetPrice: targetPrice !== undefined ? Number(targetPrice) : undefined,
       passengers: passengers !== undefined ? Number(passengers) : undefined,
+      children: children !== undefined ? Number(children) : undefined,
+      infantsInLap: infantsInLap !== undefined ? Number(infantsInLap) : undefined,
       intervalHours: intervalHours !== undefined ? Number(intervalHours) : undefined,
+      onlyDirect,
       isActive,
     });
 

@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Plane, Calendar, DollarSign, AlertCircle, Sparkles, Users, Calculator } from "lucide-react";
+import { X, Calendar, DollarSign, AlertCircle, Sparkles, Users, Plane, ArrowRight, RotateCcw } from "lucide-react";
 import { MonitoredRoute } from "@/lib/types";
 import AirportCombobox from "./AirportCombobox";
 import CustomSelect from "./CustomSelect";
+import CustomDatePicker from "./CustomDatePicker";
 import { useModalBehavior } from "@/hooks/useModalBehavior";
 import { useTranslation } from "@/lib/i18n/context";
-import { BRL_TO_USD_RATE, convertUsdToBrl } from "@/lib/i18n/formatters";
+import { BRL_TO_USD_RATE } from "@/lib/i18n/formatters";
 
 interface RouteModalProps {
   isOpen: boolean;
@@ -25,10 +26,14 @@ export default function RouteModal({
   const { t, locale } = useTranslation();
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
+  const [tripType, setTripType] = useState<"one_way" | "round_trip">("round_trip");
   const [flightDate, setFlightDate] = useState("");
-  const [passengers, setPassengers] = useState(1);
+  const [returnDate, setReturnDate] = useState("");
+  const [passengers, setPassengers] = useState(1); // adults
+  const [children, setChildren] = useState(0);
+  const [infantsInLap, setInfantsInLap] = useState(0);
   const [targetPrice, setTargetPrice] = useState("");
-  const [isActive, setIsActive] = useState(true);
+  const [onlyDirect, setOnlyDirect] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -39,25 +44,32 @@ export default function RouteModal({
       setOrigin(routeToEdit.origin);
       setDestination(routeToEdit.destination);
       setFlightDate(routeToEdit.flightDate);
+      setReturnDate(routeToEdit.returnDate || "");
+      setTripType(routeToEdit.tripType || (routeToEdit.returnDate ? "round_trip" : "one_way"));
       setPassengers(routeToEdit.passengers || 1);
-      if (locale === "en") {
-        const usdVal = Math.round(routeToEdit.targetPrice * BRL_TO_USD_RATE);
-        setTargetPrice(String(usdVal));
-      } else {
-        setTargetPrice(String(routeToEdit.targetPrice));
-      }
-      setIsActive(routeToEdit.isActive);
+      setChildren(routeToEdit.children || 0);
+      setInfantsInLap(routeToEdit.infantsInLap || 0);
+      setOnlyDirect(Boolean(routeToEdit.onlyDirect));
+      setTargetPrice(String(routeToEdit.targetPrice));
     } else {
       const defaultDate = new Date();
       defaultDate.setDate(defaultDate.getDate() + 45);
       const isoDate = defaultDate.toISOString().split("T")[0];
 
-      setOrigin("JFK");
-      setDestination("LHR");
+      const returnDefault = new Date(defaultDate);
+      returnDefault.setDate(returnDefault.getDate() + 12);
+      const isoReturn = returnDefault.toISOString().split("T")[0];
+
+      setOrigin("GRU");
+      setDestination("MCO");
       setFlightDate(isoDate);
+      setReturnDate(isoReturn);
+      setTripType("round_trip");
       setPassengers(1);
-      setTargetPrice(locale === "en" ? "100" : "550");
-      setIsActive(true);
+      setChildren(0);
+      setInfantsInLap(0);
+      setOnlyDirect(false);
+      setTargetPrice("2500");
     }
     setError(null);
   }, [routeToEdit, isOpen, locale]);
@@ -65,15 +77,40 @@ export default function RouteModal({
   if (!isOpen) return null;
 
   const numericInputPrice = parseFloat(targetPrice.replace(",", ".")) || 0;
-  const convertedBrlPreview =
-    locale === "en" && numericInputPrice > 0
-      ? convertUsdToBrl(numericInputPrice)
-      : null;
+  const usdEstimate = numericInputPrice > 0 ? Math.round(numericInputPrice * BRL_TO_USD_RATE) : 0;
+  const usdRateFormatted = (1 / BRL_TO_USD_RATE).toFixed(2);
+  const totalPassengers = passengers + children + infantsInLap;
 
-  const setDateOffsetDays = (days: number) => {
-    const d = new Date();
-    d.setDate(d.getDate() + days);
-    setFlightDate(d.toISOString().split("T")[0]);
+  const handleAdultsChange = (delta: number) => {
+    const newVal = Math.max(1, Math.min(9, passengers + delta));
+    setPassengers(newVal);
+    // Se diminuir adultos e bebês de colo exceder adultos, ajusta bebês
+    if (infantsInLap > newVal) {
+      setInfantsInLap(newVal);
+    }
+  };
+
+  const handleChildrenChange = (delta: number) => {
+    const newVal = Math.max(0, Math.min(8, children + delta));
+    setChildren(newVal);
+  };
+
+  const handleInfantsChange = (delta: number) => {
+    // Máx de bebês de colo = número de adultos
+    const newVal = Math.max(0, Math.min(passengers, infantsInLap + delta));
+    setInfantsInLap(newVal);
+  };
+
+  const getPassengerSummaryText = () => {
+    const parts: string[] = [];
+    parts.push(`${passengers} ${passengers === 1 ? t.routes.adult : t.routes.adults}`);
+    if (children > 0) {
+      parts.push(`${children} ${children === 1 ? t.routes.child : t.routes.children}`);
+    }
+    if (infantsInLap > 0) {
+      parts.push(`${infantsInLap} ${infantsInLap === 1 ? t.routes.infantInLap : t.routes.infantsInLap}`);
+    }
+    return parts.join(", ");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -112,31 +149,50 @@ export default function RouteModal({
       setError(t.modal.errorRequired);
       return;
     }
+    if (tripType === "round_trip") {
+      if (!returnDate) {
+        setError(
+          locale === "en"
+            ? "Please select a return date for round-trip flights."
+            : "Selecione uma data de retorno para viagens de ida e volta."
+        );
+        return;
+      }
+      if (returnDate < flightDate) {
+        setError(t.modal.errorReturnBeforeDeparture);
+        return;
+      }
+    }
+    if (infantsInLap > passengers) {
+      setError(t.modal.errorInfantsExceedAdults);
+      return;
+    }
     if (isNaN(parsedPrice) || parsedPrice <= 0) {
       setError(t.modal.errorPriceInvalid);
       return;
     }
 
-    // In English mode, the user entered USD. Convert to BRL for backend storage so scraper price matching is consistent.
-    const finalTargetPriceBrl =
-      locale === "en"
-        ? Math.round(convertUsdToBrl(parsedPrice) * 100) / 100
-        : parsedPrice;
-
     setLoading(true);
     try {
+      const payload = {
+        origin: normOrigin,
+        destination: normDestination,
+        flightDate,
+        returnDate: tripType === "round_trip" ? returnDate : null,
+        tripType,
+        passengers: Number(passengers),
+        children: Number(children),
+        infantsInLap: Number(infantsInLap),
+        targetPrice: parsedPrice,
+        onlyDirect,
+        isActive: routeToEdit ? routeToEdit.isActive !== false : true,
+      };
+
       if (routeToEdit) {
         const res = await fetch(`/api/routes/${routeToEdit.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            origin: normOrigin,
-            destination: normDestination,
-            flightDate,
-            passengers: Number(passengers),
-            targetPrice: finalTargetPriceBrl,
-            isActive,
-          }),
+          body: JSON.stringify(payload),
         });
         const json = await res.json();
         if (!json.success) throw new Error(json.error || "Failed to update route.");
@@ -144,14 +200,7 @@ export default function RouteModal({
         const res = await fetch("/api/routes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            origin: normOrigin,
-            destination: normDestination,
-            flightDate,
-            passengers: Number(passengers),
-            targetPrice: finalTargetPriceBrl,
-            isActive: true,
-          }),
+          body: JSON.stringify(payload),
         });
         const json = await res.json();
         if (!json.success) throw new Error(json.error || "Failed to create route.");
@@ -168,7 +217,7 @@ export default function RouteModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fadeIn"
       {...overlayProps}
       role="dialog"
       aria-modal="true"
@@ -176,44 +225,78 @@ export default function RouteModal({
     >
       <div
         ref={containerRef}
-        className="glass-panel w-full max-w-xl p-6 bg-white border border-slate-200 shadow-2xl rounded-2xl relative max-h-[92vh] overflow-y-auto"
+        className="glass-panel w-full max-w-xl bg-white border border-slate-200 shadow-2xl rounded-2xl overflow-hidden animate-scaleIn max-h-[92vh] flex flex-col"
       >
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-sky-50 border border-sky-100 text-sky-600">
-              <Plane className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 id="route-modal-title" className="text-lg font-black text-slate-900">
-                {routeToEdit ? t.modal.editRouteTitle : t.modal.newRouteTitle}
-              </h2>
-              <p className="text-xs text-slate-500 font-medium">
-                {routeToEdit ? t.modal.editRouteDesc : t.modal.newRouteDesc}
-              </p>
-            </div>
+        <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100 bg-slate-50/50 shrink-0">
+          <div>
+            <h3 id="route-modal-title" className="text-base font-bold text-slate-900">
+              {routeToEdit ? t.modal.editRouteTitle : t.modal.newRouteTitle}
+            </h3>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">
+              {routeToEdit ? t.modal.editRouteDesc : t.modal.newRouteDesc}
+            </p>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
             aria-label={t.common.close}
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Error */}
-        {error && (
-          <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-center gap-2 font-medium">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-            <span>{error}</span>
-          </div>
-        )}
-
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Origin & Destination Autocomplete */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4.5 overflow-y-auto overflow-x-hidden">
+          {error && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* 1. Trip Type Selector */}
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-bold text-slate-700">
+              {t.modal.tripTypeLabel}
+            </label>
+            <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200/70 gap-1 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setTripType("round_trip");
+                  if (!returnDate && flightDate) {
+                    const d = new Date(flightDate);
+                    d.setDate(d.getDate() + 10);
+                    setReturnDate(d.toISOString().split("T")[0]);
+                  }
+                }}
+                className={`py-1.5 px-3 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+                  tripType === "round_trip"
+                    ? "bg-white text-sky-700 shadow-xs ring-1 ring-sky-200"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-sky-600" />
+                <span>{t.modal.roundTrip}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTripType("one_way")}
+                className={`py-1.5 px-3 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+                  tripType === "one_way"
+                    ? "bg-white text-slate-900 shadow-xs ring-1 ring-slate-200/60"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <ArrowRight className="w-3.5 h-3.5 text-sky-600" />
+                <span>{t.modal.oneWay}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 2. Origin and Destination */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 relative z-20">
             <AirportCombobox
               label={t.modal.originLabel}
               value={origin}
@@ -229,143 +312,253 @@ export default function RouteModal({
             />
           </div>
 
-          {/* Flight Date & Quick Presets */}
-          <div className="space-y-2">
-            <label className="block text-xs font-bold text-slate-700 flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
+          {/* 3. Dates */}
+          <div className={`grid ${tripType === "round_trip" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"} gap-3.5 items-start relative z-30`}>
+            {/* Departure Date */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-sky-600" />
-                <span>{t.modal.departureDateLabel}</span>
-              </span>
-              <span className="text-[11px] text-slate-400 font-normal">
-                {locale === "en" ? "Quick presets:" : "Atalhos rápidos:"}
-              </span>
-            </label>
-
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="date"
-                value={flightDate}
-                onChange={(e) => setFlightDate(e.target.value)}
-                required
-                className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs font-semibold focus:outline-none focus:border-sky-500 focus:bg-white transition-colors"
-              />
-
-              <div className="flex items-center gap-1.5 shrink-0">
-                {[
-                  { label: "+30d", days: 30 },
-                  { label: "+60d", days: 60 },
-                  { label: "+90d", days: 90 },
-                  { label: "+180d", days: 180 },
-                ].map((preset) => (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    onClick={() => setDateOffsetDays(preset.days)}
-                    className="px-2.5 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-sky-100 hover:text-sky-800 text-slate-600 border border-slate-200 transition-colors cursor-pointer"
-                  >
-                    {preset.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Target Price and Passengers */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>{locale === "en" ? "Target Price (USD)" : t.modal.targetPriceLabel}</span>
-                </span>
-                {locale === "en" && (
-                  <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200/80 flex items-center gap-1">
-                    <Calculator className="w-3 h-3 text-sky-600" />
-                    <span>Auto-converts to BRL</span>
-                  </span>
-                )}
+                <span>{tripType === "round_trip" ? t.modal.departureDateLabel : t.common.date}</span>
               </label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                  {locale === "en" ? "$" : "R$"}
-                </span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min={1}
-                  value={targetPrice}
-                  onChange={(e) => setTargetPrice(e.target.value)}
-                  placeholder={locale === "en" ? "e.g. 150" : t.modal.targetPricePlaceholder}
+              <CustomDatePicker
+                value={flightDate}
+                minDate={new Date().toISOString().split("T")[0]}
+                onChange={(newVal) => {
+                  setFlightDate(newVal);
+                  if (tripType === "round_trip" && returnDate && returnDate < newVal) {
+                    const retD = new Date(newVal);
+                    retD.setDate(retD.getDate() + 10);
+                    setReturnDate(retD.toISOString().split("T")[0]);
+                  }
+                }}
+                accentColor="sky"
+                align="left"
+                required
+              />
+            </div>
+
+            {/* Return Date (Only when Round-Trip) */}
+            {tripType === "round_trip" && (
+              <div className="space-y-1.5 animate-fadeIn">
+                <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <RotateCcw className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>{t.modal.returnDateLabel}</span>
+                </label>
+                <CustomDatePicker
+                  value={returnDate}
+                  minDate={flightDate || new Date().toISOString().split("T")[0]}
+                  onChange={setReturnDate}
+                  accentColor="indigo"
+                  align="right"
                   required
-                  className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm font-black focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors font-mono"
                 />
               </div>
+            )}
+          </div>
 
-              {locale === "en" ? (
-                <div className="mt-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200/90 text-xs flex flex-col gap-1">
-                  <div className="flex items-center justify-between font-semibold text-slate-800">
-                    <span className="flex items-center gap-1.5 text-slate-600 text-[11px]">
-                      <Calculator className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                      <span>Converted to BRL:</span>
-                    </span>
-                    <strong className="text-xs font-black text-slate-900 font-mono">
-                      {convertedBrlPreview !== null
-                        ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(convertedBrlPreview)
-                        : "R$ 0,00"}
-                    </strong>
-                  </div>
-                  <p className="text-[10.5px] text-slate-500 leading-tight">
-                    💡 <strong>Saved in Reais</strong>: Flight scraper tracks prices in BRL. This target will be stored as approx.{" "}
-                    <strong className="text-slate-700">
-                      {convertedBrlPreview !== null
-                        ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(convertedBrlPreview)
-                        : "R$ 0,00"}
-                    </strong>{" "}
-                    (1 USD ≈ R$ {(1 / BRL_TO_USD_RATE).toFixed(2)}).
-                  </p>
-                </div>
-              ) : (
-                <span className="text-[11px] text-slate-400 mt-1 block">
-                  {t.modal.targetPriceDesc}
-                </span>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+          {/* 4. Passageiros (Adultos, Crianças, Bebês de Colo) - Steppers Modernos */}
+          <div className="space-y-2 p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-indigo-600" />
                 <span>{t.modal.passengersLabel}</span>
               </label>
-              <CustomSelect
-                value={String(passengers)}
-                onChange={(val) => setPassengers(Number(val))}
-                options={[1, 2, 3, 4, 5, 6].map((num) => ({
-                  value: String(num),
-                  label: `${num} ${num === 1 ? t.routes.adult : t.routes.adults}`,
-                }))}
-                size="md"
-              />
+              <span className="text-[11px] font-bold text-indigo-700 bg-white border border-indigo-200/80 px-2 py-0.5 rounded-md shadow-2xs">
+                {getPassengerSummaryText()}
+              </span>
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+              {/* Adultos (12+ anos) */}
+              <div className="flex items-center justify-between sm:flex-col sm:items-stretch p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs gap-2">
+                <div>
+                  <span className="block text-xs font-bold text-slate-900">{t.modal.adultsTitle}</span>
+                  <span className="block text-[10px] text-slate-500 font-medium">{t.modal.adultsSubtitle}</span>
+                </div>
+                <div className="flex items-center justify-between sm:justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleAdultsChange(-1)}
+                    disabled={passengers <= 1}
+                    className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed font-bold text-slate-700 text-sm flex items-center justify-center transition-colors cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <span className="font-black text-slate-900 text-sm w-4 text-center tabular-nums">
+                    {passengers}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleAdultsChange(1)}
+                    disabled={totalPassengers >= 9}
+                    className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed font-bold text-slate-700 text-sm flex items-center justify-center transition-colors cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Crianças (2-11 anos) */}
+              <div className="flex items-center justify-between sm:flex-col sm:items-stretch p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs gap-2">
+                <div>
+                  <span className="block text-xs font-bold text-slate-900">{t.modal.childrenTitle}</span>
+                  <span className="block text-[10px] text-slate-500 font-medium">{t.modal.childrenSubtitle}</span>
+                </div>
+                <div className="flex items-center justify-between sm:justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleChildrenChange(-1)}
+                    disabled={children <= 0}
+                    className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed font-bold text-slate-700 text-sm flex items-center justify-center transition-colors cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <span className="font-black text-slate-900 text-sm w-4 text-center tabular-nums">
+                    {children}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleChildrenChange(1)}
+                    disabled={totalPassengers >= 9}
+                    className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed font-bold text-slate-700 text-sm flex items-center justify-center transition-colors cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Bebês de Colo (< 2 anos) */}
+              <div className="flex items-center justify-between sm:flex-col sm:items-stretch p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs gap-2">
+                <div>
+                  <span className="block text-xs font-bold text-slate-900">{t.modal.infantsInLapTitle}</span>
+                  <span className="block text-[10px] text-slate-500 font-medium">{t.modal.infantsInLapSubtitle}</span>
+                </div>
+                <div className="flex items-center justify-between sm:justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleInfantsChange(-1)}
+                    disabled={infantsInLap <= 0}
+                    className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed font-bold text-slate-700 text-sm flex items-center justify-center transition-colors cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <span className="font-black text-slate-900 text-sm w-4 text-center tabular-nums">
+                    {infantsInLap}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleInfantsChange(1)}
+                    disabled={infantsInLap >= passengers || totalPassengers >= 9}
+                    className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed font-bold text-slate-700 text-sm flex items-center justify-center transition-colors cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {infantsInLap > 0 && (
+              <div className="text-[10px] text-indigo-700 bg-indigo-50/60 rounded-lg px-2.5 py-1 font-medium border border-indigo-100">
+                👶 {locale === "en" ? "Max 1 lap infant per adult passenger" : "Máximo de 1 bebê no colo por adulto acompanhante"}
+              </div>
+            )}
           </div>
 
-          {/* Active Checkbox (if editing) */}
-          {routeToEdit && (
-            <div className="flex items-center gap-2 pt-1">
-              <input
-                type="checkbox"
-                id="ativo-chk"
-                checked={isActive}
-                onChange={(e) => setIsActive(e.target.checked)}
-                className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-slate-300 cursor-pointer"
-              />
-              <label htmlFor="ativo-chk" className="text-xs text-slate-700 font-semibold cursor-pointer">
-                {t.modal.activeDesc}
-              </label>
-            </div>
-          )}
+          {/* 5. Flight Preference: Compact Segmented Control */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-slate-700">
+              {t.modal.flightPreferenceLabel}
+            </label>
 
-          {/* Buttons */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+            <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl border border-slate-200/70 gap-1 text-xs">
+              <button
+                type="button"
+                onClick={() => setOnlyDirect(false)}
+                className={`py-2 px-3 rounded-lg font-bold text-xs transition-all flex items-center justify-center cursor-pointer ${
+                  !onlyDirect
+                    ? "bg-white text-slate-900 shadow-xs ring-1 ring-slate-200/60"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <span>
+                  {locale === "en"
+                    ? "Any flight (with/without stops)"
+                    : "Qualquer voo (com ou sem conexões)"}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setOnlyDirect(true)}
+                className={`py-2 px-3 rounded-lg font-bold text-xs transition-all flex items-center justify-center cursor-pointer ${
+                  onlyDirect
+                    ? "bg-white text-sky-700 shadow-xs ring-1 ring-sky-200"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <span>
+                  {locale === "en"
+                    ? "Direct flights only"
+                    : "Apenas voos diretos"}
+                </span>
+              </button>
+            </div>
+
+            {/* Disclaimer when Only Direct is selected */}
+            {onlyDirect && (
+              <div className="flex items-start gap-2 p-2.5 rounded-xl bg-amber-50/90 border border-amber-200 text-[11px] text-amber-900 animate-fadeIn mt-1.5">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                <p className="leading-snug">
+                  <strong>{locale === "en" ? "Notice:" : "Aviso:"}</strong>{" "}
+                  {t.modal.flightPreferenceDirectDisclaimer}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* 5. Target Price (R$) with Inline USD Note */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+              <span>
+                {locale === "en"
+                  ? `Target Price (R$)${tripType === "round_trip" ? " - Total Round Trip" : ""}`
+                  : `Preço Alvo (R$)${tripType === "round_trip" ? " - Viagem Completa" : ""}`}
+              </span>
+            </label>
+            <div className="relative">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                R$
+              </span>
+              <input
+                type="number"
+                step="0.01"
+                min={1}
+                value={targetPrice}
+                onChange={(e) => setTargetPrice(e.target.value)}
+                placeholder="2500.00"
+                required
+                className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm font-black focus:outline-none focus:border-sky-500 focus:bg-white transition-colors font-mono"
+              />
+            </div>
+
+            {numericInputPrice > 0 ? (
+              <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1 font-medium">
+                <span>≈ ${usdEstimate} USD</span>
+                <span className="text-slate-400 font-normal">
+                  ({locale === "en" ? `current rate: ${usdRateFormatted}` : `cotação atual: ${usdRateFormatted}`})
+                </span>
+              </p>
+            ) : (
+              <p className="text-[11px] text-slate-400 mt-1 font-medium">
+                {locale === "en"
+                  ? "Alerts will trigger when price drops to or below this value."
+                  : t.modal.targetPriceDesc}
+              </p>
+            )}
+          </div>
+
+          {/* Footer Actions */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 shrink-0">
             <button
               type="button"
               onClick={onClose}

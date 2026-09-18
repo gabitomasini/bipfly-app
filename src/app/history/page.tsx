@@ -663,13 +663,20 @@ function HistoricoContent() {
                               item.origin,
                               item.destination,
                               item.flightDate,
-                              r?.passengers || 1
+                              r?.passengers || 1,
+                              item.returnDate || r?.returnDate,
+                              item.tripType || r?.tripType,
+                              item.children || r?.children || 0,
+                              item.infantsInLap || r?.infantsInLap || 0
                             );
+
+                          const isRoundTrip = (item.tripType === "round_trip" || r?.tripType === "round_trip");
+                          const returnDate = item.returnDate || r?.returnDate;
 
                           return (
                             <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
                               <td className="px-4 py-3.5 font-black text-slate-900">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <span
                                     className="w-2.5 h-2.5 rounded-full shrink-0"
                                     style={{ backgroundColor: color }}
@@ -681,11 +688,17 @@ function HistoricoContent() {
                                   <span className="px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-xs font-bold text-slate-800">
                                     {item.destination}
                                   </span>
+                                  {isRoundTrip && (
+                                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-1.5 py-0.2 rounded">
+                                      🔁
+                                    </span>
+                                  )}
                                 </div>
                               </td>
                               <td className="px-4 py-3.5 text-center font-semibold text-slate-800 whitespace-nowrap">
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100/70 text-slate-700 text-[11px] font-medium border border-slate-200/60">
                                   {formatDateLocale(item.flightDate, locale)}
+                                  {isRoundTrip && returnDate && ` → ${formatDateLocale(returnDate, locale)}`}
                                 </span>
                               </td>
                               <td className="px-4 py-3.5 font-medium text-slate-500 whitespace-nowrap">
@@ -827,7 +840,7 @@ function HistoricoContent() {
               {/* Header do Card da Rota */}
               <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <div className="flex items-center gap-2 mb-1.5">
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                     <div className="flex items-center gap-1.5 font-black text-xl tracking-tight text-slate-900">
                       <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-sm font-bold text-slate-800">
                         {singleRoute.origin}
@@ -840,7 +853,13 @@ function HistoricoContent() {
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-sky-50 text-sky-800 border border-sky-200 text-xs font-bold">
                       <Calendar className="w-3 h-3" />
                       {formatDateLocale(singleRoute.flightDate, locale)}
+                      {singleRoute.tripType === "round_trip" && singleRoute.returnDate && ` → ${formatDateLocale(singleRoute.returnDate, locale)}`}
                     </span>
+                    {singleRoute.tripType === "round_trip" && (
+                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-md">
+                        🔁 {locale === "en" ? "Round Trip" : "Ida e Volta"}
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-slate-500 font-medium">
                     {getAirportName(singleRoute.origin)} {locale === "en" ? "to" : "para"} {getAirportName(singleRoute.destination)} • {t.history.targetLabel}{" "}
@@ -870,7 +889,11 @@ function HistoricoContent() {
                         singleRoute.origin,
                         singleRoute.destination,
                         singleRoute.flightDate,
-                        singleRoute.passengers || 1
+                        singleRoute.passengers || 1,
+                        singleRoute.returnDate,
+                        singleRoute.tripType,
+                        singleRoute.children || 0,
+                        singleRoute.infantsInLap || 0
                       )
                     }
                     target="_blank"
@@ -1025,7 +1048,11 @@ function HistoricoContent() {
                                 item.origin,
                                 item.destination,
                                 item.flightDate,
-                                singleRoute.passengers || 1
+                                singleRoute.passengers || 1,
+                                item.returnDate || singleRoute.returnDate,
+                                item.tripType || singleRoute.tripType,
+                                item.children || singleRoute.children || 0,
+                                item.infantsInLap || singleRoute.infantsInLap || 0
                               );
                             return (
                               <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">

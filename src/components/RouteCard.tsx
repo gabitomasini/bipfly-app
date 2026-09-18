@@ -81,6 +81,8 @@ export default function RouteCard({
           origin: route.origin,
           destination: route.destination,
           date: route.flightDate,
+          returnDate: route.returnDate || undefined,
+          tripType: route.tripType || (route.returnDate ? "round_trip" : "one_way"),
           passengers: route.passengers || 1,
         }),
       });
@@ -185,13 +187,29 @@ export default function RouteCard({
   const isBelowLimit = hasPrice && currentPrice <= target;
   const diff = hasPrice ? target - currentPrice : 0;
 
+  const isRoundTrip = route.tripType === "round_trip" || Boolean(route.returnDate);
+
+  let durationDays: number | null = null;
+  if (route.returnDate && route.flightDate) {
+    const d1 = new Date(route.flightDate);
+    const d2 = new Date(route.returnDate);
+    const diffTime = d2.getTime() - d1.getTime();
+    if (diffTime >= 0) {
+      durationDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    }
+  }
+
   const flightUrl =
     route.lastBookingLink ||
     getGoogleFlightsUrl(
       route.origin,
       route.destination,
       route.flightDate,
-      route.passengers || 1
+      route.passengers || 1,
+      route.returnDate,
+      route.tripType,
+      route.children || 0,
+      route.infantsInLap || 0
     );
 
   return (
@@ -222,10 +240,24 @@ export default function RouteCard({
             </div>
           )}
 
-          {/* Flight Date */}
+          {/* Flight Date & Trip Type */}
           <span className="inline-flex items-center gap-1.5 font-bold text-slate-900 text-xs sm:text-sm">
             <Calendar className="w-4 h-4 text-sky-600 shrink-0" />
-            <span>{formatDate(route.flightDate)}</span>
+            {isRoundTrip && route.returnDate ? (
+              <span className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200/80">
+                  {t.routes.roundTrip}
+                </span>
+                <span>{formatDate(route.flightDate)} → {formatDate(route.returnDate)}</span>
+                {durationDays !== null && (
+                  <span className="text-xs text-slate-400 font-semibold">
+                    ({durationDays} {durationDays === 1 ? t.routes.day : t.routes.days})
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span>{formatDate(route.flightDate)}</span>
+            )}
           </span>
 
           {/* Airline Badge */}
@@ -244,6 +276,8 @@ export default function RouteCard({
             <span>
               {route.passengers || 1}{" "}
               {(route.passengers || 1) === 1 ? t.routes.adult : t.routes.adults}
+              {Boolean(route.children) && `, ${route.children} ${route.children === 1 ? t.routes.child : t.routes.children}`}
+              {Boolean(route.infantsInLap) && `, ${route.infantsInLap} ${route.infantsInLap === 1 ? t.routes.infantInLap : t.routes.infantsInLap}`}
             </span>
           </span>
 
