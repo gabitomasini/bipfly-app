@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import { AppSettings, SchedulerStatus } from "@/lib/types";
-import { formatDateTimeBR, formatCurrency } from "@/lib/utils";
+import { formatDateTimeLocale, formatCurrencyLocale } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import { useToast } from "@/components/Toast";
 import Tooltip from "@/components/Tooltip";
 import {
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 
 export default function ConfiguracoesPage() {
+  const { t, locale } = useTranslation();
   const { addToast } = useToast();
   const [settings, setSettings] = useState<AppSettings>({
     scheduleHours: "03:00,14:00",
@@ -98,12 +100,12 @@ export default function ConfiguracoesPage() {
     setHourError(null);
     const val = newHourInput.trim();
     if (!/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(val)) {
-      setHourError("Por favor, digite um horário válido no formato HH:MM (ex: 08:30 ou 14:00).");
+      setHourError(t.settings.hourFormatError);
       return;
     }
     const formatted = val.padStart(5, "0");
     if (hoursList.includes(formatted)) {
-      setHourError("Este horário já está na lista.");
+      setHourError(t.settings.hourDuplicateError);
       return;
     }
     const updated = [...hoursList, formatted].sort();
@@ -115,7 +117,7 @@ export default function ConfiguracoesPage() {
   const handleRemoveHour = (hour: string) => {
     setHourError(null);
     if (hoursList.length <= 1) {
-      setHourError("Você deve manter pelo menos um horário diário de busca configurado.");
+      setHourError(t.settings.hourMinError);
       return;
     }
     const updated = hoursList.filter((h) => h !== hour);
@@ -146,16 +148,16 @@ export default function ConfiguracoesPage() {
         body: JSON.stringify(payload),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Falha ao salvar configurações.");
+      if (!json.success) throw new Error(json.error || t.toasts.settingsSaved);
 
       const schRes = await fetch("/api/scheduler");
       const schJson = await schRes.json();
       if (schJson.success) setSchedulerStatus(schJson.data);
 
       setInitialSettings(payload);
-      addToast("Configurações salvas e agendador reprogramado com sucesso!", "success");
+      addToast(t.settings.savedToast, "success");
     } catch (err: any) {
-      addToast(err.message || "Erro ao salvar configurações", "error");
+      addToast(err.message || t.toasts.connError, "error");
     } finally {
       setSaving(false);
     }
@@ -173,12 +175,12 @@ export default function ConfiguracoesPage() {
       });
       const json = await res.json();
       if (json.success) {
-        setTestNotificationFeedback("✅ Alerta disparado! Verifique seu app ntfy no celular.");
+        setTestNotificationFeedback(locale === "en" ? "✅ Test alert triggered! Check your phone's ntfy app." : "✅ Alerta disparado! Verifique seu app ntfy no celular.");
       } else {
-        setTestNotificationFeedback(`❌ Erro: ${json.error || "Falha no envio"}`);
+        setTestNotificationFeedback(locale === "en" ? `❌ Error: ${json.error || "Failed to send"}` : `❌ Erro: ${json.error || "Falha no envio"}`);
       }
     } catch (err: any) {
-      setTestNotificationFeedback(`❌ Erro de rede: ${err.message}`);
+      setTestNotificationFeedback(locale === "en" ? `❌ Network error: ${err.message}` : `❌ Erro de rede: ${err.message}`);
     } finally {
       setTestNotificationSending(false);
       setTimeout(() => setTestNotificationFeedback(null), 6000);
@@ -187,7 +189,7 @@ export default function ConfiguracoesPage() {
 
   const handleTestScraper = async () => {
     setTestScraperRunning(true);
-    setTestScraperFeedback("Iniciando navegador headless Playwright e extraindo Google Flights...");
+    setTestScraperFeedback(locale === "en" ? "Launching headless Playwright browser and scraping Google Flights..." : "Iniciando navegador headless Playwright e extraindo Google Flights...");
     try {
       const res = await fetch("/api/scraper/test", {
         method: "POST",
@@ -202,13 +204,15 @@ export default function ConfiguracoesPage() {
         const bestAirline = best.airline;
         const total = json.data.totalOptions ?? options.length;
         setTestScraperFeedback(
-          `✅ Sucesso! Web Scraper extraiu ${total} voos reais. Menor: ${formatCurrency(bestPrice)} (${bestAirline}).`
+          locale === "en"
+            ? `✅ Success! Web scraper extracted ${total} live flight options. Lowest: ${formatCurrencyLocale(bestPrice, "BRL", locale)} (${bestAirline}).`
+            : `✅ Sucesso! Web Scraper extraiu ${total} voos reais. Menor: ${formatCurrencyLocale(bestPrice, "BRL", locale)} (${bestAirline}).`
         );
       } else {
-        setTestScraperFeedback(`❌ Falha no scraper: ${json.error || "Nenhum voo retornado"}`);
+        setTestScraperFeedback(locale === "en" ? `❌ Scraper failure: ${json.error || "No flights returned"}` : `❌ Falha no scraper: ${json.error || "Nenhum voo retornado"}`);
       }
     } catch (err: any) {
-      setTestScraperFeedback(`❌ Erro: ${err.message}`);
+      setTestScraperFeedback(locale === "en" ? `❌ Error: ${err.message}` : `❌ Erro: ${err.message}`);
     } finally {
       setTestScraperRunning(false);
     }
@@ -225,10 +229,10 @@ export default function ConfiguracoesPage() {
         <div>
           <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2.5">
             <Settings className="w-6 h-6 text-sky-600" />
-            <span>Configurações do Sistema & Agendador</span>
+            <span>{t.settings.title}</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1 font-medium">
-            Personalize os horários de busca, modo Web Scraping / API e notificações no celular.
+            {t.settings.subtitle}
           </p>
         </div>
 
@@ -241,9 +245,9 @@ export default function ConfiguracoesPage() {
                   <Zap className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-base font-bold text-slate-900">Motor de Busca de Voos</h2>
+                  <h2 className="text-base font-bold text-slate-900">{t.settings.searchEngineTitle}</h2>
                   <p className="text-xs text-slate-500 font-medium">
-                    Escolha entre Web Scraping direto (Playwright) ou consulta via API estruturada.
+                    {t.settings.searchEngineDesc}
                   </p>
                 </div>
               </div>
@@ -255,7 +259,7 @@ export default function ConfiguracoesPage() {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition-colors cursor-pointer disabled:opacity-50"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${testScraperRunning ? "animate-spin" : ""}`} />
-                <span>{testScraperRunning ? "Testando Scraper..." : "Testar Web Scraper"}</span>
+                <span>{testScraperRunning ? t.settings.testingScraper : t.settings.testScraper}</span>
               </button>
             </div>
 
@@ -278,7 +282,7 @@ export default function ConfiguracoesPage() {
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                       <Zap className="w-4 h-4 text-sky-600" />
-                      Automático / Híbrido
+                      {t.settings.optAuto}
                     </span>
                     <input
                       type="radio"
@@ -290,7 +294,7 @@ export default function ConfiguracoesPage() {
                     />
                   </div>
                   <p className="text-[11px] text-slate-600 font-medium">
-                    ⭐ <strong>Recomendado</strong>: Tenta Web Scraping primeiro (gratuito); se houver bloqueio, usa a API como fallback.
+                    {t.settings.optAutoDesc}
                   </p>
                 </div>
               </label>
@@ -307,7 +311,7 @@ export default function ConfiguracoesPage() {
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                       <Globe className="w-4 h-4 text-emerald-600" />
-                      Web Scraping Direto
+                      {t.settings.optScraper}
                     </span>
                     <input
                       type="radio"
@@ -319,7 +323,7 @@ export default function ConfiguracoesPage() {
                     />
                   </div>
                   <p className="text-[11px] text-slate-600 font-medium">
-                    Acessa o Google Flights via navegador invisível (Playwright). 100% gratuito e ilimitado.
+                    {t.settings.optScraperDesc}
                   </p>
                 </div>
               </label>
@@ -336,7 +340,7 @@ export default function ConfiguracoesPage() {
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                       <Key className="w-4 h-4 text-indigo-600" />
-                      SerpApi Google Flights
+                      {t.settings.optSerpapi}
                     </span>
                     <input
                       type="radio"
@@ -348,7 +352,7 @@ export default function ConfiguracoesPage() {
                     />
                   </div>
                   <p className="text-[11px] text-slate-600 font-medium">
-                    Busca estruturada direta via API com cota gratuita mensal de 250 buscas.
+                    {t.settings.optSerpapiDesc}
                   </p>
                 </div>
               </label>
@@ -362,9 +366,9 @@ export default function ConfiguracoesPage() {
                 <Clock className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-slate-900">Horários de Busca Automática</h2>
+                <h2 className="text-base font-bold text-slate-900">{t.settings.scheduleTitle}</h2>
                 <p className="text-xs text-slate-500 font-medium">
-                  Defina os horários em que o radar deve consultar o Google Flights todos os dias.
+                  {t.settings.scheduleSubtitle}
                 </p>
               </div>
             </div>
@@ -372,7 +376,7 @@ export default function ConfiguracoesPage() {
             {/* Presets Rápidos */}
             <div>
               <span className="text-xs text-slate-700 block mb-2 font-bold">
-                Atalhos de configuração rápida:
+                {t.settings.presetLabel}
               </span>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -391,7 +395,7 @@ export default function ConfiguracoesPage() {
                   }
                   className="px-3.5 py-1.5 rounded-lg bg-sky-100 hover:bg-sky-200 border border-sky-300 text-xs font-bold text-sky-800 transition-colors cursor-pointer"
                 >
-                  ⭐ A cada 3 horas (8x ao dia - Recomendado p/ Scraper)
+                  {t.settings.presetEvery3h}
                 </button>
                 <button
                   type="button"
@@ -407,7 +411,7 @@ export default function ConfiguracoesPage() {
                   }
                   className="px-3.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
                 >
-                  A cada 4 horas (6x ao dia)
+                  {t.settings.presetEvery4h}
                 </button>
                 <button
                   type="button"
@@ -416,14 +420,14 @@ export default function ConfiguracoesPage() {
                   }
                   className="px-3.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
                 >
-                  A cada 6 horas (4x ao dia)
+                  {t.settings.presetEvery6h}
                 </button>
                 <button
                   type="button"
                   onClick={() => handleApplyPreset(["03:00", "14:00"])}
                   className="px-3.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
                 >
-                  2x ao dia (03:00 e 14:00)
+                  {t.settings.presetTwiceDaily}
                 </button>
               </div>
             </div>
@@ -431,7 +435,7 @@ export default function ConfiguracoesPage() {
             {/* Lista de Horários Ativos */}
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-2">
-                Horários Atualmente Agendados:
+                {t.settings.scheduledHours}
               </label>
               <div className="flex flex-wrap items-center gap-2">
                 {hoursList.map((hour) => (
@@ -441,12 +445,12 @@ export default function ConfiguracoesPage() {
                   >
                     <Clock className="w-3.5 h-3.5 text-sky-600" />
                     <span>{hour}</span>
-                    <Tooltip content="Remover horário">
+                    <Tooltip content={t.settings.removeTime}>
                       <button
                         type="button"
                         onClick={() => handleRemoveHour(hour)}
                         className="text-slate-400 hover:text-rose-600 transition-colors ml-1 cursor-pointer"
-                        aria-label="Remover horário"
+                        aria-label={t.settings.removeTime}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -474,7 +478,7 @@ export default function ConfiguracoesPage() {
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-900 text-white transition-colors cursor-pointer shadow-xs"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>Adicionar Horário</span>
+                  <span>{t.settings.addTime}</span>
                 </button>
               </div>
               {hourError && (
@@ -489,26 +493,26 @@ export default function ConfiguracoesPage() {
             {schedulerStatus && (
               <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-1.5 font-medium">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Status do Agendador:</span>
+                  <span className="text-slate-500">{t.settings.schedulerStatus}</span>
                   <span className="font-bold text-emerald-700 flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                    Ativo & Rodando
+                    {t.settings.schedulerActive}
                   </span>
                 </div>
                 {schedulerStatus.nextRun && (
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Próxima Execução Programada:</span>
+                    <span className="text-slate-500">{t.settings.nextRun}</span>
                     <span className="font-mono text-slate-900 font-semibold">
-                      {formatDateTimeBR(schedulerStatus.nextRun)}
+                      {formatDateTimeLocale(schedulerStatus.nextRun, locale)}
                     </span>
                   </div>
                 )}
                 {schedulerStatus.lastRun && (
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Última Execução:</span>
+                    <span className="text-slate-500">{t.settings.lastRun}</span>
                     <span className="font-mono text-slate-600">
-                      {formatDateTimeBR(schedulerStatus.lastRun)} (
-                      {schedulerStatus.lastRunSummary || "concluída"})
+                      {formatDateTimeLocale(schedulerStatus.lastRun, locale)} (
+                      {schedulerStatus.lastRunSummary || t.settings.lastRunCompleted})
                     </span>
                   </div>
                 )}
@@ -523,9 +527,9 @@ export default function ConfiguracoesPage() {
                 <Key className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-slate-900">Chave SerpApi (Google Flights)</h2>
+                <h2 className="text-base font-bold text-slate-900">{t.settings.serpApiKeyTitle}</h2>
                 <p className="text-xs text-slate-500 font-medium">
-                  Permite buscar cotações reais direto da malha do Google Flights.
+                  {t.settings.serpApiKeyDesc}
                 </p>
               </div>
             </div>
@@ -538,11 +542,11 @@ export default function ConfiguracoesPage() {
                 type="password"
                 value={settings.serpApiKey || ""}
                 onChange={(e) => setSettings({ ...settings, serpApiKey: e.target.value })}
-                placeholder="Insira sua chave SerpApi..."
+                placeholder={t.settings.serpApiPlaceholder}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 font-mono text-xs focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
               />
               <span className="text-[11px] text-slate-500 mt-1 block font-medium">
-                Plano gratuito inclui 250 buscas mensais sem custo em{" "}
+                {t.settings.serpApiFreeTier}{" "}
                 <a
                   href="https://serpapi.com"
                   target="_blank"
@@ -563,23 +567,23 @@ export default function ConfiguracoesPage() {
                 <Bell className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-slate-900">Alertas Push no Celular (ntfy.sh)</h2>
+                <h2 className="text-base font-bold text-slate-900">{t.settings.ntfyTitle}</h2>
                 <p className="text-xs text-slate-500 font-medium">
-                  Receba alertas instantâneos no smartphone Android/iOS quando uma passagem atingir seu preço alvo.
+                  {t.settings.ntfyDesc}
                 </p>
               </div>
             </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Nome do Tópico ntfy.sh
+                {t.settings.ntfyTopicLabel}
               </label>
               <div className="flex gap-3">
                 <input
                   type="text"
                   value={settings.ntfyTopic || ""}
                   onChange={(e) => setSettings({ ...settings, ntfyTopic: e.target.value })}
-                  placeholder="Ex: radar-passagens-meu-topico-secreto"
+                  placeholder={t.settings.ntfyTopicPlaceholder}
                   className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 font-mono text-xs focus:outline-none focus:border-amber-500 focus:bg-white transition-colors"
                 />
                 <button
@@ -589,11 +593,11 @@ export default function ConfiguracoesPage() {
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white transition-colors cursor-pointer disabled:opacity-50 shadow-xs"
                 >
                   <Send className={`w-3.5 h-3.5 ${testNotificationSending ? "animate-spin" : ""}`} />
-                  <span>{testNotificationSending ? "Enviando..." : "Testar Push"}</span>
+                  <span>{testNotificationSending ? t.settings.testingPush : t.settings.testPush}</span>
                 </button>
               </div>
               <span className="text-[11px] text-slate-500 mt-1 block font-medium">
-                Instale o app gratuito <strong>ntfy</strong> no seu celular e assine o mesmo nome de tópico configurado aqui.
+                {t.settings.ntfyAppTip}
               </span>
             </div>
 
@@ -612,7 +616,7 @@ export default function ConfiguracoesPage() {
                 className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300 cursor-pointer"
               />
               <label htmlFor="auto-notify-chk" className="text-xs text-slate-700 font-medium cursor-pointer">
-                Enviar notificação push automaticamente sempre que o menor preço for igual ou menor que a meta
+                {t.settings.autoNotifyCheck}
               </label>
             </div>
           </div>
@@ -623,14 +627,14 @@ export default function ConfiguracoesPage() {
               <div className="max-w-6xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-2 text-xs font-semibold text-amber-700">
                   <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                  <span>Existem alterações não salvas</span>
+                  <span>{t.settings.unsavedChanges}</span>
                 </div>
                 <button
                   type="submit"
                   disabled={saving}
                   className="px-6 py-2.5 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white shadow-xs transition-colors cursor-pointer disabled:opacity-50"
                 >
-                  {saving ? "Salvando..." : "Salvar Configurações"}
+                  {saving ? t.settings.savingBtn : t.settings.saveBtn}
                 </button>
               </div>
             </div>
@@ -640,4 +644,3 @@ export default function ConfiguracoesPage() {
     </div>
   );
 }
-

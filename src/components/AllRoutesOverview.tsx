@@ -2,7 +2,8 @@
 
 import { useMemo } from "react";
 import { MonitoredRoute, FlightHistoryEntry } from "@/lib/types";
-import { formatCurrency, formatDateBR, getAirportName, getGoogleFlightsUrl } from "@/lib/utils";
+import { formatCurrency, formatDateBR, getAirportName, getGoogleFlightsUrl, formatUsdEstimate } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import {
   TrendingDown,
   CheckCircle2,
@@ -27,6 +28,8 @@ export default function AllRoutesOverview({
   allHistory,
   onSelectRoute,
 }: AllRoutesOverviewProps) {
+  const { t, locale } = useTranslation();
+
   // Estatísticas Globais
   const globalStats = useMemo(() => {
     const routesWithPrice = routes.filter((r) => r.latestPrice !== null && r.latestPrice !== undefined);
@@ -85,42 +88,47 @@ export default function AllRoutesOverview({
         {/* Total de Rotas */}
         <div className="glass-panel p-4 bg-white border border-slate-200 shadow-xs rounded-xl">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-1">
-            <span>Rotas Monitoradas</span>
+            <span>{t.dashboard.kpis.monitoredRoutes}</span>
             <Compass className="w-4 h-4 text-sky-600" />
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-black text-slate-900">{globalStats.totalRoutes}</span>
-            <span className="text-xs text-slate-500 font-medium">rotas ativas</span>
+            <span className="text-xs text-slate-500 font-medium">{t.dashboard.kpis.active}</span>
           </div>
           <div className="text-[11px] text-emerald-700 font-bold mt-1">
-            {globalStats.routesOnTarget} rota(s) dentro da meta
+            {globalStats.routesOnTarget} {t.dashboard.table.targetMet.toLowerCase()}
           </div>
         </div>
 
         {/* Menor Preço Atual */}
         <div className="glass-panel p-4 bg-white border border-slate-200 shadow-xs rounded-xl">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-1">
-            <span>Menor Preço Hoje</span>
+            <span>{t.dashboard.kpis.lowestPriceFound}</span>
             <DollarSign className="w-4 h-4 text-emerald-600" />
           </div>
           {globalStats.lowestPriceRoute && globalStats.lowestPriceRoute.latestPrice !== null && globalStats.lowestPriceRoute.latestPrice !== undefined ? (
             <div>
               <div className="text-2xl font-black text-emerald-700">
                 {formatCurrency(globalStats.lowestPriceRoute.latestPrice)}
+                {locale === "en" && (
+                  <span className="text-xs font-semibold text-emerald-600/80 ml-1.5">
+                    ({formatUsdEstimate(globalStats.lowestPriceRoute.latestPrice, "~")})
+                  </span>
+                )}
               </div>
               <div className="text-[11px] text-slate-600 font-semibold truncate mt-0.5">
                 {globalStats.lowestPriceRoute.origin} → {globalStats.lowestPriceRoute.destination}
               </div>
             </div>
           ) : (
-            <div className="text-sm text-slate-400 font-medium">Aguardando busca</div>
+            <div className="text-sm text-slate-400 font-medium">{t.common.loading}</div>
           )}
         </div>
 
         {/* Melhor Oportunidade */}
         <div className="glass-panel p-4 bg-white border border-slate-200 shadow-xs rounded-xl">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-1">
-            <span>Melhor Desconto vs Meta</span>
+            <span>{t.dashboard.filters.dealProximity}</span>
             <TrendingDown className="w-4 h-4 text-indigo-600" />
           </div>
           {globalStats.bestDiscountRoute && globalStats.bestDiscountRoute.latestPrice !== null && globalStats.bestDiscountRoute.latestPrice !== undefined ? (
@@ -136,28 +144,33 @@ export default function AllRoutesOverview({
                       {Math.round(((price - target) / target) * 100)}%
                     </div>
                     <div className="text-[11px] text-slate-600 font-semibold truncate mt-0.5">
-                      {orig} → {dest} (Meta: {formatCurrency(target)})
+                      {orig} → {dest} ({t.dashboard.table.colTargetPrice}: {formatCurrency(target)})
                     </div>
                   </>
                 );
               })()}
             </div>
           ) : (
-            <div className="text-sm text-slate-400 font-medium">Sem dados</div>
+            <div className="text-sm text-slate-400 font-medium">{t.common.noResults}</div>
           )}
         </div>
 
         {/* Média Consolidada */}
         <div className="glass-panel p-4 bg-white border border-slate-200 shadow-xs rounded-xl">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-1">
-            <span>Média de Preço Geral</span>
+            <span>{t.history.avgPrice}</span>
             <Tag className="w-4 h-4 text-amber-600" />
           </div>
           <div className="text-2xl font-black text-slate-900">
             {globalStats.avgPrice !== null ? formatCurrency(globalStats.avgPrice) : "--"}
+            {locale === "en" && globalStats.avgPrice !== null && (
+              <span className="text-xs font-semibold text-slate-500 ml-1.5">
+                ({formatUsdEstimate(globalStats.avgPrice, "~")})
+              </span>
+            )}
           </div>
           <div className="text-[11px] text-slate-500 font-medium mt-0.5">
-            {globalStats.totalSearches} cotações no banco
+            {globalStats.totalSearches} {t.history.quotesLabel}
           </div>
         </div>
       </div>
@@ -165,9 +178,9 @@ export default function AllRoutesOverview({
       {/* Grid de Cards Compactos de Cada Rota com Links Diretos */}
       <div>
         <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center justify-between">
-          <span>Quadro Geral de Todas as Rotas</span>
+          <span>{t.history.visualComparison}</span>
           <span className="text-xs text-slate-500 font-normal">
-            Clique em &ldquo;Focar Rota&rdquo; para ver a análise individual detalhada
+            {t.history.visualComparisonDesc}
           </span>
         </h3>
 
@@ -208,35 +221,42 @@ export default function AllRoutesOverview({
                     {isBelow && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
                         <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        No Alvo
+                        {t.dashboard.table.targetMet}
                       </span>
                     )}
                   </div>
 
                   <div className="text-xs text-slate-500 font-medium mb-3">
-                    {getAirportName(origin)} para {getAirportName(destination)}
+                    {getAirportName(origin)} {t.common.to} {getAirportName(destination)}
                   </div>
 
                   {/* Informações de Voo */}
                   <div className="space-y-1.5 text-xs text-slate-600 py-2 border-y border-slate-100 mb-3">
                     <div className="flex items-center justify-between">
                       <span className="text-slate-500 flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5 text-sky-600" /> Data:
+                        <Calendar className="w-3.5 h-3.5 text-sky-600" /> {t.common.date}:
                       </span>
                       <strong className="text-slate-800">{formatDateBR(flightDate)}</strong>
                     </div>
 
                     <div className="flex items-center justify-between">
                       <span className="text-slate-500 flex items-center gap-1">
-                        <Tag className="w-3.5 h-3.5 text-amber-600" /> Preço Meta:
+                        <Tag className="w-3.5 h-3.5 text-amber-600" /> {t.dashboard.table.colTargetPrice}:
                       </span>
-                      <strong className="text-slate-800">{formatCurrency(target)}</strong>
+                      <div className="text-right">
+                        <strong className="text-slate-800">{formatCurrency(target)}</strong>
+                        {locale === "en" && (
+                          <div className="text-[10px] text-slate-400 font-normal">
+                            {formatUsdEstimate(target)}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {airline && (
                       <div className="flex items-center justify-between">
                         <span className="text-slate-500 flex items-center gap-1">
-                          <Building className="w-3.5 h-3.5 text-indigo-600" /> Cia:
+                          <Building className="w-3.5 h-3.5 text-indigo-600" /> {t.common.airline}:
                         </span>
                         <span className="font-semibold text-slate-700">{airline}</span>
                       </div>
@@ -245,18 +265,25 @@ export default function AllRoutesOverview({
 
                   {/* Preço Atual */}
                   <div className="flex items-baseline justify-between mb-3">
-                    <span className="text-xs text-slate-500 font-medium">Último Preço:</span>
-                    <span
-                      className={`text-xl font-black ${
-                        hasPrice
-                          ? isBelow
-                            ? "text-emerald-700"
-                            : "text-slate-900"
-                          : "text-slate-400"
-                      }`}
-                    >
-                      {hasPrice ? formatCurrency(price as number) : "Sem dados"}
-                    </span>
+                    <span className="text-xs text-slate-500 font-medium">{t.dashboard.table.colCurrentPrice}:</span>
+                    <div className="text-right">
+                      <span
+                        className={`text-xl font-black ${
+                          hasPrice
+                            ? isBelow
+                              ? "text-emerald-700"
+                              : "text-slate-900"
+                            : "text-slate-400"
+                        }`}
+                      >
+                        {hasPrice ? formatCurrency(price as number) : t.common.noResults}
+                      </span>
+                      {hasPrice && locale === "en" && (
+                        <div className="text-[10px] text-slate-500 font-medium">
+                          {formatUsdEstimate(price as number)}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -266,10 +293,10 @@ export default function AllRoutesOverview({
                     onClick={() => onSelectRoute(r.id)}
                     className="flex-1 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors cursor-pointer text-center"
                   >
-                    Focar Rota
+                    {t.common.focusRoute}
                   </button>
 
-                  <Tooltip content="Ver no Google Flights">
+                  <Tooltip content={t.routes.cardViewFlightTooltip}>
                     <a
                       href={flightUrl}
                       target="_blank"
@@ -277,7 +304,7 @@ export default function AllRoutesOverview({
                       className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 active:bg-sky-800 transition-colors cursor-pointer shadow-2xs"
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
-                      <span>Ver Voo</span>
+                      <span>{t.common.viewFlight}</span>
                     </a>
                   </Tooltip>
                 </div>
@@ -289,5 +316,3 @@ export default function AllRoutesOverview({
     </div>
   );
 }
-
-

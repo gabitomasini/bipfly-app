@@ -10,17 +10,13 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import FlightSearchResultsDrawer from "@/components/FlightSearchResultsDrawer";
 import AirlineBadge from "@/components/AirlineBadge";
 import { MonitoredRoute, FlightOption, SchedulerStatus } from "@/lib/types";
-import {
-  formatCurrency,
-  formatDateBR,
-  getAirportName,
-  getGoogleFlightsUrl,
-} from "@/lib/utils";
+import { getAirportName, getGoogleFlightsUrl } from "@/lib/utils";
 import SkeletonLoader from "@/components/SkeletonLoader";
 import ExpandableSearch from "@/components/ExpandableSearch";
 import CustomSelect from "@/components/CustomSelect";
 import Tooltip from "@/components/Tooltip";
 import { useToast } from "@/components/Toast";
+import { useTranslation } from "@/lib/i18n/context";
 import {
   Plus,
   ArrowRight,
@@ -29,21 +25,16 @@ import {
   ExternalLink,
   BarChart2,
   CheckCircle2,
-  SlidersHorizontal,
-  Search,
-  Filter,
   ArrowUpDown,
   Edit2,
   Trash2,
   RefreshCw,
-  X,
-  TrendingDown,
-  AlertTriangle,
   Clock,
 } from "lucide-react";
 
 export default function DashboardPage() {
   const { addToast } = useToast();
+  const { t, formatCurrency, formatUsdEstimate, formatDate, locale } = useTranslation();
   const [routes, setRoutes] = useState<MonitoredRoute[]>([]);
   const [schedulerStatus, setSchedulerStatus] = useState<SchedulerStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -73,12 +64,12 @@ export default function DashboardPage() {
       if (routesRes.success) setRoutes(routesRes.data || []);
       if (schedRes.success) setSchedulerStatus(schedRes.data);
     } catch (err) {
-      console.error("Erro ao carregar dados do dashboard:", err);
-      addToast("Erro ao carregar cotações do servidor", "error");
+      console.error("Error loading dashboard data:", err);
+      addToast(t.toasts.connError, "error");
     } finally {
       setLoading(false);
     }
-  }, [addToast]);
+  }, [addToast, t.toasts.connError]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -88,7 +79,12 @@ export default function DashboardPage() {
   const handleSingleRouteSearch = async (route: MonitoredRoute) => {
     if (searchingRouteId === route.id) return;
     setSearchingRouteId(route.id);
-    addToast(`Buscando cotação para ${route.origin} → ${route.destination}...`, "info");
+    addToast(
+      locale === "en"
+        ? `Searching fares for ${route.origin} → ${route.destination}...`
+        : `Buscando cotação para ${route.origin} → ${route.destination}...`,
+      "info"
+    );
     try {
       const res = await fetch("/api/search", {
         method: "POST",
@@ -97,141 +93,116 @@ export default function DashboardPage() {
       });
       const json = await res.json();
       if (json.success) {
-        addToast(`Cotação atualizada para ${route.origin} → ${route.destination}!`, "success");
+        addToast(
+          locale === "en"
+            ? `Price updated for ${route.origin} → ${route.destination}!`
+            : `Cotação atualizada para ${route.origin} → ${route.destination}!`,
+          "success"
+        );
         fetchDashboardData();
-        if (json.data?.foundOptions && json.data.foundOptions.length > 0) {
-          setLiveDrawerRoute(route);
-          setLiveOptions(json.data.foundOptions);
-        }
       } else {
-        addToast(`Erro: ${json.error || "Falha na busca"}`, "error");
+        addToast(json.error || t.toasts.searchFailed, "error");
       }
-    } catch (err: any) {
-      addToast(`Erro de conexão: ${err.message}`, "error");
+    } catch {
+      addToast(t.toasts.connError, "error");
     } finally {
       setSearchingRouteId(null);
     }
   };
 
-  // Route deletion
+  // Delete Route
   const handleDeleteConfirm = async () => {
     if (!routeToDelete) return;
     try {
-      const res = await fetch(`/api/routes?id=${routeToDelete.id}`, {
+      const res = await fetch(`/api/routes/${routeToDelete.id}`, {
         method: "DELETE",
       });
       const json = await res.json();
       if (json.success) {
-        addToast(`Rota ${routeToDelete.origin} → ${routeToDelete.destination} excluída com sucesso!`, "success");
+        addToast(t.toasts.routeDeleted, "success");
         setRouteToDelete(null);
         fetchDashboardData();
       } else {
-        addToast(`Erro: ${json.error || "Falha ao excluir"}`, "error");
+        addToast(json.error || "Failed to delete route", "error");
       }
-    } catch (err: any) {
-      addToast(`Erro de conexão: ${err.message}`, "error");
+    } catch {
+      addToast(t.toasts.connError, "error");
     }
   };
 
-  // Unique airlines for filter dropdown
+  // Extract available airlines for the filter dropdown
   const availableAirlines = useMemo(() => {
     const set = new Set<string>();
     routes.forEach((r) => {
-      if (r.lastAirline && r.lastAirline.trim()) {
-        set.add(r.lastAirline.trim());
-      }
+      if (r.lastAirline) set.add(r.lastAirline.trim());
     });
     return Array.from(set).sort();
   }, [routes]);
 
-  // Filtered & Sorted Routes
+  // Filtered and sorted routes
   const filteredRoutes = useMemo(() => {
-    let result = [...routes];
+    return routes
+      .filter((route) => {
+        // Search query filter
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase().trim();
+          const origMatch = route.origin.toLowerCase().includes(q) || getAirportName(route.origin).toLowerCase().includes(q);
+          const destMatch = route.destination.toLowerCase().includes(q) || getAirportName(route.destination).toLowerCase().includes(q);
+          const ciaMatch = (route.lastAirline || "").toLowerCase().includes(q);
+          if (!origMatch && !destMatch && !ciaMatch) return false;
+        }
 
-    // 1. Search query (matches origin, destination, airport names, airline)
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      result = result.filter((r) => {
-        const orig = r.origin.toLowerCase();
-        const dest = r.destination.toLowerCase();
-        const origName = (getAirportName(r.origin) || "").toLowerCase();
-        const destName = (getAirportName(r.destination) || "").toLowerCase();
-        const airline = (r.lastAirline || "").toLowerCase();
-        return (
-          orig.includes(q) ||
-          dest.includes(q) ||
-          origName.includes(q) ||
-          destName.includes(q) ||
-          airline.includes(q)
-        );
+        // Airline filter
+        if (selectedAirline !== "all") {
+          if (!route.lastAirline || route.lastAirline.trim().toLowerCase() !== selectedAirline.toLowerCase()) {
+            return false;
+          }
+        }
+
+        // Status filter
+        if (statusFilter === "target") {
+          if (!route.isActive || route.latestPrice === null || route.latestPrice === undefined || route.latestPrice > route.targetPrice) {
+            return false;
+          }
+        } else if (statusFilter === "above") {
+          if (!route.isActive || route.latestPrice === null || route.latestPrice === undefined || route.latestPrice <= route.targetPrice) {
+            return false;
+          }
+        } else if (statusFilter === "paused") {
+          if (route.isActive) return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        const priceA = a.latestPrice ?? Infinity;
+        const priceB = b.latestPrice ?? Infinity;
+
+        switch (sortBy) {
+          case "price_asc":
+            return priceA - priceB;
+          case "price_desc":
+            return (b.latestPrice ?? -1) - (a.latestPrice ?? -1);
+          case "discount_desc": {
+            const discA = a.latestPrice !== null && a.latestPrice !== undefined ? a.targetPrice - a.latestPrice : -Infinity;
+            const discB = b.latestPrice !== null && b.latestPrice !== undefined ? b.targetPrice - b.latestPrice : -Infinity;
+            return discB - discA;
+          }
+          case "date_asc":
+            return new Date(a.flightDate).getTime() - new Date(b.flightDate).getTime();
+          case "route":
+            return `${a.origin}-${a.destination}`.localeCompare(`${b.origin}-${b.destination}`);
+          default:
+            return 0;
+        }
       });
-    }
-
-    // 2. Airline Filter
-    if (selectedAirline !== "all") {
-      result = result.filter(
-        (r) => (r.lastAirline || "").toLowerCase() === selectedAirline.toLowerCase()
-      );
-    }
-
-    // 3. Status Filter
-    if (statusFilter === "target") {
-      result = result.filter(
-        (r) =>
-          r.isActive &&
-          r.latestPrice !== null &&
-          r.latestPrice !== undefined &&
-          r.latestPrice <= r.targetPrice
-      );
-    } else if (statusFilter === "above") {
-      result = result.filter(
-        (r) =>
-          r.isActive &&
-          r.latestPrice !== null &&
-          r.latestPrice !== undefined &&
-          r.latestPrice > r.targetPrice
-      );
-    } else if (statusFilter === "paused") {
-      result = result.filter((r) => !r.isActive);
-    }
-
-    // 4. Sorting
-    result.sort((a, b) => {
-      const priceA = a.latestPrice ?? 9999999;
-      const priceB = b.latestPrice ?? 9999999;
-
-      if (sortBy === "price_asc") {
-        return priceA - priceB;
-      }
-      if (sortBy === "price_desc") {
-        return priceB - priceA;
-      }
-      if (sortBy === "discount_desc") {
-        // Difference: targetPrice - latestPrice (higher positive number is better discount)
-        const diffA = a.latestPrice !== null && a.latestPrice !== undefined ? a.targetPrice - a.latestPrice : -999999;
-        const diffB = b.latestPrice !== null && b.latestPrice !== undefined ? b.targetPrice - b.latestPrice : -999999;
-        return diffB - diffA;
-      }
-      if (sortBy === "date_asc") {
-        return (a.flightDate || "").localeCompare(b.flightDate || "");
-      }
-      if (sortBy === "route") {
-        return `${a.origin}-${a.destination}`.localeCompare(`${b.origin}-${b.destination}`);
-      }
-      return 0;
-    });
-
-    return result;
   }, [routes, searchQuery, selectedAirline, statusFilter, sortBy]);
 
   const onTargetCount = useMemo(() => {
-    return routes.filter((r) => {
-      const p = r.latestPrice;
-      return r.isActive && p !== null && p !== undefined && p <= r.targetPrice;
-    }).length;
+    return routes.filter(
+      (r) => r.isActive && r.latestPrice !== null && r.latestPrice !== undefined && r.latestPrice <= r.targetPrice
+    ).length;
   }, [routes]);
-
-  const hasActiveFilters = searchQuery !== "" || selectedAirline !== "all" || statusFilter !== "all";
 
   const clearFilters = () => {
     setSearchQuery("");
@@ -244,109 +215,54 @@ export default function DashboardPage() {
     <div className="min-h-screen pb-24 bg-slate-50/70">
       <Navbar onSearchTriggered={fetchDashboardData} />
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-6">
-        {/* Top Header / Action Bar */}
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6">
+        {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
-              <span>Radar de Passagens</span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                Dashboard
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+              <span>{t.dashboard.title}</span>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-sky-100 text-sky-800 border border-sky-200">
+                Live
               </span>
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
-              Monitoramento automatizado de tarifas aéreas com alertas e inteligência de preço.
+            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
+              {t.dashboard.subtitle}
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            <Link
-              href="/rotas"
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200/90 shadow-2xs hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
-              <span>Gerenciar Rotas</span>
-            </Link>
-
+          <div className="flex items-center gap-2">
             <button
               onClick={() => {
                 setEditingRoute(null);
                 setIsRouteModalOpen(true);
               }}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white shadow-xs hover:shadow-sm transition-all cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs hover:shadow-md transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Nova Rota</span>
+              <span>{t.dashboard.table.addRoute}</span>
             </button>
           </div>
         </div>
 
-        {/* 4 Metric Cards (KPIs) */}
-        {loading ? (
-          <SkeletonLoader variant="metric" />
-        ) : (
-          <MetricCards routes={routes} schedulerStatus={schedulerStatus} />
-        )}
+        {/* 4 Top KPI Cards */}
+        <MetricCards routes={routes} schedulerStatus={schedulerStatus} />
 
-        {/* Highlight Banner (When routes are on target) */}
-        {!loading && onTargetCount > 0 && (
-          <div className="p-4 rounded-2xl bg-emerald-50/90 border border-emerald-200/90 flex items-center justify-between shadow-2xs animate-fadeIn">
-            <div className="flex items-center gap-3 text-xs text-emerald-950 font-medium">
-              <div className="w-8 h-8 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0">
-                <Sparkles className="w-4.5 h-4.5" />
-              </div>
-              <div>
-                <span className="font-bold text-emerald-900 block text-sm">
-                  {onTargetCount} {onTargetCount === 1 ? "rota atingiu a meta estipulada!" : "rotas atingiram a meta estipulada!"}
-                </span>
-                <span className="text-emerald-800/90">
-                  Tarifas prontas para reserva direta com os menores valores detectados no radar.
-                </span>
-              </div>
-            </div>
-            <button
-              onClick={() => setStatusFilter("target")}
-              className="text-xs font-bold text-emerald-900 bg-emerald-100/90 hover:bg-emerald-200/90 px-3.5 py-1.5 rounded-xl border border-emerald-300/80 flex items-center gap-1 shrink-0 ml-3 transition-colors cursor-pointer"
-            >
-              <span>Ver no alvo</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
-        {/* Quotes Section with Functional Filter Bar & Enhanced Table */}
+        {/* Live Deals Table & Filter Panel */}
         <div className="space-y-4">
-          {/* Section Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          {/* Header with Title + Filters in Single Row */}
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pt-2">
             <div>
-              <h2 className="text-base font-bold text-slate-900 tracking-tight">
-                Cotações Vigentes
+              <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                {t.dashboard.table.title}
               </h2>
               <p className="text-xs text-slate-500 font-medium">
-                Tabela consolidada com preços atualizados em tempo real.
+                {t.dashboard.table.subtitle}
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-slate-500">
-                Mostrando <strong>{filteredRoutes.length}</strong> de {routes.length} rotas
-              </span>
-              {hasActiveFilters && (
-                <button
-                  onClick={clearFilters}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer ml-1"
-                >
-                  <X className="w-3 h-3" />
-                  <span>Limpar filtros</span>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* SaaS Filter & Controls Bar */}
-          <div className="p-3 bg-white rounded-2xl border border-slate-200/90 shadow-2xs">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-              {/* Status Tabs Filter */}
+            {/* Filters Bar: Status Tabs + Airline + Sort + Search */}
+            <div className="flex items-center gap-2 flex-wrap lg:flex-nowrap justify-between lg:justify-end">
+              {/* Status Filter Tabs */}
               <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/60 overflow-x-auto text-[11px] shrink-0">
                 <button
                   onClick={() => setStatusFilter("all")}
@@ -356,7 +272,7 @@ export default function DashboardPage() {
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  Todas
+                  {t.common.all}
                 </button>
                 <button
                   onClick={() => setStatusFilter("target")}
@@ -366,7 +282,7 @@ export default function DashboardPage() {
                       : "text-slate-600 hover:text-emerald-700"
                   }`}
                 >
-                  No Alvo ({onTargetCount})
+                  {t.dashboard.filters.statusTarget} ({onTargetCount})
                 </button>
                 <button
                   onClick={() => setStatusFilter("above")}
@@ -376,7 +292,7 @@ export default function DashboardPage() {
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  Acima
+                  {t.dashboard.filters.statusAbove}
                 </button>
                 <button
                   onClick={() => setStatusFilter("paused")}
@@ -386,7 +302,7 @@ export default function DashboardPage() {
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  Pausadas
+                  {t.common.paused}
                 </button>
               </div>
 
@@ -397,7 +313,7 @@ export default function DashboardPage() {
                   value={selectedAirline}
                   onChange={setSelectedAirline}
                   options={[
-                    { value: "all", label: "Todas as Cias" },
+                    { value: "all", label: t.dashboard.filters.allAirlines },
                     ...availableAirlines.map((cia) => ({ value: cia, label: cia })),
                   ]}
                 />
@@ -408,11 +324,11 @@ export default function DashboardPage() {
                   onChange={(val) => setSortBy(val as any)}
                   icon={<ArrowUpDown className="w-3.5 h-3.5" />}
                   options={[
-                    { value: "price_asc", label: "Menor Preço" },
-                    { value: "discount_desc", label: "Maior Desconto" },
-                    { value: "price_desc", label: "Maior Preço" },
-                    { value: "date_asc", label: "Data do Voo" },
-                    { value: "route", label: "Trecho A-Z" },
+                    { value: "price_asc", label: t.dashboard.filters.lowestPrice },
+                    { value: "discount_desc", label: t.dashboard.filters.dealProximity },
+                    { value: "price_desc", label: locale === "en" ? "Highest Price" : "Maior Preço" },
+                    { value: "date_asc", label: t.dashboard.filters.departureDate },
+                    { value: "route", label: locale === "en" ? "Route A-Z" : "Trecho A-Z" },
                   ]}
                 />
 
@@ -420,7 +336,7 @@ export default function DashboardPage() {
                 <ExpandableSearch
                   value={searchQuery}
                   onChange={setSearchQuery}
-                  placeholder="Buscar aeroporto, cia..."
+                  placeholder={t.dashboard.filters.searchPlaceholder}
                 />
               </div>
             </div>
@@ -435,11 +351,13 @@ export default function DashboardPage() {
                 <Plane className="w-6 h-6" />
               </div>
               <h3 className="text-sm font-bold text-slate-900 mb-1">
-                {routes.length === 0 ? "Nenhuma rota cadastrada" : "Nenhuma rota encontrada para os filtros"}
+                {routes.length === 0 ? t.dashboard.table.emptyState : t.common.noResults}
               </h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto mb-4 font-medium">
                 {routes.length === 0
-                  ? "Adicione seu primeiro destino para iniciar o monitoramento automático de preços."
+                  ? t.dashboard.table.emptyStateDesc
+                  : locale === "en"
+                  ? "Try adjusting your search query or reset the selected filters."
                   : "Tente ajustar o termo de busca ou redefinir os filtros selecionados."}
               </p>
               {routes.length === 0 ? (
@@ -450,14 +368,14 @@ export default function DashboardPage() {
                   }}
                   className="px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white transition-colors cursor-pointer"
                 >
-                  Cadastrar Rota
+                  {t.dashboard.table.addRoute}
                 </button>
               ) : (
                 <button
                   onClick={clearFilters}
                   className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
                 >
-                  Limpar Filtros
+                  {t.common.clearFilters}
                 </button>
               )}
             </div>
@@ -469,13 +387,13 @@ export default function DashboardPage() {
                   <table className="w-full text-left text-xs text-slate-600">
                     <thead className="bg-slate-50/90 text-[11px] font-bold text-slate-500 border-b border-slate-200/80 uppercase tracking-wider">
                       <tr>
-                        <th className="py-3.5 px-4 text-left">Trecho & Destino</th>
-                        <th className="py-3.5 px-4 text-center">Data do Voo</th>
-                        <th className="py-3.5 px-4 text-left">Companhia</th>
-                        <th className="py-3.5 px-4 text-right">Sua Meta</th>
-                        <th className="py-3.5 px-4 text-right">Preço Atual</th>
-                        <th className="py-3.5 px-4 text-center">Status / Variação</th>
-                        <th className="py-3.5 px-4 text-right">Ações Rápidas</th>
+                        <th className="py-3.5 px-4 text-left">{t.dashboard.table.colRoute}</th>
+                        <th className="py-3.5 px-4 text-center">{t.dashboard.table.colDate}</th>
+                        <th className="py-3.5 px-4 text-left">{t.dashboard.table.colAirline}</th>
+                        <th className="py-3.5 px-4 text-right">{t.dashboard.table.colTargetPrice}</th>
+                        <th className="py-3.5 px-4 text-right">{t.dashboard.table.colCurrentPrice}</th>
+                        <th className="py-3.5 px-4 text-center">{t.dashboard.table.colStatus}</th>
+                        <th className="py-3.5 px-4 text-right">{t.dashboard.table.colActions}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -506,7 +424,7 @@ export default function DashboardPage() {
                               !route.isActive ? "opacity-60 bg-slate-50/30" : ""
                             }`}
                           >
-                            {/* Trecho & Destino */}
+                            {/* Origin & Destination */}
                             <td className="py-3.5 px-4 text-left">
                               <div className="flex items-center gap-1.5 font-black text-slate-900 text-sm tracking-tight">
                                 <span className="px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-xs font-bold text-slate-800">
@@ -522,24 +440,29 @@ export default function DashboardPage() {
                               </div>
                             </td>
 
-                            {/* Data do Voo */}
+                            {/* Flight Date */}
                             <td className="py-3.5 px-4 text-center font-semibold text-slate-700 whitespace-nowrap">
                               <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100/70 text-slate-700 text-[11px] font-medium border border-slate-200/60">
-                                {formatDateBR(route.flightDate)}
+                                {formatDate(route.flightDate)}
                               </span>
                             </td>
 
-                            {/* Companhia */}
+                            {/* Airline */}
                             <td className="py-3.5 px-4 text-left whitespace-nowrap">
                               <AirlineBadge airline={route.lastAirline} size="sm" />
                             </td>
 
-                            {/* Sua Meta */}
+                            {/* Target Price */}
                             <td className="py-3.5 px-4 text-right font-semibold text-slate-500 whitespace-nowrap tabular-nums">
-                              {formatCurrency(route.targetPrice)}
+                              <div>{formatCurrency(route.targetPrice)}</div>
+                              {locale === "en" && (
+                                <div className="text-[10px] text-slate-400 font-normal">
+                                  {formatUsdEstimate(route.targetPrice)}
+                                </div>
+                              )}
                             </td>
 
-                            {/* Preço Atual */}
+                            {/* Current Price */}
                             <td className="py-3.5 px-4 text-right whitespace-nowrap tabular-nums">
                               <span
                                 className={`text-sm font-black tracking-tight ${
@@ -552,23 +475,30 @@ export default function DashboardPage() {
                               >
                                 {hasPrice ? formatCurrency(price) : "—"}
                               </span>
+                              {locale === "en" && hasPrice && (
+                                <div className="text-[10px] text-slate-400 font-medium">
+                                  {formatUsdEstimate(price)}
+                                </div>
+                              )}
                             </td>
 
-                            {/* Status / Variação */}
+                            {/* Status */}
                             <td className="py-3.5 px-4 text-center whitespace-nowrap">
                               {!route.isActive ? (
                                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
-                                  Pausada
+                                  {t.dashboard.table.paused}
                                 </span>
                               ) : !hasPrice ? (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
                                   <Clock className="w-3 h-3" />
-                                  Pendente
+                                  {t.dashboard.table.pendingScan}
                                 </span>
                               ) : isBelow ? (
                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
                                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                  <span>No Alvo (-{formatCurrency(diff)})</span>
+                                  <span>
+                                    {t.dashboard.table.targetMet} (-{formatCurrency(diff)})
+                                  </span>
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
@@ -577,56 +507,56 @@ export default function DashboardPage() {
                               )}
                             </td>
 
-                            {/* Ações Rápidas */}
+                            {/* Action Tooltips */}
                             <td className="py-3.5 px-4 text-right whitespace-nowrap">
                               <div className="inline-flex items-center gap-1">
-                                <Tooltip content="Buscar cotação agora">
+                                <Tooltip content={t.dashboard.table.searchNow}>
                                   <button
                                     onClick={() => handleSingleRouteSearch(route)}
                                     disabled={isSearchingThis}
                                     className="p-1.5 rounded-lg text-slate-500 hover:text-sky-600 hover:bg-sky-50 transition-colors cursor-pointer disabled:opacity-50"
-                                    aria-label="Buscar cotação agora"
+                                    aria-label={t.dashboard.table.searchNow}
                                   >
                                     <RefreshCw className={`w-3.5 h-3.5 ${isSearchingThis ? "animate-spin text-sky-600" : ""}`} />
                                   </button>
                                 </Tooltip>
-                                <Tooltip content="Editar Rota">
+                                <Tooltip content={t.dashboard.table.editRoute}>
                                   <button
                                     onClick={() => {
                                       setEditingRoute(route);
                                       setIsRouteModalOpen(true);
                                     }}
                                     className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
-                                    aria-label="Editar Rota"
+                                    aria-label={t.dashboard.table.editRoute}
                                   >
                                     <Edit2 className="w-3.5 h-3.5" />
                                   </button>
                                 </Tooltip>
-                                <Tooltip content="Ver Gráfico e Histórico">
+                                <Tooltip content={t.dashboard.table.viewHistory}>
                                   <button
                                     onClick={() => setHistoryModalRoute(route)}
                                     className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
-                                    aria-label="Ver Gráfico e Histórico"
+                                    aria-label={t.dashboard.table.viewHistory}
                                   >
                                     <BarChart2 className="w-3.5 h-3.5" />
                                   </button>
                                 </Tooltip>
-                                <Tooltip content="Ver no Google Flights">
+                                <Tooltip content={t.common.viewFlight}>
                                   <a
                                     href={flightUrl}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="p-1.5 rounded-lg text-slate-500 hover:text-sky-600 hover:bg-sky-50 transition-colors inline-flex items-center"
-                                    aria-label="Ver no Google Flights"
+                                    aria-label={t.common.viewFlight}
                                   >
                                     <ExternalLink className="w-3.5 h-3.5" />
                                   </a>
                                 </Tooltip>
-                                <Tooltip content="Excluir Rota">
+                                <Tooltip content={t.dashboard.table.deleteRoute}>
                                   <button
                                     onClick={() => setRouteToDelete(route)}
                                     className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                                    aria-label="Excluir Rota"
+                                    aria-label={t.dashboard.table.deleteRoute}
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
@@ -682,7 +612,7 @@ export default function DashboardPage() {
                           </span>
                         </div>
                         <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
-                          {formatDateBR(route.flightDate)}
+                          {formatDate(route.flightDate)}
                         </span>
                       </div>
 
@@ -692,16 +622,16 @@ export default function DashboardPage() {
                         <div>
                           {!route.isActive ? (
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-500">
-                              Pausada
+                              {t.dashboard.table.paused}
                             </span>
                           ) : !hasPrice ? (
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700">
-                              Pendente
+                              {t.dashboard.table.pendingScan}
                             </span>
                           ) : isBelow ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
                               <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                              No Alvo (-{formatCurrency(diff)})
+                              {t.dashboard.table.targetMet} (-{formatCurrency(diff)})
                             </span>
                           ) : (
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-50 text-rose-700">
@@ -715,61 +645,71 @@ export default function DashboardPage() {
                       <div className="flex items-baseline justify-between pt-2 border-t border-slate-100">
                         <div>
                           <span className="text-[10px] text-slate-400 block font-semibold uppercase">
-                            Preço Atual
+                            {t.dashboard.table.colCurrentPrice}
                           </span>
                           <span className={`text-base font-black tracking-tight tabular-nums ${hasPrice ? (isBelow ? "text-emerald-600" : "text-slate-900") : "text-slate-400"}`}>
                             {hasPrice ? formatCurrency(price) : "—"}
                           </span>
+                          {locale === "en" && hasPrice && (
+                            <span className="text-[10px] text-slate-400 font-normal ml-1.5">
+                              ({formatUsdEstimate(price, "~")})
+                            </span>
+                          )}
                         </div>
                         <div className="text-right">
                           <span className="text-[10px] text-slate-400 block font-semibold uppercase">
-                            Sua Meta
+                            {t.dashboard.table.colTargetPrice}
                           </span>
                           <span className="text-xs font-bold text-slate-600 tabular-nums">
                             {formatCurrency(route.targetPrice)}
                           </span>
+                          {locale === "en" && (
+                            <div className="text-[10px] text-slate-400 font-normal">
+                              {formatUsdEstimate(route.targetPrice)}
+                            </div>
+                          )}
                         </div>
                       </div>
 
                       {/* Mobile Actions */}
                       <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                         <div className="flex items-center gap-1">
-                          <Tooltip content="Buscar agora">
+                          <Tooltip content={t.dashboard.table.searchNow}>
                             <button
                               onClick={() => handleSingleRouteSearch(route)}
                               disabled={isSearchingThis}
                               className="p-1.5 rounded-lg text-slate-500 bg-slate-50 border border-slate-200 hover:text-sky-600 hover:bg-sky-50 transition-colors cursor-pointer"
-                              aria-label="Buscar agora"
+                              aria-label={t.dashboard.table.searchNow}
                             >
                               <RefreshCw className={`w-3.5 h-3.5 ${isSearchingThis ? "animate-spin text-sky-600" : ""}`} />
                             </button>
                           </Tooltip>
-                          <Tooltip content="Editar rota">
+                          <Tooltip content={t.dashboard.table.editRoute}>
                             <button
                               onClick={() => {
                                 setEditingRoute(route);
                                 setIsRouteModalOpen(true);
                               }}
                               className="p-1.5 rounded-lg text-slate-500 bg-slate-50 border border-slate-200 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
-                              aria-label="Editar rota"
+                              aria-label={t.dashboard.table.editRoute}
                             >
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
                           </Tooltip>
-                          <Tooltip content="Histórico de preços">
+                          <Tooltip content={t.dashboard.table.viewHistory}>
                             <button
                               onClick={() => setHistoryModalRoute(route)}
                               className="p-1.5 rounded-lg text-slate-500 bg-slate-50 border border-slate-200 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
-                              aria-label="Histórico de preços"
+                              aria-label={t.dashboard.table.viewHistory}
                             >
                               <BarChart2 className="w-3.5 h-3.5" />
                             </button>
                           </Tooltip>
-                          <Tooltip content="Excluir rota">
+                          <Tooltip content={t.dashboard.table.deleteRoute}>
                             <button
                               onClick={() => setRouteToDelete(route)}
                               className="p-1.5 rounded-lg text-slate-500 bg-slate-50 border border-slate-200 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                              aria-label="Excluir rota"
+                              aria-label={t.dashboard.table.deleteRoute}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -782,7 +722,7 @@ export default function DashboardPage() {
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-sky-700 bg-sky-50 border border-sky-200 hover:bg-sky-100 transition-colors"
                         >
-                          <span>Google Flights</span>
+                          <span>{t.common.viewFlight}</span>
                           <ExternalLink className="w-3 h-3" />
                         </a>
                       </div>
@@ -818,10 +758,14 @@ export default function DashboardPage() {
 
       <ConfirmDialog
         isOpen={Boolean(routeToDelete)}
-        title="Excluir Monitoramento"
-        message={`Deseja realmente remover o monitoramento da rota ${routeToDelete?.origin} → ${routeToDelete?.destination}? Todo o histórico de preços será permanentemente apagado.`}
-        confirmLabel="Excluir Rota"
-        cancelLabel="Cancelar"
+        title={t.modal.deleteTitle}
+        message={
+          locale === "en"
+            ? `Are you sure you want to delete the route ${routeToDelete?.origin} → ${routeToDelete?.destination}? All historical tracking data will be permanently erased.`
+            : `Deseja realmente remover o monitoramento da rota ${routeToDelete?.origin} → ${routeToDelete?.destination}? Todo o histórico de preços será permanentemente apagado.`
+        }
+        confirmLabel={t.modal.deleteButton}
+        cancelLabel={t.common.cancel}
         variant="danger"
         onConfirm={handleDeleteConfirm}
         onCancel={() => setRouteToDelete(null)}

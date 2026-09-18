@@ -5,7 +5,8 @@ import Navbar from "@/components/Navbar";
 import CustomSelect from "@/components/CustomSelect";
 import Tooltip from "@/components/Tooltip";
 import { AppLog, LogCategory, LogLevel, LogStats } from "@/lib/types";
-import { formatDateTimeBR, formatRelativeTime } from "@/lib/utils";
+import { formatDateTimeLocale, formatRelativeTimeLocale } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import {
   Terminal,
   RefreshCw,
@@ -31,67 +32,8 @@ import {
   Zap,
 } from "lucide-react";
 
-const LEVEL_CONFIG: Record<
-  LogLevel,
-  {
-    label: string;
-    bg: string;
-    text: string;
-    border: string;
-    icon: typeof CheckCircle2;
-    cardBorder: string;
-    dotBg: string;
-  }
-> = {
-  SUCCESS: {
-    label: "Sucesso",
-    bg: "bg-emerald-50",
-    text: "text-emerald-700",
-    border: "border-emerald-200",
-    icon: CheckCircle2,
-    cardBorder: "border-l-emerald-500",
-    dotBg: "bg-emerald-500",
-  },
-  INFO: {
-    label: "Info",
-    bg: "bg-sky-50",
-    text: "text-sky-700",
-    border: "border-sky-200",
-    icon: Info,
-    cardBorder: "border-l-sky-500",
-    dotBg: "bg-sky-500",
-  },
-  WARN: {
-    label: "Aviso",
-    bg: "bg-amber-50",
-    text: "text-amber-700",
-    border: "border-amber-200",
-    icon: AlertTriangle,
-    cardBorder: "border-l-amber-500",
-    dotBg: "bg-amber-500",
-  },
-  ERROR: {
-    label: "Erro",
-    bg: "bg-rose-50",
-    text: "text-rose-700",
-    border: "border-rose-200",
-    icon: AlertCircle,
-    cardBorder: "border-l-rose-500",
-    dotBg: "bg-rose-500",
-  },
-};
-
-const CATEGORIES: { id: LogCategory | "ALL"; label: string }[] = [
-  { id: "ALL", label: "Todas Categorias" },
-  { id: "SCHEDULER", label: "Agendador (Cron)" },
-  { id: "SCRAPER", label: "Web Scraper" },
-  { id: "SCANNER", label: "Varredura" },
-  { id: "NOTIFICATION", label: "Notificações" },
-  { id: "API", label: "API Externa" },
-  { id: "SYSTEM", label: "Sistema" },
-];
-
 export default function LogsPage() {
+  const { t, locale } = useTranslation();
   const [logs, setLogs] = useState<AppLog[]>([]);
   const [stats, setStats] = useState<LogStats>({
     total: 0,
@@ -119,6 +61,66 @@ export default function LogsPage() {
   const [isClearing, setIsClearing] = useState(false);
   const [isSearchingNow, setIsSearchingNow] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
+
+  const levelConfigMap = useMemo<Record<
+    LogLevel,
+    {
+      label: string;
+      bg: string;
+      text: string;
+      border: string;
+      icon: typeof CheckCircle2;
+      cardBorder: string;
+      dotBg: string;
+    }
+  >>(() => ({
+    SUCCESS: {
+      label: t.logs.statSuccess,
+      bg: "bg-emerald-50",
+      text: "text-emerald-700",
+      border: "border-emerald-200",
+      icon: CheckCircle2,
+      cardBorder: "border-l-emerald-500",
+      dotBg: "bg-emerald-500",
+    },
+    INFO: {
+      label: t.logs.statInfo,
+      bg: "bg-sky-50",
+      text: "text-sky-700",
+      border: "border-sky-200",
+      icon: Info,
+      cardBorder: "border-l-sky-500",
+      dotBg: "bg-sky-500",
+    },
+    WARN: {
+      label: t.logs.statWarn,
+      bg: "bg-amber-50",
+      text: "text-amber-700",
+      border: "border-amber-200",
+      icon: AlertTriangle,
+      cardBorder: "border-l-amber-500",
+      dotBg: "bg-amber-500",
+    },
+    ERROR: {
+      label: t.logs.statError,
+      bg: "bg-rose-50",
+      text: "text-rose-700",
+      border: "border-rose-200",
+      icon: AlertCircle,
+      cardBorder: "border-l-rose-500",
+      dotBg: "bg-rose-500",
+    },
+  }), [t]);
+
+  const categories = useMemo<{ id: LogCategory | "ALL"; label: string }[]>(() => [
+    { id: "ALL", label: t.logs.catAll },
+    { id: "SCHEDULER", label: t.logs.catScheduler },
+    { id: "SCRAPER", label: t.logs.catScraper },
+    { id: "SCANNER", label: t.logs.catScanner },
+    { id: "NOTIFICATION", label: t.logs.catNotification },
+    { id: "API", label: t.logs.catApi },
+    { id: "SYSTEM", label: t.logs.catSystem },
+  ], [t]);
 
   // Carrega histórico inicial do banco
   const fetchInitialLogs = useCallback(async () => {
@@ -242,7 +244,7 @@ export default function LogsPage() {
   };
 
   const handleClearLogs = async () => {
-    if (!confirm("Deseja realmente limpar todos os logs gravados?")) return;
+    if (!confirm(t.logs.clearConfirm)) return;
     setIsClearing(true);
     try {
       const res = await fetch("/api/logs", { method: "DELETE" });
@@ -285,43 +287,43 @@ export default function LogsPage() {
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2.5">
                 <Terminal className="w-6 h-6 text-sky-600" />
-                <span>Logs em Tempo Real (Event Stream)</span>
+                <span>{t.logs.title}</span>
               </h1>
 
               {/* Status de Conexão Event-Driven */}
               {connectionState === "connected" && streamActive ? (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 animate-pulse">
                   <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                  <span>Ao Vivo (SSE)</span>
+                  <span>{t.logs.liveSse}</span>
                 </span>
               ) : connectionState === "connecting" ? (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
                   <RefreshCw className="w-3 h-3 animate-spin text-amber-600" />
-                  <span>Conectando...</span>
+                  <span>{t.logs.connecting}</span>
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-200 text-slate-700 border border-slate-300">
                   <Pause className="w-3 h-3" />
-                  <span>Pausado</span>
+                  <span>{t.logs.paused}</span>
                 </span>
               )}
             </div>
             <p className="text-xs text-slate-500 mt-1 font-medium">
-              Transmissão orientada a eventos: requisições HTTP, navegações Playwright, retornos JSON e alertas push instantâneos.
+              {t.logs.subtitle}
             </p>
           </div>
 
           {/* Botões de Ação Rápida */}
           <div className="flex items-center gap-2.5 flex-wrap">
             {/* Botão Disparar Busca Imediata (Para testar live stream) */}
-            <Tooltip content="Disparar consulta agora para acompanhar os eventos ao vivo">
+            <Tooltip content={t.logs.runNowTooltip}>
               <button
                 onClick={handleTriggerSearchNow}
                 disabled={isSearchingNow}
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
               >
                 <Zap className={`w-3.5 h-3.5 ${isSearchingNow ? "animate-spin text-white" : "text-amber-300"}`} />
-                <span>{isSearchingNow ? "Executando..." : "Disparar Busca Agora"}</span>
+                <span>{isSearchingNow ? t.logs.running : t.logs.runNow}</span>
               </button>
             </Tooltip>
 
@@ -337,37 +339,37 @@ export default function LogsPage() {
               {streamActive ? (
                 <>
                   <Pause className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Pausar Stream</span>
+                  <span>{t.logs.pauseStream}</span>
                 </>
               ) : (
                 <>
                   <Play className="w-3.5 h-3.5 text-white" />
-                  <span>Reconectar Stream</span>
+                  <span>{t.logs.reconnectStream}</span>
                 </>
               )}
             </button>
 
             {/* Botão Recarregar Histórico */}
-            <Tooltip content="Recarregar logs do banco de dados">
+            <Tooltip content={t.logs.reloadTooltip}>
               <button
                 onClick={() => fetchInitialLogs()}
                 disabled={loading}
                 className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-sky-600" : ""}`} />
-                <span>Recarregar</span>
+                <span>{t.logs.reload}</span>
               </button>
             </Tooltip>
 
             {/* Botão Limpar */}
-            <Tooltip content="Apagar todos os logs gravados">
+            <Tooltip content={t.logs.clearTooltip}>
               <button
                 onClick={handleClearLogs}
                 disabled={isClearing || stats.total === 0}
                 className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>Limpar</span>
+                <span>{t.logs.clear}</span>
               </button>
             </Tooltip>
           </div>
@@ -385,11 +387,11 @@ export default function LogsPage() {
             }`}
           >
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-              <span>Total</span>
+              <span>{t.logs.statTotal}</span>
               <Layers className="w-4 h-4 text-slate-400" />
             </div>
             <div className="text-2xl font-black text-slate-900">{stats.total}</div>
-            <div className="text-[11px] text-slate-400 mt-1 font-medium">Eventos registrados</div>
+            <div className="text-[11px] text-slate-400 mt-1 font-medium">{t.logs.statTotalDesc}</div>
           </button>
 
           {/* Sucesso */}
@@ -402,11 +404,11 @@ export default function LogsPage() {
             }`}
           >
             <div className="flex items-center justify-between text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">
-              <span>Sucesso</span>
+              <span>{t.logs.statSuccess}</span>
               <CheckCircle2 className="w-4 h-4 text-emerald-500" />
             </div>
             <div className="text-2xl font-black text-emerald-700">{stats.success}</div>
-            <div className="text-[11px] text-emerald-600/80 mt-1 font-medium">JSONs & Tarifas OK</div>
+            <div className="text-[11px] text-emerald-600/80 mt-1 font-medium">{t.logs.statSuccessDesc}</div>
           </button>
 
           {/* Info */}
@@ -419,11 +421,11 @@ export default function LogsPage() {
             }`}
           >
             <div className="flex items-center justify-between text-xs font-bold text-sky-600 uppercase tracking-wider mb-1">
-              <span>Info</span>
+              <span>{t.logs.statInfo}</span>
               <Info className="w-4 h-4 text-sky-500" />
             </div>
             <div className="text-2xl font-black text-sky-700">{stats.info}</div>
-            <div className="text-[11px] text-sky-600/80 mt-1 font-medium">Requisições & Disparos</div>
+            <div className="text-[11px] text-sky-600/80 mt-1 font-medium">{t.logs.statInfoDesc}</div>
           </button>
 
           {/* Aviso */}
@@ -436,11 +438,11 @@ export default function LogsPage() {
             }`}
           >
             <div className="flex items-center justify-between text-xs font-bold text-amber-600 uppercase tracking-wider mb-1">
-              <span>Avisos</span>
+              <span>{t.logs.statWarn}</span>
               <AlertTriangle className="w-4 h-4 text-amber-500" />
             </div>
             <div className="text-2xl font-black text-amber-700">{stats.warn}</div>
-            <div className="text-[11px] text-amber-600/80 mt-1 font-medium">Fallbacks / Retentativas</div>
+            <div className="text-[11px] text-amber-600/80 mt-1 font-medium">{t.logs.statWarnDesc}</div>
           </button>
 
           {/* Erro */}
@@ -453,11 +455,11 @@ export default function LogsPage() {
             }`}
           >
             <div className="flex items-center justify-between text-xs font-bold text-rose-600 uppercase tracking-wider mb-1">
-              <span>Erros</span>
+              <span>{t.logs.statError}</span>
               <AlertCircle className="w-4 h-4 text-rose-500" />
             </div>
             <div className="text-2xl font-black text-rose-700">{stats.error}</div>
-            <div className="text-[11px] text-rose-600/80 mt-1 font-medium">Falhas detectadas</div>
+            <div className="text-[11px] text-rose-600/80 mt-1 font-medium">{t.logs.statErrorDesc}</div>
           </button>
         </div>
 
@@ -471,7 +473,7 @@ export default function LogsPage() {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar em mensagens, JSON ou URLs..."
+                placeholder={t.logs.searchPlaceholder}
                 className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
               />
               {searchTerm && (
@@ -486,7 +488,7 @@ export default function LogsPage() {
 
             {/* Categorias */}
             <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
-              {CATEGORIES.map((cat) => {
+              {categories.map((cat) => {
                 const isSelected = selectedCategory === cat.id;
                 return (
                   <button
@@ -511,7 +513,7 @@ export default function LogsPage() {
           <div className="px-5 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                Transmissão de Eventos ({logs.length})
+                {t.logs.eventStream} ({logs.length})
               </span>
               {streamActive && (
                 <span className="flex h-2 w-2 relative">
@@ -521,28 +523,28 @@ export default function LogsPage() {
               )}
             </div>
             <span className="text-[11px] text-slate-400 font-medium">
-              Novos eventos entram instantaneamente no topo
+              {t.logs.streamSubtitle}
             </span>
           </div>
 
           {loading ? (
             <div className="py-20 text-center space-y-3">
               <RefreshCw className="w-8 h-8 text-sky-600 animate-spin mx-auto" />
-              <p className="text-xs text-slate-500 font-medium">Carregando eventos...</p>
+              <p className="text-xs text-slate-500 font-medium">{t.logs.loadingEvents}</p>
             </div>
           ) : logs.length === 0 ? (
             <div className="py-20 text-center space-y-3">
               <Terminal className="w-10 h-10 text-slate-300 mx-auto" />
-              <p className="text-sm font-bold text-slate-700">Nenhum evento registrado</p>
+              <p className="text-sm font-bold text-slate-700">{t.logs.emptyLogsTitle}</p>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Clique em <strong>"Disparar Busca Agora"</strong> acima para ver a transmissão ao vivo de requisições e JSONs.
+                {t.logs.emptyLogsDesc}
               </p>
             </div>
           ) : (
             <div>
               <div className="divide-y divide-slate-100">
                 {paginatedLogs.map((log) => {
-                  const config = LEVEL_CONFIG[log.level] || LEVEL_CONFIG.INFO;
+                  const config = levelConfigMap[log.level] || levelConfigMap.INFO;
                   const IconComponent = config.icon;
                   const isExpanded = expandedLogIds.has(log.id);
                   const hasDetails = Boolean(log.details && log.details.trim());
@@ -578,17 +580,17 @@ export default function LogsPage() {
                               </span>
 
                               {/* Timestamp com Formato Relativo e Tooltip */}
-                              <Tooltip content={formatDateTimeBR(log.timestamp)}>
+                              <Tooltip content={formatDateTimeLocale(log.timestamp, locale)}>
                                 <span className="text-xs text-slate-400 font-medium flex items-center gap-1 cursor-default">
                                   <Clock className="w-3 h-3 text-slate-400" />
-                                  <span>{formatRelativeTime(log.timestamp)}</span>
+                                  <span>{formatRelativeTimeLocale(log.timestamp, locale)}</span>
                                 </span>
                               </Tooltip>
 
                               {/* Live Badge if just arrived */}
                               {isJustArrived && (
                                 <span className="text-[10px] font-extrabold uppercase tracking-wide px-1.5 py-0.2 bg-emerald-500 text-white rounded animate-bounce">
-                                  NOVO
+                                  {t.logs.newBadge}
                                 </span>
                               )}
                             </div>
@@ -606,7 +608,7 @@ export default function LogsPage() {
                             onClick={() => toggleExpand(log.id)}
                             className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer shrink-0"
                           >
-                            <span>{isExpanded ? "Ocultar JSON" : "Ver JSON"}</span>
+                            <span>{isExpanded ? t.logs.hideJson : t.logs.viewJson}</span>
                             {isExpanded ? (
                               <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
                             ) : (
@@ -627,12 +629,12 @@ export default function LogsPage() {
                               {copiedId === log.id ? (
                                 <>
                                   <Check className="w-3 h-3 text-emerald-400" />
-                                  <span className="text-emerald-400">Copiado!</span>
+                                  <span className="text-emerald-400">{t.logs.copied}</span>
                                 </>
                               ) : (
                               <>
                                 <Copy className="w-3 h-3 text-slate-400" />
-                                <span>Copiar JSON</span>
+                                <span>{t.logs.copyJson}</span>
                               </>
                             )}
                             </button>
@@ -652,11 +654,11 @@ export default function LogsPage() {
                 <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
                   <div className="flex items-center gap-3">
                     <span>
-                      Mostrando <strong>{Math.min(logs.length, (currentPage - 1) * itemsPerPage + 1)}</strong> a <strong>{Math.min(logs.length, currentPage * itemsPerPage)}</strong> de <strong>{logs.length}</strong> eventos
+                      {t.common.showing} <strong>{Math.min(logs.length, (currentPage - 1) * itemsPerPage + 1)}</strong> {t.common.to} <strong>{Math.min(logs.length, currentPage * itemsPerPage)}</strong> {t.common.of} <strong>{logs.length}</strong> {t.common.events}
                     </span>
 
                     <div className="flex items-center gap-1.5 ml-2">
-                      <span className="text-slate-400">Por página:</span>
+                      <span className="text-slate-400">{t.common.perPage}</span>
                       <div className="w-20">
                         <CustomSelect
                           value={String(itemsPerPage)}
@@ -678,10 +680,10 @@ export default function LogsPage() {
 
                   <div className="flex items-center gap-2">
                     <span className="text-slate-500 font-medium">
-                      Página {currentPage} de {totalPages}
+                      {t.common.page} {currentPage} {t.common.of} {totalPages}
                     </span>
                     <div className="flex items-center gap-1">
-                      <Tooltip content="Página Anterior">
+                      <Tooltip content={t.common.previousPage}>
                         <button
                           onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                           disabled={currentPage === 1}
@@ -690,7 +692,7 @@ export default function LogsPage() {
                           <ChevronLeft className="w-4 h-4" />
                         </button>
                       </Tooltip>
-                      <Tooltip content="Próxima Página">
+                      <Tooltip content={t.common.nextPage}>
                         <button
                           onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                           disabled={currentPage >= totalPages}

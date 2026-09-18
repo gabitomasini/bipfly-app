@@ -12,7 +12,8 @@ import {
   CartesianGrid,
 } from "recharts";
 import { FlightHistoryEntry } from "@/lib/types";
-import { formatCurrency, formatDateTimeBR, formatDateBR } from "@/lib/utils";
+import { formatCurrencyLocale, formatUsdEstimate, formatDateTimeLocale, formatDateLocale } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import { TrendingDown, TrendingUp, Minus, Calendar, Filter } from "lucide-react";
 
 interface PriceHistoryChartProps {
@@ -32,6 +33,7 @@ export default function PriceHistoryChart({
   origin,
   destination,
 }: PriceHistoryChartProps) {
+  const { t, locale } = useTranslation();
   const [timeRange, setTimeRange] = useState<TimeRange>("30d");
   const activeTargetPrice = targetPrice ?? precoLimite;
 
@@ -65,9 +67,9 @@ export default function PriceHistoryChart({
   if (!data || data.length === 0) {
     return (
       <div className="h-64 flex flex-col items-center justify-center text-slate-500 border border-dashed border-slate-300 rounded-2xl bg-slate-50 p-6">
-        <p className="text-sm font-semibold text-slate-700">Nenhum histórico de preços registrado para esta rota.</p>
+        <p className="text-sm font-semibold text-slate-700">{t.history.modalNoHistory}</p>
         <p className="text-xs text-slate-500 mt-1">
-          Use o botão &ldquo;Puxar Histórico (30d)&rdquo; ou aguarde o próximo ciclo de varredura.
+          {locale === "en" ? "Use the 'Import 30d History' button or wait for the next scan cycle." : "Use o botão 'Importar Histórico (30d)' ou aguarde o próximo ciclo de varredura."}
         </p>
       </div>
     );
@@ -78,7 +80,7 @@ export default function PriceHistoryChart({
     const searchedAt = item.searchedAt;
     const lowestPrice = item.lowestPrice;
     const isIsoOnly = searchedAt.includes("T12:00:00.000Z");
-    const dateLabel = isIsoOnly ? formatDateBR(searchedAt.slice(0, 10)) : formatDateTimeBR(searchedAt);
+    const dateLabel = isIsoOnly ? formatDateLocale(searchedAt.slice(0, 10), locale) : formatDateTimeLocale(searchedAt, locale);
 
     return {
       id: item.id,
@@ -86,7 +88,7 @@ export default function PriceHistoryChart({
       price: lowestPrice,
       searchedAt,
       dateLabel,
-      airline: item.airline || "Não informada",
+      airline: item.airline || (locale === "en" ? "Not specified" : "Não informada"),
       flightNumber: item.flightNumber || "",
       departureTime: item.departureTime || "",
       arrivalTime: item.arrivalTime || "",
@@ -114,8 +116,13 @@ export default function PriceHistoryChart({
             <Calendar className="w-3 h-3 text-slate-400" />
             <span>{p.dateLabel}</span>
           </div>
-          <div className="text-lg font-black text-sky-700 mb-1.5">
-            {formatCurrency(p.price)}
+          <div className="text-lg font-black text-sky-700 mb-1.5 flex items-baseline gap-1.5 flex-wrap">
+            <span>{formatCurrencyLocale(p.price, "BRL", locale)}</span>
+            {locale === "en" && (
+              <span className="text-xs text-slate-500 font-semibold">
+                ({formatUsdEstimate(p.price, "~")})
+              </span>
+            )}
           </div>
           {p.airline && (
             <div className="text-slate-700 font-medium">
@@ -133,7 +140,9 @@ export default function PriceHistoryChart({
                 p.price <= activeTargetPrice ? "text-emerald-700" : "text-amber-700"
               }`}
             >
-              {p.price <= activeTargetPrice ? "🎯 Dentro da Meta!" : "⚠️ Acima da Meta"}
+              {p.price <= activeTargetPrice
+                ? `🎯 ${t.dashboard.table.targetMet}!`
+                : `⚠️ ${t.dashboard.table.aboveTarget}`}
             </div>
           )}
         </div>
@@ -148,13 +157,13 @@ export default function PriceHistoryChart({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-1 border-b border-slate-100">
         <div className="flex items-center gap-1.5">
           <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-          <span className="text-xs font-bold text-slate-600 mr-1">Período:</span>
+          <span className="text-xs font-bold text-slate-600 mr-1">{t.common.period}</span>
           <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
             {[
-              { id: "7d", label: "7 Dias" },
-              { id: "15d", label: "15 Dias" },
-              { id: "30d", label: "30 Dias" },
-              { id: "all", label: "Tudo" },
+              { id: "7d", label: t.common.days7 },
+              { id: "15d", label: t.common.days15 },
+              { id: "30d", label: t.common.days30 },
+              { id: "all", label: t.common.allTime },
             ].map((tab) => {
               const active = timeRange === tab.id;
               return (
@@ -176,26 +185,41 @@ export default function PriceHistoryChart({
         </div>
 
         <div className="text-xs text-slate-500 font-medium">
-          Exibindo <strong>{filteredData.length}</strong> de <strong>{data.length}</strong> cotações registradas
+          {t.common.showing} <strong>{filteredData.length}</strong> {t.common.of} <strong>{data.length}</strong> {t.history.quotesLabel}
         </div>
       </div>
 
       {/* 4 Cards de Resumo de Tendência do Período */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
         <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-          <span className="text-slate-500 font-medium block text-[11px]">Menor Preço</span>
-          <strong className="text-emerald-700 text-sm font-black">{formatCurrency(lowestPrice)}</strong>
+          <span className="text-slate-500 font-medium block text-[11px]">{t.history.allTimeLow}</span>
+          <strong className="text-emerald-700 text-sm font-black">{formatCurrencyLocale(lowestPrice, "BRL", locale)}</strong>
+          {locale === "en" && (
+            <span className="text-[10px] text-slate-400 font-normal ml-1">
+              ({formatUsdEstimate(lowestPrice, "~")})
+            </span>
+          )}
         </div>
         <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-          <span className="text-slate-500 font-medium block text-[11px]">Maior Preço</span>
-          <strong className="text-rose-700 text-sm font-black">{formatCurrency(highestPrice)}</strong>
+          <span className="text-slate-500 font-medium block text-[11px]">{locale === "en" ? "Highest Price" : "Maior Preço"}</span>
+          <strong className="text-rose-700 text-sm font-black">{formatCurrencyLocale(highestPrice, "BRL", locale)}</strong>
+          {locale === "en" && (
+            <span className="text-[10px] text-slate-400 font-normal ml-1">
+              ({formatUsdEstimate(highestPrice, "~")})
+            </span>
+          )}
         </div>
         <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-          <span className="text-slate-500 font-medium block text-[11px]">Média (μ)</span>
-          <strong className="text-slate-800 text-sm font-black">{formatCurrency(avgPrice)}</strong>
+          <span className="text-slate-500 font-medium block text-[11px]">{t.stats.mean}</span>
+          <strong className="text-slate-800 text-sm font-black">{formatCurrencyLocale(avgPrice, "BRL", locale)}</strong>
+          {locale === "en" && (
+            <span className="text-[10px] text-slate-400 font-normal ml-1">
+              ({formatUsdEstimate(avgPrice, "~")})
+            </span>
+          )}
         </div>
         <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-          <span className="text-slate-500 font-medium block text-[11px]">Variação no Período</span>
+          <span className="text-slate-500 font-medium block text-[11px]">{locale === "en" ? "Period Variation" : "Variação no Período"}</span>
           <div className="flex items-center gap-1 font-black text-sm">
             {variationPercent < 0 ? (
               <span className="text-emerald-700 flex items-center">
@@ -237,7 +261,7 @@ export default function PriceHistoryChart({
               fontSize={11}
               tickLine={false}
               axisLine={{ stroke: "#e2e8f0" }}
-              tickFormatter={(v) => `R$ ${v}`}
+              tickFormatter={(v) => (locale === "en" ? `$ ${v}` : `R$ ${v}`)}
               domain={[
                 (dataMin: number) => Math.floor(Math.min(dataMin, activeTargetPrice || dataMin) * 0.92),
                 (dataMax: number) => Math.ceil(Math.max(dataMax, activeTargetPrice || dataMax) * 1.05),
@@ -253,7 +277,7 @@ export default function PriceHistoryChart({
                 strokeDasharray="4 4"
                 strokeWidth={2}
                 label={{
-                  value: `🎯 Meta: ${formatCurrency(activeTargetPrice)}`,
+                  value: `🎯 ${t.common.target}: ${formatCurrencyLocale(activeTargetPrice, "BRL", locale)}`,
                   fill: "#047857",
                   fontSize: 11,
                   position: "top",
@@ -269,7 +293,7 @@ export default function PriceHistoryChart({
                 stroke="#6366f1"
                 strokeDasharray="3 3"
                 label={{
-                  value: `Média: ${formatCurrency(avgPrice)}`,
+                  value: `${t.history.meanLabel} ${formatCurrencyLocale(avgPrice, "BRL", locale)}`,
                   fill: "#4f46e5",
                   fontSize: 10,
                   position: "insideBottomRight",

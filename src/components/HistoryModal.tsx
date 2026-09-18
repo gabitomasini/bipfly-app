@@ -23,12 +23,14 @@ import {
 import { FlightHistoryEntry, MonitoredRoute } from "@/lib/types";
 import CustomTooltip from "./Tooltip";
 import {
-  formatCurrency,
-  formatDateBR,
-  formatDateTimeBR,
-  formatRelativeTime,
+  formatCurrencyLocale,
+  formatUsdEstimate,
+  formatDateLocale,
+  formatDateTimeLocale,
+  formatRelativeTimeLocale,
   getAirportName,
 } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import { analyzeFlightPrice } from "@/lib/stats/flight-anomaly-detector";
 import { useModalBehavior } from "@/hooks/useModalBehavior";
 
@@ -40,6 +42,7 @@ interface HistoryModalProps {
 
 export default function HistoryModal({ isOpen, route, onClose }: HistoryModalProps) {
   const router = useRouter();
+  const { t, locale } = useTranslation();
   const [history, setHistory] = useState<FlightHistoryEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -83,10 +86,10 @@ export default function HistoryModal({ isOpen, route, onClose }: HistoryModalPro
       .sort((a, b) => new Date(a.searchedAt).getTime() - new Date(b.searchedAt).getTime())
       .map((item) => ({
         price: item.lowestPrice,
-        dateLabel: formatDateTimeBR(item.searchedAt),
+        dateLabel: formatDateTimeLocale(item.searchedAt, locale),
         airline: item.airline || "",
       }));
-  }, [history]);
+  }, [history, locale]);
 
   // Latest 5 queries for mini table
   const latestFiveEntries = useMemo(() => {
@@ -100,7 +103,7 @@ export default function HistoryModal({ isOpen, route, onClose }: HistoryModalPro
 
   const handleNavigateToFullHistory = () => {
     onClose();
-    router.push(`/historico?route=${route.id}`);
+    router.push(`/history?route=${route.id}`);
   };
 
   return (
@@ -127,12 +130,17 @@ export default function HistoryModal({ isOpen, route, onClose }: HistoryModalPro
                   {route.origin} → {route.destination}
                 </h2>
                 <span className="text-xs text-sky-800 bg-sky-100 border border-sky-200 px-2 py-0.5 rounded-md font-semibold">
-                  {formatDateBR(route.flightDate)}
+                  {formatDateLocale(route.flightDate, locale)}
                 </span>
               </div>
               <p className="text-xs text-slate-500 font-medium mt-0.5">
-                {getAirportName(route.origin)} para {getAirportName(route.destination)} • Meta:{" "}
-                <strong className="text-slate-800 font-bold">{formatCurrency(route.targetPrice)}</strong>
+                {getAirportName(route.origin)} {locale === "en" ? "to" : "para"} {getAirportName(route.destination)} • {t.history.targetLabel}{" "}
+                <strong className="text-slate-800 font-bold">{formatCurrencyLocale(route.targetPrice, "BRL", locale)}</strong>
+                {locale === "en" && (
+                  <span className="text-slate-400 font-normal ml-1">
+                    ({formatUsdEstimate(route.targetPrice)})
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -140,7 +148,7 @@ export default function HistoryModal({ isOpen, route, onClose }: HistoryModalPro
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-            aria-label="Fechar histórico"
+            aria-label={t.common.close}
           >
             <X className="w-5 h-5" />
           </button>
@@ -151,11 +159,11 @@ export default function HistoryModal({ isOpen, route, onClose }: HistoryModalPro
           {loading ? (
             <div className="py-12 flex flex-col items-center justify-center text-slate-500 space-y-2">
               <RefreshCw className="w-6 h-6 animate-spin text-sky-600" />
-              <span className="text-xs font-semibold">Carregando preview...</span>
+              <span className="text-xs font-semibold">{t.common.loading}</span>
             </div>
           ) : history.length === 0 ? (
             <div className="py-10 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50">
-              <p className="text-xs font-semibold text-slate-600">Nenhum histórico registrado para esta rota.</p>
+              <p className="text-xs font-semibold text-slate-600">{t.history.modalNoHistory}</p>
             </div>
           ) : (
             <>
@@ -163,28 +171,33 @@ export default function HistoryModal({ isOpen, route, onClose }: HistoryModalPro
               {analysis && (
                 <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/80">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-700">Status da Tarifa:</span>
+                    <span className="text-xs font-bold text-slate-700">{t.common.status}:</span>
                     {analysis.dealLevel === "IMPERDIVEL" ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
                         <Flame className="w-3.5 h-3.5 text-emerald-600" />
-                        Promoção Imperdível {analysis.discountPercent ? `(-${analysis.discountPercent}%)` : ""}
+                        {t.stats.stealDeal} {analysis.discountPercent ? `(-${analysis.discountPercent}%)` : ""}
                       </span>
                     ) : analysis.dealLevel === "OPORTUNIDADE" ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-100 text-sky-800 border border-sky-300">
                         <Sparkles className="w-3.5 h-3.5 text-sky-600" />
-                        Ótima Oportunidade {analysis.discountPercent ? `(-${analysis.discountPercent}%)` : ""}
+                        {t.stats.greatPrice} {analysis.discountPercent ? `(-${analysis.discountPercent}%)` : ""}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
                         <CheckCircle className="w-3.5 h-3.5 text-slate-500" />
-                        Preço Regular
+                        {t.stats.normalRange}
                       </span>
                     )}
                   </div>
 
                   {analysis.mean !== null && (
                     <span className="text-xs text-slate-500 font-medium">
-                      Média: <strong>{formatCurrency(Math.round(analysis.mean))}</strong>
+                      {t.history.meanLabel} <strong>{formatCurrencyLocale(Math.round(analysis.mean), "BRL", locale)}</strong>
+                      {locale === "en" && (
+                        <span className="text-slate-400 font-normal ml-1">
+                          ({formatUsdEstimate(Math.round(analysis.mean), "~")})
+                        </span>
+                      )}
                     </span>
                   )}
                 </div>
@@ -193,8 +206,8 @@ export default function HistoryModal({ isOpen, route, onClose }: HistoryModalPro
               {/* Sparkline Compacto */}
               <div className="p-3 bg-slate-50/50 rounded-xl border border-slate-200/80 space-y-1">
                 <div className="flex items-center justify-between text-xs text-slate-500 font-medium px-1">
-                  <span>Tendência de Preço ({chartData.length} registros)</span>
-                  <span className="text-slate-400 text-[11px]">Últimos 30 dias</span>
+                  <span>{t.history.modalTrend} ({chartData.length} {t.common.records})</span>
+                  <span className="text-slate-400 text-[11px]">{t.history.modalLast30d}</span>
                 </div>
                 <div className="h-28 w-full">
                   <ResponsiveContainer width="100%" height="100%">
@@ -206,7 +219,12 @@ export default function HistoryModal({ isOpen, route, onClose }: HistoryModalPro
                         </linearGradient>
                       </defs>
                       <Tooltip
-                        formatter={(value: any) => [formatCurrency(Number(value)), "Preço"]}
+                        formatter={(value: any) => [
+                          locale === "en"
+                            ? `${formatCurrencyLocale(Number(value), "BRL", locale)} (${formatUsdEstimate(Number(value), "~")})`
+                            : formatCurrencyLocale(Number(value), "BRL", locale),
+                          t.common.price,
+                        ]}
                         labelFormatter={(_, items) => items?.[0]?.payload?.dateLabel || ""}
                       />
                       <Area
@@ -225,16 +243,16 @@ export default function HistoryModal({ isOpen, route, onClose }: HistoryModalPro
               {/* Mini-tabela das últimas 5 cotações */}
               <div className="space-y-1.5">
                 <span className="text-xs font-bold text-slate-700 block">
-                  Últimas Cotações Registradas
+                  {t.history.modalRecentQueries}
                 </span>
                 <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
                   <table className="w-full text-xs text-left text-slate-700">
                     <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-100 font-semibold">
                       <tr>
-                        <th className="px-3 py-2">Data Consulta</th>
-                        <th className="px-3 py-2">Preço</th>
-                        <th className="px-3 py-2">Cia Aérea</th>
-                        <th className="px-3 py-2 text-right">Status</th>
+                        <th className="px-3 py-2">{t.history.tableQueryDate}</th>
+                        <th className="px-3 py-2">{t.history.tablePrice}</th>
+                        <th className="px-3 py-2">{t.history.tableAirline}</th>
+                        <th className="px-3 py-2 text-right">{t.history.tableStatus}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -243,14 +261,19 @@ export default function HistoryModal({ isOpen, route, onClose }: HistoryModalPro
                         return (
                           <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
                             <td className="px-3 py-2 text-slate-500 whitespace-nowrap">
-                              <CustomTooltip content={formatDateTimeBR(item.searchedAt)}>
+                              <CustomTooltip content={formatDateTimeLocale(item.searchedAt, locale)}>
                                 <span className="cursor-default">
-                                  {formatRelativeTime(item.searchedAt)}
+                                  {formatRelativeTimeLocale(item.searchedAt, locale)}
                                 </span>
                               </CustomTooltip>
                             </td>
                             <td className="px-3 py-2 font-bold text-slate-900 whitespace-nowrap">
-                              {formatCurrency(item.lowestPrice, item.currency)}
+                              <div>{formatCurrencyLocale(item.lowestPrice, item.currency, locale)}</div>
+                              {locale === "en" && (
+                                <div className="text-[10px] text-slate-400 font-normal">
+                                  {formatUsdEstimate(item.lowestPrice)}
+                                </div>
+                              )}
                             </td>
                             <td className="px-3 py-2 text-slate-700 truncate max-w-[120px]">
                               {item.airline || "Google Flights"}
@@ -263,7 +286,7 @@ export default function HistoryModal({ isOpen, route, onClose }: HistoryModalPro
                                     : "bg-slate-100 text-slate-600"
                                 }`}
                               >
-                                {isBelow ? "No Alvo" : "Acima"}
+                                {isBelow ? t.dashboard.table.targetMet : t.dashboard.table.aboveTarget}
                               </span>
                             </td>
                           </tr>
@@ -284,7 +307,7 @@ export default function HistoryModal({ isOpen, route, onClose }: HistoryModalPro
             onClick={handleNavigateToFullHistory}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors cursor-pointer"
           >
-            <span>Ver análise completa</span>
+            <span>{t.history.modalFullAnalysis}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
 
@@ -292,7 +315,7 @@ export default function HistoryModal({ isOpen, route, onClose }: HistoryModalPro
             onClick={onClose}
             className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-800 transition-colors cursor-pointer"
           >
-            Fechar
+            {t.common.close}
           </button>
         </div>
       </div>

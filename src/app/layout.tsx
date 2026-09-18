@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import BottomNav from "@/components/BottomNav";
 import { ToastProvider } from "@/components/Toast";
+import { LanguageProvider } from "@/lib/i18n/context";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -10,9 +11,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Radar de Passagens | Monitor Inteligente de Voos",
+  title: "Flight Radar | Intelligent Airfare Deal Tracker",
   description:
-    "Monitoramento automatizado de preços de passagens aéreas no Google Flights com histórico, gráficos interativos e alertas no celular.",
+    "Automated flight price tracking across Google Flights with real-time alerts, interactive charts, and historical fare intelligence.",
 };
 
 export default function RootLayout({
@@ -21,15 +22,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className={inter.className} suppressHydrationWarning>
+    <html lang="en" className={inter.className} suppressHydrationWarning>
       <body
         className="antialiased min-h-screen bg-slate-50 text-slate-900 selection:bg-sky-100 selection:text-sky-900"
         suppressHydrationWarning
       >
-        <ToastProvider>
-          {children}
-          <BottomNav />
-        </ToastProvider>
+        <LanguageProvider>
+          <ToastProvider>
+            {children}
+            <BottomNav />
+          </ToastProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

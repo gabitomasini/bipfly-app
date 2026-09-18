@@ -12,7 +12,8 @@ import {
   CartesianGrid,
 } from "recharts";
 import { FlightHistoryEntry, MonitoredRoute } from "@/lib/types";
-import { formatCurrency, formatDateTimeBR, formatDateBR } from "@/lib/utils";
+import { formatCurrencyLocale, formatUsdEstimate, formatDateTimeLocale, formatDateLocale } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import { Eye, EyeOff, Layers, Percent, DollarSign, Filter, Calendar } from "lucide-react";
 import CustomTooltip from "./Tooltip";
 
@@ -40,6 +41,8 @@ export default function MultiRoutePriceChart({
   routes,
   allHistory,
 }: MultiRoutePriceChartProps) {
+  const { t, locale } = useTranslation();
+
   // Controle de visibilidade de rotas no gráfico
   const [visibleRoutes, setVisibleRoutes] = useState<Record<number, boolean>>(() => {
     const map: Record<number, boolean> = {};
@@ -130,7 +133,7 @@ export default function MultiRoutePriceChart({
       const d = new Date(searchedAt);
       const isIsoDay = searchedAt.includes("T12:00:00.000Z");
       const minuteKey = isIsoDay ? searchedAt.slice(0, 10) : d.toISOString().slice(0, 16);
-      const label = isIsoDay ? formatDateBR(searchedAt.slice(0, 10)) : formatDateTimeBR(searchedAt);
+      const label = isIsoDay ? formatDateLocale(searchedAt.slice(0, 10), locale) : formatDateTimeLocale(searchedAt, locale);
 
       if (!timeMap.has(minuteKey)) {
         timeMap.set(minuteKey, {
@@ -148,7 +151,7 @@ export default function MultiRoutePriceChart({
     });
 
     return Array.from(timeMap.values());
-  }, [filteredHistory, routes]);
+  }, [filteredHistory, routes, locale]);
 
   const CustomMultiTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -160,7 +163,7 @@ export default function MultiRoutePriceChart({
               {label}
             </span>
             <span className="text-[10px] text-slate-400 font-normal">
-              {viewMode === "absolute" ? "Valores em R$" : "% da Meta"}
+              {viewMode === "absolute" ? (locale === "en" ? "Amounts in $" : "Valores em R$") : t.history.percentMode}
             </span>
           </div>
 
@@ -190,14 +193,21 @@ export default function MultiRoutePriceChart({
 
                   <div className="text-right shrink-0">
                     {viewMode === "absolute" ? (
-                      <span className="font-black text-slate-900">{formatCurrency(val)}</span>
+                      <div>
+                        <span className="font-black text-slate-900">{formatCurrencyLocale(val, "BRL", locale)}</span>
+                        {locale === "en" && (
+                          <span className="text-[10px] text-slate-400 font-normal ml-1">
+                            ({formatUsdEstimate(val, "~")})
+                          </span>
+                        )}
+                      </div>
                     ) : (
                       <span
                         className={`font-black ${
                           val <= 100 ? "text-emerald-700" : "text-amber-700"
                         }`}
                       >
-                        {val}% da meta
+                        {val}% {locale === "en" ? "of target" : "da meta"}
                       </span>
                     )}
                   </div>
@@ -218,13 +228,13 @@ export default function MultiRoutePriceChart({
         {/* Filtro de Período */}
         <div className="flex items-center gap-1.5">
           <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-          <span className="text-xs font-bold text-slate-600 mr-1">Período:</span>
+          <span className="text-xs font-bold text-slate-600 mr-1">{t.common.period}</span>
           <div className="inline-flex rounded-xl bg-white p-0.5 border border-slate-200 shadow-xs">
             {[
               { id: "7d", label: "7D" },
               { id: "15d", label: "15D" },
               { id: "30d", label: "30D" },
-              { id: "all", label: "Tudo" },
+              { id: "all", label: t.common.all },
             ].map((tab) => {
               const active = timeRange === tab.id;
               return (
@@ -249,7 +259,7 @@ export default function MultiRoutePriceChart({
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
             <Layers className="w-3.5 h-3.5 text-indigo-600" />
-            <span className="hidden sm:inline">Modo:</span>
+            <span className="hidden sm:inline">{t.common.mode}</span>
           </span>
 
           <div className="flex rounded-xl border border-slate-200 bg-white p-0.5 shadow-xs">
@@ -262,9 +272,9 @@ export default function MultiRoutePriceChart({
               }`}
             >
               <DollarSign className="w-3 h-3" />
-              <span>R$ Reais</span>
+              <span>{t.history.currencyMode}</span>
             </button>
-            <CustomTooltip content="Compara a proximidade da meta percentual de cada voo">
+            <CustomTooltip content={t.history.percentTooltip}>
               <button
                 onClick={() => setViewMode("normalized")}
                 className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
@@ -274,7 +284,7 @@ export default function MultiRoutePriceChart({
                 }`}
               >
                 <Percent className="w-3 h-3" />
-                <span>% da Meta</span>
+                <span>{t.history.percentMode}</span>
               </button>
             </CustomTooltip>
           </div>
@@ -287,21 +297,21 @@ export default function MultiRoutePriceChart({
             className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-200 border border-slate-200 transition-colors cursor-pointer"
           >
             <Eye className="w-3 h-3 text-slate-500" />
-            <span>Todas</span>
+            <span>{t.history.showAll}</span>
           </button>
           <button
             onClick={hideAllRoutes}
             className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-200 border border-slate-200 transition-colors cursor-pointer"
           >
             <EyeOff className="w-3 h-3 text-slate-500" />
-            <span>Nenhuma</span>
+            <span>{t.history.hideAll}</span>
           </button>
         </div>
       </div>
 
       {/* Pills de Filtro de Cada Rota */}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-slate-500 font-semibold mr-1">Rotas:</span>
+        <span className="text-xs text-slate-500 font-semibold mr-1">{t.history.routesLabel}</span>
         {routes.map((r, idx) => {
           const isVis = visibleRoutes[r.id] !== false;
           const color = routeColorMap[r.id] || ROUTE_COLORS[idx % ROUTE_COLORS.length];
@@ -351,7 +361,7 @@ export default function MultiRoutePriceChart({
               fontSize={11}
               tickLine={false}
               axisLine={{ stroke: "#e2e8f0" }}
-              tickFormatter={(v) => (viewMode === "absolute" ? `R$ ${v}` : `${v}%`)}
+              tickFormatter={(v) => (viewMode === "absolute" ? (locale === "en" ? `$ ${v}` : `R$ ${v}`) : `${v}%`)}
               domain={viewMode === "normalized" ? [40, 160] : ["dataMin - 150", "dataMax + 150"]}
             />
             <Tooltip content={<CustomMultiTooltip />} />
@@ -364,7 +374,7 @@ export default function MultiRoutePriceChart({
                 strokeWidth={2}
                 strokeDasharray="4 4"
                 label={{
-                  value: "🎯 Meta (100%)",
+                  value: `🎯 ${t.common.target} (100%)`,
                   fill: "#047857",
                   fontSize: 11,
                   position: "top",

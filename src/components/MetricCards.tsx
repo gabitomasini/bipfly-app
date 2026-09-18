@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { MonitoredRoute, SchedulerStatus } from "@/lib/types";
-import { formatCurrency } from "@/lib/utils";
-import { Plane, TrendingDown, Target, Clock, ArrowUpRight, CheckCircle2, AlertCircle } from "lucide-react";
+import { Plane, TrendingDown, Target, Clock, ArrowUpRight, CheckCircle2 } from "lucide-react";
+import { useTranslation } from "@/lib/i18n/context";
 
 interface MetricCardsProps {
   routes: MonitoredRoute[];
@@ -12,6 +12,7 @@ interface MetricCardsProps {
 
 export default function MetricCards({ routes, schedulerStatus }: MetricCardsProps) {
   const router = useRouter();
+  const { t, formatCurrency, formatUsdEstimate, locale } = useTranslation();
   const totalCount = routes.length;
   const activeRoutes = routes.filter((r) => r.isActive);
   const activeCount = activeRoutes.length;
@@ -36,21 +37,25 @@ export default function MetricCards({ routes, schedulerStatus }: MetricCardsProp
 
   // Format next run time
   const nextRunText = schedulerStatus?.nextRun
-    ? new Date(schedulerStatus.nextRun).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+    ? new Date(schedulerStatus.nextRun).toLocaleTimeString(locale === "pt" ? "pt-BR" : "en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: locale === "en",
+      })
     : schedulerStatus?.scheduleHours?.[0] || "03:00";
 
   const isSchedulerActive = schedulerStatus?.running !== false;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      {/* 1: Rotas Ativas */}
+      {/* 1: Monitored / Active Routes */}
       <div
-        onClick={() => router.push("/rotas?filter=active")}
+        onClick={() => router.push("/routes?filter=active")}
         className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between"
       >
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            Rotas Ativas
+            {t.dashboard.kpis.monitoredRoutes}
           </span>
           <div className="w-9 h-9 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600 group-hover:scale-105 transition-transform">
             <Plane className="w-4.5 h-4.5" />
@@ -63,31 +68,33 @@ export default function MetricCards({ routes, schedulerStatus }: MetricCardsProp
               {activeCount}
             </span>
             <span className="text-xs font-semibold text-slate-400">
-              de {totalCount} rotas
+              {locale === "en"
+                ? `of ${totalCount} routes`
+                : `de ${totalCount} rotas`}
             </span>
           </div>
 
           <div className="mt-2.5 flex items-center gap-1.5">
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-sky-50 text-sky-700 border border-sky-200/70">
-              {activePercent}% ativas
+              {activePercent}% {t.dashboard.kpis.active}
             </span>
             {totalCount - activeCount > 0 && (
               <span className="text-[11px] text-slate-400 font-medium">
-                {totalCount - activeCount} pausada(s)
+                {totalCount - activeCount} {t.common.paused.toLowerCase()}
               </span>
             )}
           </div>
         </div>
       </div>
 
-      {/* 2: Menor Preço Encontrado */}
+      {/* 2: Lowest Price Found */}
       <div
-        onClick={() => router.push("/rotas")}
+        onClick={() => router.push("/routes")}
         className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between"
       >
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            Menor Tarifa
+            {t.dashboard.kpis.lowestPriceFound}
           </span>
           <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 group-hover:scale-105 transition-transform">
             <TrendingDown className="w-4.5 h-4.5" />
@@ -95,10 +102,15 @@ export default function MetricCards({ routes, schedulerStatus }: MetricCardsProp
         </div>
 
         <div className="mt-3">
-          <div className="flex items-baseline gap-2">
+          <div className="flex items-baseline gap-2 flex-wrap">
             <span className="text-3xl font-black tracking-tight text-slate-900 tabular-nums truncate">
-              {lowestOverallPrice ? formatCurrency(lowestOverallPrice) : "—"}
+              {lowestOverallPrice !== null ? formatCurrency(lowestOverallPrice) : "—"}
             </span>
+            {locale === "en" && lowestOverallPrice !== null && (
+              <span className="text-xs font-bold text-slate-400">
+                ({formatUsdEstimate(lowestOverallPrice, "~")})
+              </span>
+            )}
           </div>
 
           <div className="mt-2.5 flex items-center gap-1.5 truncate">
@@ -109,27 +121,29 @@ export default function MetricCards({ routes, schedulerStatus }: MetricCardsProp
               </span>
             ) : (
               <span className="text-[11px] text-slate-400 font-medium">
-                Aguardando cotação
+                {t.dashboard.kpis.noRoutesYet}
               </span>
             )}
           </div>
         </div>
       </div>
 
-      {/* 3: No Preço Alvo */}
+      {/* 3: Deals Found / Target Met */}
       <div
-        onClick={() => router.push("/rotas?filter=target")}
+        onClick={() => router.push("/routes?filter=target")}
         className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between"
       >
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            No Preço Alvo
+            {t.dashboard.kpis.dealsFound}
           </span>
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform ${
-            onTargetCount > 0
-              ? "bg-emerald-50 border border-emerald-100 text-emerald-600"
-              : "bg-slate-50 border border-slate-100 text-slate-400"
-          }`}>
+          <div
+            className={`w-9 h-9 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform ${
+              onTargetCount > 0
+                ? "bg-emerald-50 border border-emerald-100 text-emerald-600"
+                : "bg-slate-50 border border-slate-100 text-slate-400"
+            }`}
+          >
             <Target className="w-4.5 h-4.5" />
           </div>
         </div>
@@ -144,7 +158,9 @@ export default function MetricCards({ routes, schedulerStatus }: MetricCardsProp
               {onTargetCount}
             </span>
             <span className="text-xs font-semibold text-slate-400">
-              de {activeCount} ativas
+              {locale === "en"
+                ? `of ${activeCount} active`
+                : `de ${activeCount} ativas`}
             </span>
           </div>
 
@@ -152,25 +168,27 @@ export default function MetricCards({ routes, schedulerStatus }: MetricCardsProp
             {onTargetCount > 0 ? (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100/80 text-emerald-800 border border-emerald-300">
                 <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                {onTargetCount === 1 ? "1 pronta p/ compra" : `${onTargetCount} prontas p/ compra`}
+                {locale === "en"
+                  ? `${onTargetCount} ${onTargetCount === 1 ? "deal ready to book" : "deals ready to book"}`
+                  : `${onTargetCount} ${onTargetCount === 1 ? "pronta p/ compra" : "prontas p/ compra"}`}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500">
-                Aguardando queda
+                {locale === "en" ? "Waiting for price drop" : "Aguardando queda"}
               </span>
             )}
           </div>
         </div>
       </div>
 
-      {/* 4: Próxima Varredura */}
+      {/* 4: Scanning Cycle */}
       <div
-        onClick={() => router.push("/configuracoes")}
+        onClick={() => router.push("/settings")}
         className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between"
       >
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            Ciclo de Busca
+            {t.dashboard.kpis.avgCycle}
           </span>
           <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 group-hover:scale-105 transition-transform">
             <Clock className="w-4.5 h-4.5" />
@@ -184,18 +202,18 @@ export default function MetricCards({ routes, schedulerStatus }: MetricCardsProp
             </span>
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
               <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse" />
-              {isSchedulerActive ? "Ativo" : "Pausado"}
+              {isSchedulerActive ? t.common.active : t.common.paused}
             </span>
           </div>
 
-          {/* Visual Progress Bar to next cycle */}
+          {/* Visual Progress Bar */}
           <div className="mt-3">
             <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
               <div className="bg-indigo-600 h-full rounded-full w-3/4 animate-pulse" />
             </div>
             <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium mt-1">
-              <span>Varredura automática</span>
-              <span>Horário de Brasília</span>
+              <span>{t.dashboard.kpis.autoScraper}</span>
+              <span>{locale === "en" ? "Auto scan cycle" : "Horário programado"}</span>
             </div>
           </div>
         </div>

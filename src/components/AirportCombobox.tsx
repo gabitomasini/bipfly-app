@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Plane, Check, ChevronDown, X, Sparkles } from "lucide-react";
 import { AirportInfo, searchAirports, AIRPORTS } from "@/lib/airports-data";
 import Tooltip from "./Tooltip";
+import { useTranslation } from "@/lib/i18n/context";
 
 interface AirportComboboxProps {
   label: string;
@@ -17,13 +18,20 @@ export default function AirportCombobox({
   label,
   value,
   onChange,
-  placeholder = "Digite a cidade ou IATA (ex: SP, SAO, Roma, MIA)",
+  placeholder,
   autoFocus = false,
 }: AirportComboboxProps) {
+  const { t, locale } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const defaultPlaceholder =
+    placeholder ||
+    (locale === "en"
+      ? "City or IATA (e.g. JFK, Miami, London, GRU)"
+      : "Digite a cidade ou IATA (ex: SP, SAO, Roma, MIA)");
 
   // Encontra o aeroporto atualmente selecionado
   const selectedAirport = AIRPORTS.find(
@@ -54,7 +62,6 @@ export default function AirportCombobox({
     setQuery(val);
     if (!isOpen) setIsOpen(true);
 
-    // Se o usuário digitou exatamente 3 letras válidas, já pode atualizar o valor
     if (val.trim().length === 3 && /^[a-zA-Z]{3}$/.test(val.trim())) {
       onChange(val.trim().toUpperCase());
     }
@@ -94,7 +101,7 @@ export default function AirportCombobox({
               type="text"
               value={query}
               onChange={handleInputChange}
-              placeholder={selectedAirport ? `${selectedAirport.city} (${selectedAirport.iata})` : placeholder}
+              placeholder={selectedAirport ? `${selectedAirport.city} (${selectedAirport.iata})` : defaultPlaceholder}
               className="w-full bg-transparent text-xs font-semibold text-slate-900 focus:outline-none placeholder:text-slate-400"
               autoFocus={autoFocus}
             />
@@ -122,18 +129,20 @@ export default function AirportCombobox({
               <span className="text-xs font-black text-slate-900 font-mono bg-slate-200 px-1.5 py-0.5 rounded">
                 {value.toUpperCase()}
               </span>
-              <span className="text-xs text-slate-600 font-medium">Código Personalizado</span>
+              <span className="text-xs text-slate-600 font-medium">
+                {locale === "en" ? "Custom Airport Code" : "Código Personalizado"}
+              </span>
             </div>
           ) : (
             <span className="text-xs text-slate-400 font-medium truncate">
-              {placeholder}
+              {defaultPlaceholder}
             </span>
           )}
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
           {(value || query) && (
-            <Tooltip content="Limpar">
+            <Tooltip content={locale === "en" ? "Clear" : "Limpar"}>
               <button
                 type="button"
                 onClick={handleClear}
@@ -158,7 +167,9 @@ export default function AirportCombobox({
             {filteredAirports.length === 0 ? (
               <div className="p-4 text-center">
                 <p className="text-slate-500 font-medium text-xs mb-1">
-                  Nenhum aeroporto encontrado para &ldquo;{query}&rdquo;.
+                  {locale === "en"
+                    ? `No airports found for "${query}".`
+                    : `Nenhum aeroporto encontrado para "${query}".`}
                 </p>
                 {query.trim().length === 3 && (
                   <button
@@ -169,7 +180,8 @@ export default function AirportCombobox({
                     }}
                     className="mt-2 px-3 py-1.5 rounded-lg bg-sky-50 text-sky-700 font-bold border border-sky-200 hover:bg-sky-100 transition-colors cursor-pointer"
                   >
-                    Usar código IATA personalizado: <strong>{query.trim().toUpperCase()}</strong>
+                    {locale === "en" ? "Use custom IATA code:" : "Usar código IATA personalizado:"}{" "}
+                    <strong>{query.trim().toUpperCase()}</strong>
                   </button>
                 )}
               </div>
@@ -198,7 +210,7 @@ export default function AirportCombobox({
                           {airport.isMetropolitan && (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800">
                               <Sparkles className="w-2.5 h-2.5 text-indigo-600" />
-                              Todos os Aeroportos
+                              {locale === "en" ? "All Airports (Metro)" : "Todos os Aeroportos"}
                             </span>
                           )}
                         </div>

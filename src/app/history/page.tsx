@@ -13,13 +13,15 @@ import Tooltip from "@/components/Tooltip";
 import AirlineBadge from "@/components/AirlineBadge";
 import { MonitoredRoute, FlightHistoryEntry } from "@/lib/types";
 import {
-  formatCurrency,
-  formatDateBR,
-  formatDateTimeBR,
-  formatRelativeTime,
+  formatCurrencyLocale,
+  formatUsdEstimate,
+  formatDateLocale,
+  formatDateTimeLocale,
+  formatRelativeTimeLocale,
   getAirportName,
   getGoogleFlightsUrl,
 } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import {
   BarChart2,
   RefreshCw,
@@ -44,6 +46,7 @@ import {
 import { ROUTE_COLORS } from "@/components/MultiRoutePriceChart";
 
 function HistoricoContent() {
+  const { t, locale } = useTranslation();
   const searchParams = useSearchParams();
   const [routes, setRoutes] = useState<MonitoredRoute[]>([]);
   const [selectedRouteIds, setSelectedRouteIds] = useState<number[]>([]);
@@ -77,14 +80,18 @@ function HistoricoContent() {
       const json = await res.json();
       if (json.success) {
         if (json.importedCount > 0) {
+          const successTemplate = t.history.backfillSuccess
+            .replace("{count}", String(json.importedCount))
+            .replace("{firstDate}", json.firstDate)
+            .replace("{lastDate}", json.lastDate);
           setBackfillMessage({
             type: "success",
-            text: `🎉 ${json.importedCount} dias de histórico de preços importados (${json.firstDate} até ${json.lastDate}).`,
+            text: successTemplate,
           });
         } else {
           setBackfillMessage({
             type: "info",
-            text: json.message || "Histórico retroativo já está sincronizado.",
+            text: json.message || t.history.backfillSynced,
           });
         }
         // Recarrega histórico
@@ -93,7 +100,7 @@ function HistoricoContent() {
         const allUpdated = await fetch("/api/history?limit=500").then((r) => r.json());
         if (allUpdated.success) setAllHistory(allUpdated.data || []);
       } else {
-        setBackfillMessage({ type: "error", text: json.error || "Erro ao importar histórico." });
+        setBackfillMessage({ type: "error", text: json.error || t.history.backfillError });
       }
     } catch (err: any) {
       setBackfillMessage({ type: "error", text: err.message });
@@ -334,7 +341,7 @@ function HistoricoContent() {
   const renderSortHeader = (label: string, field: "searchedAt" | "lowestPrice", align: "left" | "right" | "center" = "left") => {
     const isActive = sortField === field;
     return (
-      <Tooltip content={`Ordenar por ${label}`} position="top">
+      <Tooltip content={`${t.dashboard.filters.sortBy}: ${label}`} position="top">
         <button
           type="button"
           onClick={() => handleToggleSort(field)}
@@ -375,21 +382,21 @@ function HistoricoContent() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
-                <span>Histórico de Cotações</span>
+                <span>{t.history.title}</span>
               </h1>
               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                {allHistory.length} registros
+                {allHistory.length} {t.common.records}
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
-              Análise comparativa de tarifas, anomalias estatísticas e evolução ao longo do tempo.
+              {t.history.subtitle}
             </p>
           </div>
 
           {/* Seletor Multi-Rotas */}
           {routes.length > 0 && (
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs text-slate-500 font-semibold">Exibir:</span>
+              <span className="text-xs text-slate-500 font-semibold">{t.history.displayLabel}</span>
               <RouteMultiSelectDropdown
                 routes={routes}
                 selectedIds={selectedRouteIds}
@@ -407,10 +414,10 @@ function HistoricoContent() {
             </div>
             <div>
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
-                Total Registrado
+                {t.history.totalRecords}
               </span>
               <span className="text-base font-black text-slate-900 tabular-nums">
-                {historyStats.totalRecords} <span className="text-xs font-medium text-slate-400">cotações</span>
+                {historyStats.totalRecords} <span className="text-xs font-medium text-slate-400">{t.history.quotesLabel}</span>
               </span>
             </div>
           </div>
@@ -421,11 +428,16 @@ function HistoricoContent() {
             </div>
             <div>
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
-                Menor Preço Histórico
+                {t.history.allTimeLow}
               </span>
               <span className="text-base font-black text-emerald-600 tabular-nums">
-                {historyStats.minPrice ? formatCurrency(historyStats.minPrice) : "—"}
+                {historyStats.minPrice ? formatCurrencyLocale(historyStats.minPrice, "BRL", locale) : "—"}
               </span>
+              {locale === "en" && historyStats.minPrice && (
+                <span className="text-[10px] text-slate-400 font-normal block">
+                  ({formatUsdEstimate(historyStats.minPrice, "~")})
+                </span>
+              )}
             </div>
           </div>
 
@@ -435,11 +447,16 @@ function HistoricoContent() {
             </div>
             <div>
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
-                Preço Médio
+                {t.history.avgPrice}
               </span>
               <span className="text-base font-black text-slate-900 tabular-nums">
-                {historyStats.avgPrice ? formatCurrency(historyStats.avgPrice) : "—"}
+                {historyStats.avgPrice ? formatCurrencyLocale(historyStats.avgPrice, "BRL", locale) : "—"}
               </span>
+              {locale === "en" && historyStats.avgPrice && (
+                <span className="text-[10px] text-slate-400 font-normal block">
+                  ({formatUsdEstimate(historyStats.avgPrice, "~")})
+                </span>
+              )}
             </div>
           </div>
 
@@ -449,10 +466,10 @@ function HistoricoContent() {
             </div>
             <div>
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
-                Rotas Analisadas
+                {t.history.analyzedRoutes}
               </span>
               <span className="text-base font-black text-slate-900 tabular-nums">
-                {activeSelectedRoutes.length} <span className="text-xs font-medium text-slate-400">ativas</span>
+                {activeSelectedRoutes.length} <span className="text-xs font-medium text-slate-400">{t.history.activeLabel}</span>
               </span>
             </div>
           </div>
@@ -463,25 +480,25 @@ function HistoricoContent() {
             <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center mx-auto mb-3">
               <Plane className="w-6 h-6" />
             </div>
-            <h3 className="text-sm font-bold text-slate-900 mb-1">Nenhuma rota cadastrada</h3>
+            <h3 className="text-sm font-bold text-slate-900 mb-1">{t.history.noRoutes}</h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              Cadastre suas primeiras rotas para iniciar o acúmulo de dados históricos e gráficos.
+              {t.history.noRoutesDesc}
             </p>
           </div>
         ) : selectedRouteIds.length === 0 ? (
           <div className="bg-white p-12 text-center rounded-2xl border border-dashed border-slate-300">
             <Layers className="w-10 h-10 text-slate-400 mx-auto mb-3" />
             <h3 className="text-sm font-bold text-slate-800 mb-1">
-              Nenhuma rota selecionada no filtro
+              {t.history.noRoutesSelected}
             </h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto mb-4 font-medium">
-              Use o menu &ldquo;Exibir&rdquo; no topo para marcar as rotas que deseja comparar no gráfico.
+              {t.history.noRoutesSelectedDesc}
             </p>
             <button
               onClick={() => setSelectedRouteIds(routes.map((r) => r.id))}
               className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors cursor-pointer shadow-xs"
             >
-              Selecionar Todas as Rotas
+              {t.history.selectAllRoutes}
             </button>
           </div>
         ) : selectedRouteIds.length > 1 ? (
@@ -495,10 +512,10 @@ function HistoricoContent() {
                 <div>
                   <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                     <Globe className="w-4 h-4 text-sky-600" />
-                    <span>Comparativo Visual de Preços ({activeSelectedRoutes.length} rotas)</span>
+                    <span>{t.history.visualComparison} ({activeSelectedRoutes.length} {t.nav.routes.toLowerCase()})</span>
                   </h2>
                   <p className="text-xs text-slate-500 font-medium mt-0.5">
-                    Selecione os intervalos abaixo para visualizar a evolução das tarifas.
+                    {t.history.visualComparisonDesc}
                   </p>
                 </div>
               </div>
@@ -506,7 +523,7 @@ function HistoricoContent() {
               {loading ? (
                 <div className="py-20 flex flex-col items-center justify-center text-slate-400">
                   <RefreshCw className="w-6 h-6 animate-spin text-slate-400 mb-2" />
-                  <span className="text-xs">Carregando dados unificados...</span>
+                  <span className="text-xs">{t.history.loadingUnified}</span>
                 </div>
               ) : (
                 <MultiRoutePriceChart
@@ -522,10 +539,10 @@ function HistoricoContent() {
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100">
                 <div>
                   <h2 className="text-sm font-bold text-slate-900 tracking-tight">
-                    Histórico Consolidado
+                    {t.history.consolidatedHistory}
                   </h2>
                   <p className="text-xs text-slate-500 font-medium">
-                    Mostrando {totalMultiItems} registros capturados.
+                    {t.history.showingRecords.replace("{count}", String(totalMultiItems))}
                   </p>
                 </div>
 
@@ -539,7 +556,7 @@ function HistoricoContent() {
                         statusFilter === "all" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
-                      Todos
+                      {t.history.filterAll}
                     </button>
                     <button
                       onClick={() => setStatusFilter("target")}
@@ -547,7 +564,7 @@ function HistoricoContent() {
                         statusFilter === "target" ? "bg-white text-emerald-700 shadow-2xs font-bold" : "text-slate-600 hover:text-emerald-700"
                       }`}
                     >
-                      No Alvo
+                      {t.history.filterTarget}
                     </button>
                     <button
                       onClick={() => setStatusFilter("above")}
@@ -555,7 +572,7 @@ function HistoricoContent() {
                         statusFilter === "above" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
-                      Acima
+                      {t.history.filterAbove}
                     </button>
                   </div>
 
@@ -566,7 +583,7 @@ function HistoricoContent() {
                         value={airlineFilter}
                         onChange={(val) => setAirlineFilter(val)}
                         options={[
-                          { value: "all", label: "Todas as Cias" },
+                          { value: "all", label: t.history.allAirlines },
                           ...historyAirlines.map((cia) => ({
                             value: cia,
                             label: cia,
@@ -581,7 +598,7 @@ function HistoricoContent() {
                   <ExpandableSearch
                     value={tableSearch}
                     onChange={setTableSearch}
-                    placeholder="Buscar rota, cia, data..."
+                    placeholder={t.history.searchPlaceholder}
                   />
 
                   {/* Items per Page Selector */}
@@ -603,13 +620,13 @@ function HistoricoContent() {
 
               {totalMultiItems === 0 ? (
                 <div className="py-10 text-center text-xs text-slate-500 font-medium">
-                  Nenhum registro encontrado para os filtros selecionados.
+                  {t.history.noRecordsFilter}
                   {hasActiveFilters && (
                     <button
                       onClick={clearFilters}
                       className="block mx-auto mt-2 text-sky-600 hover:underline font-semibold cursor-pointer"
                     >
-                      Limpar filtros
+                      {t.common.clearFilters}
                     </button>
                   )}
                 </div>
@@ -620,17 +637,17 @@ function HistoricoContent() {
                       <thead className="bg-slate-50/90 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200/80 font-bold">
                         <tr>
                           <th className="px-3.5 py-3.5 w-12 text-slate-400 font-mono text-center">#</th>
-                          <th className="px-4 py-3.5">Trecho</th>
-                          <th className="px-4 py-3.5 text-center">Data do Voo</th>
+                          <th className="px-4 py-3.5">{t.history.tableSegment}</th>
+                          <th className="px-4 py-3.5 text-center">{t.history.tableFlightDate}</th>
                           <th className="px-4 py-3.5">
-                            {renderSortHeader("Data da Consulta", "searchedAt")}
+                            {renderSortHeader(t.history.tableQueryDate, "searchedAt")}
                           </th>
                           <th className="px-4 py-3.5 text-right">
-                            {renderSortHeader("Preço", "lowestPrice", "right")}
+                            {renderSortHeader(t.history.tablePrice, "lowestPrice", "right")}
                           </th>
-                          <th className="px-4 py-3.5">Companhia</th>
-                          <th className="px-4 py-3.5 text-center">Status vs Meta</th>
-                          <th className="px-4 py-3.5 text-right">Ação</th>
+                          <th className="px-4 py-3.5">{t.history.tableAirline}</th>
+                          <th className="px-4 py-3.5 text-center">{t.history.tableStatusVsTarget}</th>
+                          <th className="px-4 py-3.5 text-right">{t.history.tableAction}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -671,19 +688,24 @@ function HistoricoContent() {
                               </td>
                               <td className="px-4 py-3.5 text-center font-semibold text-slate-800 whitespace-nowrap">
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100/70 text-slate-700 text-[11px] font-medium border border-slate-200/60">
-                                  {formatDateBR(item.flightDate)}
+                                  {formatDateLocale(item.flightDate, locale)}
                                 </span>
                               </td>
                               <td className="px-4 py-3.5 font-medium text-slate-500 whitespace-nowrap">
                                 <div className="font-mono text-xs text-slate-700">
-                                  {formatDateTimeBR(item.searchedAt)}
+                                  {formatDateTimeLocale(item.searchedAt, locale)}
                                 </div>
                                 <div className="text-[10px] text-slate-400">
-                                  {formatRelativeTime(item.searchedAt)}
+                                  {formatRelativeTimeLocale(item.searchedAt, locale)}
                                 </div>
                               </td>
                               <td className="px-4 py-3.5 text-right font-black text-slate-900 text-sm tabular-nums whitespace-nowrap">
-                                {formatCurrency(item.lowestPrice, item.currency)}
+                                <div>{formatCurrencyLocale(item.lowestPrice, item.currency, locale)}</div>
+                                {locale === "en" && (
+                                  <div className="text-[10px] text-slate-400 font-normal">
+                                    {formatUsdEstimate(item.lowestPrice)}
+                                  </div>
+                                )}
                               </td>
                               <td className="px-4 py-3.5 whitespace-nowrap">
                                 <AirlineBadge airline={item.airline} size="sm" />
@@ -699,10 +721,10 @@ function HistoricoContent() {
                                   {isBelow ? (
                                     <>
                                       <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                                      <span>No Alvo (-{formatCurrency(targetPrice - item.lowestPrice)})</span>
+                                      <span>{t.history.targetMetDiff} (-{formatCurrencyLocale(targetPrice - item.lowestPrice, "BRL", locale)})</span>
                                     </>
                                   ) : (
-                                    <span>+{formatCurrency(item.lowestPrice - targetPrice)} da meta</span>
+                                    <span>+{formatCurrencyLocale(item.lowestPrice - targetPrice, "BRL", locale)} {t.history.aboveTargetDiff}</span>
                                   )}
                                 </span>
                               </td>
@@ -713,7 +735,7 @@ function HistoricoContent() {
                                   rel="noopener noreferrer"
                                   className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 transition-colors shadow-2xs"
                                 >
-                                  <span>Ver Voo</span>
+                                  <span>{t.history.viewFlightBtn}</span>
                                   <ExternalLink className="w-3 h-3" />
                                 </a>
                               </td>
@@ -727,15 +749,15 @@ function HistoricoContent() {
                   {/* Controles Inferiores de Paginação */}
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 text-xs text-slate-500 border-t border-slate-100">
                     <div>
-                      Exibindo{" "}
+                      {t.common.showing}{" "}
                       <strong className="text-slate-800">
                         {totalMultiItems === 0 ? 0 : (currentPage - 1) * pageSize + 1}
                       </strong>{" "}
-                      a{" "}
+                      {t.common.to}{" "}
                       <strong className="text-slate-800">
                         {Math.min(currentPage * pageSize, totalMultiItems)}
                       </strong>{" "}
-                      de <strong className="text-slate-800">{totalMultiItems}</strong> registros
+                      {t.common.of} <strong className="text-slate-800">{totalMultiItems}</strong> {t.common.records}
                     </div>
 
                     <div className="flex items-center gap-1">
@@ -746,7 +768,7 @@ function HistoricoContent() {
                         className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs"
                       >
                         <ChevronLeft className="w-3.5 h-3.5" />
-                        <span>Anterior</span>
+                        <span>{t.common.previousPage}</span>
                       </button>
 
                       {/* Números das Páginas */}
@@ -788,7 +810,7 @@ function HistoricoContent() {
                         disabled={currentPage === totalMultiPages}
                         className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs"
                       >
-                        <span>Próxima</span>
+                        <span>{t.common.nextPage}</span>
                         <ChevronRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -818,12 +840,17 @@ function HistoricoContent() {
                     </div>
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-sky-50 text-sky-800 border border-sky-200 text-xs font-bold">
                       <Calendar className="w-3 h-3" />
-                      {formatDateBR(singleRoute.flightDate)}
+                      {formatDateLocale(singleRoute.flightDate, locale)}
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 font-medium">
-                    {getAirportName(singleRoute.origin)} para {getAirportName(singleRoute.destination)} • Meta de Preço:{" "}
-                    <strong className="text-slate-800 font-bold">{formatCurrency(singleRoute.targetPrice)}</strong>
+                    {getAirportName(singleRoute.origin)} {locale === "en" ? "to" : "para"} {getAirportName(singleRoute.destination)} • {t.history.targetLabel}{" "}
+                    <strong className="text-slate-800 font-bold">{formatCurrencyLocale(singleRoute.targetPrice, "BRL", locale)}</strong>
+                    {locale === "en" && (
+                      <span className="text-slate-400 font-normal ml-1">
+                        ({formatUsdEstimate(singleRoute.targetPrice)})
+                      </span>
+                    )}
                   </p>
                 </div>
 
@@ -834,7 +861,7 @@ function HistoricoContent() {
                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
                   >
                     <History className={`w-3.5 h-3.5 ${isBackfilling ? "animate-spin" : ""}`} />
-                    <span>{isBackfilling ? "Importando Histórico..." : "Importar Histórico (30d)"}</span>
+                    <span>{isBackfilling ? t.history.importing : t.history.import30d}</span>
                   </button>
 
                   <a
@@ -889,7 +916,7 @@ function HistoricoContent() {
               {/* Gráfico Individual */}
               <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200/90 shadow-2xs">
                 <h3 className="text-sm font-bold text-slate-800 mb-3">
-                  Evolução do Preço ao Longo do Tempo
+                  {t.history.priceEvolution}
                 </h3>
                 <PriceHistoryChart
                   data={history}
@@ -905,10 +932,10 @@ function HistoricoContent() {
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900">
-                      Registro de Consultas ({totalSingleItems})
+                      {t.history.queryLog} ({totalSingleItems})
                     </h3>
                     <p className="text-xs text-slate-500 font-medium">
-                      Todas as cotações salvas para esta rota específica.
+                      {t.history.queryLogDesc}
                     </p>
                   </div>
 
@@ -921,7 +948,7 @@ function HistoricoContent() {
                           statusFilter === "all" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
                         }`}
                       >
-                        Todos
+                        {t.history.filterAll}
                       </button>
                       <button
                         onClick={() => setStatusFilter("target")}
@@ -929,7 +956,7 @@ function HistoricoContent() {
                           statusFilter === "target" ? "bg-white text-emerald-700 shadow-2xs font-bold" : "text-slate-600 hover:text-emerald-700"
                         }`}
                       >
-                        No Alvo
+                        {t.history.filterTarget}
                       </button>
                       <button
                         onClick={() => setStatusFilter("above")}
@@ -937,7 +964,7 @@ function HistoricoContent() {
                           statusFilter === "above" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
                         }`}
                       >
-                        Acima
+                        {t.history.filterAbove}
                       </button>
                     </div>
 
@@ -945,7 +972,7 @@ function HistoricoContent() {
                     <ExpandableSearch
                       value={tableSearch}
                       onChange={setTableSearch}
-                      placeholder="Buscar cia, voo..."
+                      placeholder={t.history.searchPlaceholder}
                     />
 
                     {/* Items per Page */}
@@ -966,7 +993,7 @@ function HistoricoContent() {
                 </div>
 
                 {totalSingleItems === 0 ? (
-                  <p className="text-xs text-slate-500 font-medium py-4">Nenhum registro encontrado.</p>
+                  <p className="text-xs text-slate-500 font-medium py-4">{t.common.noResults}</p>
                 ) : (
                   <>
                     <div className="overflow-x-auto rounded-2xl border border-slate-200/90 shadow-2xs">
@@ -975,16 +1002,16 @@ function HistoricoContent() {
                           <tr>
                             <th className="px-3.5 py-3.5 w-12 text-slate-400 font-mono text-center">#</th>
                             <th className="px-4 py-3.5">
-                              {renderSortHeader("Data da Consulta", "searchedAt")}
+                              {renderSortHeader(t.history.tableQueryDate, "searchedAt")}
                             </th>
                             <th className="px-4 py-3.5 text-right">
-                              {renderSortHeader("Preço", "lowestPrice", "right")}
+                              {renderSortHeader(t.history.tablePrice, "lowestPrice", "right")}
                             </th>
-                            <th className="px-4 py-3.5">Companhia</th>
-                            <th className="px-4 py-3.5">Voo</th>
-                            <th className="px-4 py-3.5">Horários</th>
-                            <th className="px-4 py-3.5 text-center">Status</th>
-                            <th className="px-4 py-3.5 text-right">Ação</th>
+                            <th className="px-4 py-3.5">{t.history.tableAirline}</th>
+                            <th className="px-4 py-3.5">{t.history.tableFlight}</th>
+                            <th className="px-4 py-3.5">{t.history.tableTimes}</th>
+                            <th className="px-4 py-3.5 text-center">{t.history.tableStatus}</th>
+                            <th className="px-4 py-3.5 text-right">{t.history.tableAction}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -1006,14 +1033,19 @@ function HistoricoContent() {
                                 </td>
                                 <td className="px-4 py-3.5 font-medium text-slate-500 whitespace-nowrap">
                                   <div className="font-mono text-xs text-slate-700">
-                                    {formatDateTimeBR(item.searchedAt)}
+                                    {formatDateTimeLocale(item.searchedAt, locale)}
                                   </div>
                                   <div className="text-[10px] text-slate-400">
-                                    {formatRelativeTime(item.searchedAt)}
+                                    {formatRelativeTimeLocale(item.searchedAt, locale)}
                                   </div>
                                 </td>
                                 <td className="px-4 py-3.5 text-right font-black text-slate-900 text-sm tabular-nums whitespace-nowrap">
-                                  {formatCurrency(item.lowestPrice, item.currency)}
+                                  <div>{formatCurrencyLocale(item.lowestPrice, item.currency, locale)}</div>
+                                  {locale === "en" && (
+                                    <div className="text-[10px] text-slate-400 font-normal">
+                                      {formatUsdEstimate(item.lowestPrice)}
+                                    </div>
+                                  )}
                                 </td>
                                 <td className="px-4 py-3.5 whitespace-nowrap">
                                   <AirlineBadge airline={item.airline} size="sm" />
@@ -1035,10 +1067,10 @@ function HistoricoContent() {
                                     {isBelow ? (
                                       <>
                                         <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                                        <span>No Alvo</span>
+                                        <span>{t.dashboard.table.targetMet}</span>
                                       </>
                                     ) : (
-                                      <span>Acima da Meta</span>
+                                      <span>{t.dashboard.table.aboveTarget}</span>
                                     )}
                                   </span>
                                 </td>
@@ -1049,7 +1081,7 @@ function HistoricoContent() {
                                     rel="noopener noreferrer"
                                     className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 transition-colors shadow-2xs"
                                   >
-                                    <span>Ver Voo</span>
+                                    <span>{t.history.viewFlightBtn}</span>
                                     <ExternalLink className="w-3 h-3" />
                                   </a>
                                 </td>
@@ -1063,15 +1095,15 @@ function HistoricoContent() {
                     {/* Controles Inferiores de Paginação */}
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 text-xs text-slate-500 border-t border-slate-100">
                       <div>
-                        Exibindo{" "}
+                        {t.common.showing}{" "}
                         <strong className="text-slate-800">
                           {totalSingleItems === 0 ? 0 : (singleCurrentPage - 1) * singlePageSize + 1}
                         </strong>{" "}
-                        a{" "}
+                        {t.common.to}{" "}
                         <strong className="text-slate-800">
                           {Math.min(singleCurrentPage * singlePageSize, totalSingleItems)}
                         </strong>{" "}
-                        de <strong className="text-slate-800">{totalSingleItems}</strong> registros
+                        {t.common.of} <strong className="text-slate-800">{totalSingleItems}</strong> {t.common.records}
                       </div>
 
                       <div className="flex items-center gap-1">
@@ -1082,7 +1114,7 @@ function HistoricoContent() {
                           className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs"
                         >
                           <ChevronLeft className="w-3.5 h-3.5" />
-                          <span>Anterior</span>
+                          <span>{t.common.previousPage}</span>
                         </button>
 
                         {/* Números das Páginas */}
@@ -1124,7 +1156,7 @@ function HistoricoContent() {
                           disabled={singleCurrentPage === totalSinglePages}
                           className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs"
                         >
-                          <span>Próxima</span>
+                          <span>{t.common.nextPage}</span>
                           <ChevronRight className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -1148,7 +1180,7 @@ export default function HistoricoPage() {
           <Navbar />
           <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-6">
             <div className="p-8 bg-white rounded-2xl border border-slate-200 text-center text-xs text-slate-500">
-              Carregando histórico...
+              Loading...
             </div>
           </main>
         </div>

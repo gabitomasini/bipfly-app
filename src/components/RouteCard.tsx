@@ -13,21 +13,17 @@ import {
   Play,
   History,
   CheckCircle2,
-  Calendar,
   Clock,
   Sparkles,
+  Users,
+  Calendar,
+  AlertCircle,
 } from "lucide-react";
 import { MonitoredRoute, FlightOption } from "@/lib/types";
-import {
-  formatCurrency,
-  formatDateBR,
-  formatDateTimeBR,
-  formatRelativeTime,
-  getAirportName,
-  getGoogleFlightsUrl,
-} from "@/lib/utils";
+import { getAirportName, getGoogleFlightsUrl } from "@/lib/utils";
 import AirlineBadge from "@/components/AirlineBadge";
 import Tooltip from "@/components/Tooltip";
+import { useTranslation } from "@/lib/i18n/context";
 
 interface RouteCardProps {
   route: MonitoredRoute;
@@ -37,6 +33,7 @@ interface RouteCardProps {
   onViewHistory: (route: MonitoredRoute) => void;
   onViewLiveResults?: (route: MonitoredRoute, options: FlightOption[]) => void;
   onRefreshList: () => void;
+  isInsideGroup?: boolean;
 }
 
 export default function RouteCard({
@@ -47,7 +44,9 @@ export default function RouteCard({
   onViewHistory,
   onViewLiveResults,
   onRefreshList,
+  isInsideGroup = false,
 }: RouteCardProps) {
+  const { t, formatCurrency, formatUsdEstimate, formatDate, formatRelativeTime, locale } = useTranslation();
   const [isSearching, setIsSearching] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isBackfilling, setIsBackfilling] = useState(false);
@@ -80,16 +79,22 @@ export default function RouteCard({
       });
       const json = await res.json();
       if (json.success) {
-        setFeedback("Cotação atualizada com sucesso!");
+        setFeedback(
+          locale === "en"
+            ? "Price updated successfully!"
+            : "Cotação atualizada com sucesso!"
+        );
         onRefreshList();
         if (json.data?.foundOptions && onViewLiveResults) {
           onViewLiveResults(route, json.data.foundOptions);
         }
       } else {
-        setFeedback(`Erro: ${json.error || "Falha na busca"}`);
+        setFeedback(
+          `${locale === "en" ? "Error:" : "Erro:"} ${json.error || t.toasts.searchFailed}`
+        );
       }
     } catch (err: any) {
-      setFeedback(`Erro: ${err.message}`);
+      setFeedback(`${locale === "en" ? "Error:" : "Erro:"} ${err.message}`);
     } finally {
       setIsSearching(false);
       setTimeout(() => setFeedback(null), 4000);
@@ -106,29 +111,30 @@ export default function RouteCard({
       });
       const json = await res.json();
       if (json.success) {
-        if (json.importedCount > 0) {
-          setFeedback(`${json.importedCount} dias de histórico importados!`);
-        } else {
-          setFeedback(json.message || "Histórico já está em dia.");
-        }
+        setFeedback(
+          locale === "en"
+            ? `30-day historical data simulated! (${json.inserted} entries created)`
+            : `Histórico de 30 dias gerado! (${json.inserted} registros criados)`
+        );
         onRefreshList();
       } else {
-        setFeedback(`Erro: ${json.error || "Falha ao importar"}`);
+        setFeedback(
+          `${locale === "en" ? "Error:" : "Erro:"} ${json.error || t.history.backfillError}`
+        );
       }
     } catch (err: any) {
-      setFeedback(`Erro: ${err.message}`);
+      setFeedback(`${locale === "en" ? "Error:" : "Erro:"} ${err.message}`);
     } finally {
       setIsBackfilling(false);
       setTimeout(() => setFeedback(null), 4000);
     }
   };
 
-  const hasPrice = route.latestPrice !== null && route.latestPrice !== undefined;
-  const currentPrice = route.latestPrice as number;
+  const currentPrice = route.latestPrice;
   const target = route.targetPrice;
+  const hasPrice = currentPrice !== null && currentPrice !== undefined;
   const isBelowLimit = hasPrice && currentPrice <= target;
-  const savings = hasPrice && isBelowLimit ? target - currentPrice : 0;
-  const diffPercent = hasPrice && target > 0 ? Math.round(Math.abs((target - currentPrice) / target) * 100) : 0;
+  const diff = hasPrice ? target - currentPrice : 0;
 
   const flightUrl =
     route.lastBookingLink ||
@@ -141,72 +147,87 @@ export default function RouteCard({
 
   return (
     <div
-      className={`bg-white rounded-2xl border transition-all duration-200 p-4 shadow-2xs hover:border-slate-300 hover:shadow-md ${
+      className={`p-4 sm:p-5 rounded-2xl border bg-white shadow-2xs transition-all hover:shadow-md ${
         !route.isActive
-          ? "opacity-60 border-dashed border-slate-300 bg-slate-50/50"
+          ? "opacity-60 border-slate-200 bg-slate-50/40"
           : isBelowLimit
-          ? "border-emerald-300 bg-gradient-to-r from-emerald-50/25 to-white"
+          ? "border-emerald-300 ring-1 ring-emerald-400/20 bg-emerald-50/5"
           : "border-slate-200/90"
       }`}
     >
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        {/* Bloco 1: Trecho, Data do Voo & Cia Aérea */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3.5 min-w-0 lg:w-5/12">
-          <div className="min-w-0 flex-1 space-y-1.5">
-            {/* Badges IATA & Status */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1 font-black text-slate-900 tracking-tight text-sm">
-                <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-xs font-bold text-slate-800">
-                  {route.origin}
-                </span>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-xs font-bold text-slate-800">
-                  {route.destination}
-                </span>
-              </div>
+      {/* If in continuous list mode (not inside group), show compact route code header */}
+      {!isInsideGroup && (
+        <div className="flex items-center justify-between gap-2 pb-2.5 mb-3 border-b border-slate-100">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 text-xs font-mono font-black">
+            <span>{route.origin}</span>
+            <ArrowRight className="w-3 h-3 text-slate-400" />
+            <span>{route.destination}</span>
+          </div>
 
-              {/* Data do Voo */}
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-slate-100/90 text-slate-700 text-[11px] font-semibold border border-slate-200/70">
-                <Calendar className="w-3 h-3 text-slate-500" />
-                <span>{formatDateBR(route.flightDate)}</span>
+          {!route.isActive && (
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+              {t.common.paused}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Main Content: Metadata on Left, Prices & CTAs on Right */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        {/* Left Side: Clean Single-Line Metadata */}
+        <div className="space-y-1.5 min-w-0">
+          <div className="flex items-center gap-2.5 text-xs text-slate-600 flex-wrap">
+            {/* Flight Date */}
+            <span className="inline-flex items-center gap-1.5 font-bold text-slate-900">
+              <Calendar className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+              <span>{formatDate(route.flightDate)}</span>
+            </span>
+
+            <span className="text-slate-300">•</span>
+
+            {/* Airline */}
+            <AirlineBadge airline={route.lastAirline} size="sm" />
+
+            {route.lastFlightNumber && (
+              <>
+                <span className="text-slate-300">•</span>
+                <span className="font-mono text-[11px] font-semibold text-slate-500">
+                  {route.lastFlightNumber}
+                </span>
+              </>
+            )}
+
+            <span className="text-slate-300">•</span>
+
+            {/* Passengers */}
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500">
+              <Users className="w-3 h-3 text-slate-400 shrink-0" />
+              <span>
+                {route.passengers || 1}{" "}
+                {(route.passengers || 1) === 1 ? t.routes.adult : t.routes.adults}
               </span>
+            </span>
 
-              {/* Status Badge */}
-              {isBelowLimit && route.isActive && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>No Alvo (-{formatCurrency(savings)})</span>
+            {/* Paused status badge (if inside group) */}
+            {isInsideGroup && !route.isActive && (
+              <>
+                <span className="text-slate-300">•</span>
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                  {t.common.paused}
                 </span>
-              )}
-
-              {!route.isActive && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-500 border border-slate-200">
-                  Pausada
-                </span>
-              )}
-            </div>
-
-            {/* Aeroportos e Cia */}
-            <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-              <span className="truncate max-w-[240px]">
-                {getAirportName(route.origin)} → {getAirportName(route.destination)}
-              </span>
-              <span className="text-slate-300">•</span>
-              <AirlineBadge airline={route.lastAirline} size="sm" />
-            </div>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Bloco 2: Preços (Atual x Meta) & Última Varredura */}
-        <div className="flex items-center justify-between lg:justify-end gap-6 lg:w-4/12 border-t lg:border-t-0 pt-3 lg:pt-0 border-slate-100">
-          {/* Preço Atual */}
-          <div>
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
-              Preço Atual
-            </span>
-            <div className="flex items-baseline gap-1.5">
+        {/* Right Side: Clean Price Block + CTAs & Time */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between lg:justify-end gap-5 shrink-0">
+          {/* Price Intelligence Block (Clean, without gray container outline) */}
+          <div className="space-y-1">
+            <div className="flex items-baseline gap-2.5 flex-wrap">
+              {/* Current Price (Hero) */}
               <span
-                className={`text-xl font-black tracking-tight tabular-nums ${
+                className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums ${
                   hasPrice
                     ? isBelowLimit
                       ? "text-emerald-600"
@@ -216,156 +237,168 @@ export default function RouteCard({
               >
                 {hasPrice ? formatCurrency(currentPrice) : "—"}
               </span>
-            </div>
-          </div>
 
-          {/* Sua Meta */}
-          <div className="text-right">
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
-              Sua Meta
-            </span>
-            <div className="text-xs font-bold text-slate-600 tabular-nums">
-              {formatCurrency(target)}
-            </div>
-            {hasPrice && !isBelowLimit && (
-              <span className="text-[10px] text-rose-600 font-semibold block">
-                +{formatCurrency(currentPrice - target)} (+{diffPercent}%)
-              </span>
-            )}
-          </div>
-
-          {/* Última Checagem */}
-          <div className="hidden xl:block text-right">
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
-              Última Busca
-            </span>
-            <div className="text-xs font-medium text-slate-500 flex items-center justify-end gap-1">
-              <Clock className="w-3 h-3 text-slate-400" />
-              <span>
-                {route.lastSearchedAt ? formatRelativeTime(route.lastSearchedAt) : "Pendente"}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Bloco 3: Barra de Ações Rápidas */}
-        <div className="flex items-center justify-between lg:justify-end gap-1.5 border-t lg:border-t-0 pt-3 lg:pt-0 border-slate-100 shrink-0">
-          {/* Botão Buscar Agora */}
-          <Tooltip content="Buscar cotação instantânea no Google Flights">
-            <button
-              onClick={handleSearchNow}
-              disabled={isSearching || !route.isActive}
-              className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs ${
-                isSearching
-                  ? "bg-sky-100 text-sky-800 border border-sky-300"
-                  : "bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200/80"
-              } disabled:opacity-40`}
-              aria-label="Buscar cotação instantânea no Google Flights"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isSearching ? "animate-spin text-sky-600" : "text-sky-600"}`} />
-              <span>{isSearching ? "Buscando..." : "Buscar"}</span>
-            </button>
-          </Tooltip>
-
-          {/* Ver Voo Google Flights */}
-          <Tooltip content="Abrir no Google Flights">
-            <a
-              href={flightUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-2xs"
-              aria-label="Abrir no Google Flights"
-            >
-              <span>Ver Voo</span>
-              <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-            </a>
-          </Tooltip>
-
-          {/* Gráfico & Histórico */}
-          <Tooltip content="Ver histórico de preços e gráfico">
-            <button
-              onClick={() => onViewHistory(route)}
-              className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-2xs cursor-pointer"
-              aria-label="Ver histórico de preços e gráfico"
-            >
-              <BarChart2 className="w-3.5 h-3.5 text-indigo-600" />
-              <span className="hidden sm:inline">Histórico</span>
-            </button>
-          </Tooltip>
-
-          {/* Menu de Mais Ações (...) */}
-          <div className="relative" ref={menuRef}>
-            <Tooltip content="Mais opções">
-              <button
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="p-1.5 rounded-xl text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-800 transition-all cursor-pointer shadow-2xs"
-                aria-label="Mais opções"
-              >
-                <MoreHorizontal className="w-4 h-4" />
-              </button>
-            </Tooltip>
-
-            {isMenuOpen && (
-              <div className="absolute right-0 top-full mt-1.5 w-48 bg-white border border-slate-200 rounded-2xl shadow-xl z-20 py-1.5 text-xs animate-fadeIn">
-                <button
-                  onClick={handleBackfillHistory}
-                  disabled={isBackfilling}
-                  className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium disabled:opacity-40 cursor-pointer"
-                >
-                  <History className={`w-3.5 h-3.5 text-indigo-600 ${isBackfilling ? "animate-spin" : ""}`} />
-                  <span>{isBackfilling ? "Importando..." : "Importar histórico (30d)"}</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    onToggleActive(route.id, route.isActive);
-                  }}
-                  className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium cursor-pointer"
-                >
-                  {route.isActive ? (
-                    <>
-                      <Pause className="w-3.5 h-3.5 text-amber-600" />
-                      <span>Pausar monitoramento</span>
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Retomar monitoramento</span>
-                    </>
-                  )}
-                </button>
-
-                <button
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    onEdit(route);
-                  }}
-                  className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium cursor-pointer"
-                >
-                  <Edit2 className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Editar parâmetros</span>
-                </button>
-
-                <div className="my-1 border-t border-slate-100" />
-
-                <button
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    onDelete(route.id);
-                  }}
-                  className="w-full px-3.5 py-2 text-left text-rose-600 hover:bg-rose-50 flex items-center gap-2 font-semibold cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Excluir rota</span>
-                </button>
+              {/* Target Price Reference & USD estimate */}
+              <div className="text-xs text-slate-500 font-medium flex items-center gap-1">
+                <span>{t.common.target}:</span>
+                <strong className="text-slate-700 font-bold tabular-nums">{formatCurrency(target)}</strong>
+                {locale === "en" && hasPrice && (
+                  <span className="text-slate-400 font-normal ml-1">
+                    ({formatUsdEstimate(currentPrice)})
+                  </span>
+                )}
               </div>
-            )}
+            </div>
+
+            {/* Clean Semantic Status Badge (No parentheses, clean delta) */}
+            <div>
+              {!hasPrice ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                  <Clock className="w-3 h-3" />
+                  <span>{t.dashboard.table.pendingScan}</span>
+                </span>
+              ) : isBelowLimit ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                  <span>
+                    -{formatCurrency(diff)} {t.dashboard.table.targetMet.toLowerCase()}
+                  </span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200/80">
+                  <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
+                  <span>
+                    +{formatCurrency(currentPrice - target)} {t.dashboard.table.aboveTargetDiff}
+                  </span>
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Action CTAs & Time Group */}
+          <div className="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap">
+            {/* Last Checked Time (Placed right next to actions) */}
+            <div className="text-xs text-slate-400 font-medium flex items-center gap-1 whitespace-nowrap">
+              <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+              <span>
+                {route.lastSearchedAt ? formatRelativeTime(route.lastSearchedAt) : t.dashboard.table.pendingScan}
+              </span>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* Primary Action: View Flight (Solid Blue & Contrast) */}
+              <Tooltip content={t.routes.cardViewFlightTooltip}>
+                <a
+                  href={flightUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 active:bg-sky-800 transition-all shadow-xs hover:shadow-md cursor-pointer whitespace-nowrap"
+                  aria-label={t.routes.cardViewFlightTooltip}
+                >
+                  <span>{t.common.viewFlight}</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </Tooltip>
+
+              {/* Secondary: Refresh / Scan */}
+              <Tooltip content={t.routes.cardSearchTooltip}>
+                <button
+                  onClick={handleSearchNow}
+                  disabled={isSearching || !route.isActive}
+                  className="inline-flex items-center justify-center p-2 rounded-xl text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 transition-all cursor-pointer disabled:opacity-40"
+                  aria-label={t.routes.cardSearchTooltip}
+                >
+                  <RefreshCw className={`w-4 h-4 ${isSearching ? "animate-spin text-sky-600" : ""}`} />
+                </button>
+              </Tooltip>
+
+              {/* Secondary: Price History */}
+              <Tooltip content={t.routes.cardHistoryTooltip}>
+                <button
+                  onClick={() => onViewHistory(route)}
+                  className="inline-flex items-center justify-center p-2 rounded-xl text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 transition-all cursor-pointer"
+                  aria-label={t.routes.cardHistoryTooltip}
+                >
+                  <BarChart2 className="w-4 h-4 text-indigo-600" />
+                </button>
+              </Tooltip>
+
+              {/* More Options Dropdown */}
+              <div className="relative" ref={menuRef}>
+                <Tooltip content={locale === "en" ? "More options" : "Mais opções"}>
+                  <button
+                    onClick={() => setIsMenuOpen(!isMenuOpen)}
+                    className="p-2 rounded-xl text-slate-500 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 transition-all cursor-pointer"
+                    aria-label="More options"
+                  >
+                    <MoreHorizontal className="w-4 h-4" />
+                  </button>
+                </Tooltip>
+
+                {isMenuOpen && (
+                  <div className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-slate-200 rounded-2xl shadow-xl z-20 py-1.5 text-xs animate-fadeIn">
+                    <button
+                      onClick={handleBackfillHistory}
+                      disabled={isBackfilling}
+                      className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium disabled:opacity-40 cursor-pointer"
+                    >
+                      <History className={`w-3.5 h-3.5 text-indigo-600 ${isBackfilling ? "animate-spin" : ""}`} />
+                      <span>{isBackfilling ? t.history.importing : t.history.import30d}</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        onToggleActive(route.id, route.isActive);
+                      }}
+                      className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium cursor-pointer"
+                    >
+                      {route.isActive ? (
+                        <>
+                          <Pause className="w-3.5 h-3.5 text-amber-600" />
+                          <span>{locale === "en" ? "Pause monitoring" : "Pausar monitoramento"}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>{locale === "en" ? "Resume monitoring" : "Retomar monitoramento"}</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        onEdit(route);
+                      }}
+                      className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium cursor-pointer"
+                    >
+                      <Edit2 className="w-3.5 h-3.5 text-slate-500" />
+                      <span>{t.modal.editRouteTitle}</span>
+                    </button>
+
+                    <div className="my-1 border-t border-slate-100" />
+
+                    <button
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        onDelete(route.id);
+                      }}
+                      className="w-full px-3.5 py-2 text-left text-rose-600 hover:bg-rose-50 flex items-center gap-2 font-semibold cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{t.modal.deleteButton}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Banner de Feedback Interno */}
+      {/* Internal Feedback Banner */}
       {feedback && (
         <div className="mt-3 px-3.5 py-2 rounded-xl bg-sky-50 border border-sky-200/80 text-xs text-sky-900 font-semibold flex items-center gap-2 animate-fadeIn">
           <Sparkles className="w-3.5 h-3.5 text-sky-600 shrink-0" />

@@ -14,10 +14,10 @@ import CustomSelect from "@/components/CustomSelect";
 import Tooltip from "@/components/Tooltip";
 import { useToast } from "@/components/Toast";
 import { MonitoredRoute, FlightOption } from "@/lib/types";
-import { formatCurrency, getAirportName } from "@/lib/utils";
+import { getAirportName } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/context";
 import {
   Plus,
-  Search,
   Layers,
   List,
   ArrowRight,
@@ -29,7 +29,6 @@ import {
   Target,
   ChevronDown,
   ChevronUp,
-  Sparkles,
 } from "lucide-react";
 
 type SortOption = "date_asc" | "date_desc" | "price_asc" | "price_desc" | "discount_desc" | "route";
@@ -37,6 +36,7 @@ type SortOption = "date_asc" | "date_desc" | "price_asc" | "price_desc" | "disco
 function RotasContent() {
   const searchParams = useSearchParams();
   const { addToast } = useToast();
+  const { t, formatCurrency, formatUsdEstimate, locale } = useTranslation();
   const [routes, setRoutes] = useState<MonitoredRoute[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -72,11 +72,11 @@ function RotasContent() {
       }
     } catch (err) {
       console.error(err);
-      addToast("Erro ao carregar rotas monitoradas", "error");
+      addToast(t.toasts.connError, "error");
     } finally {
       setLoading(false);
     }
-  }, [addToast]);
+  }, [addToast, t.toasts.connError]);
 
   useEffect(() => {
     fetchRoutes();
@@ -92,58 +92,54 @@ function RotasContent() {
       const json = await res.json();
       if (json.success) {
         addToast(
-          currentActive ? "Monitoramento pausado para esta rota" : "Monitoramento reativado com sucesso!",
+          currentActive
+            ? locale === "en"
+              ? "Monitoring paused for this route"
+              : "Monitoramento pausado para esta rota"
+            : locale === "en"
+            ? "Monitoring resumed successfully!"
+            : "Monitoramento reativado com sucesso!",
           "info"
         );
         fetchRoutes();
       }
     } catch (err) {
-      console.error(err);
-      addToast("Erro ao alterar status da rota", "error");
+      addToast(t.toasts.connError, "error");
     }
   };
 
   const handleDeleteRoute = (id: number) => {
-    const target = routes.find((r) => r.id === id);
-    if (target) {
-      setRouteToDelete(target);
-    }
+    const r = routes.find((route) => route.id === id);
+    if (r) setRouteToDelete(r);
   };
 
   const confirmDelete = async () => {
     if (!routeToDelete) return;
     try {
-      const res = await fetch(`/api/routes/${routeToDelete.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/routes/${routeToDelete.id}`, {
+        method: "DELETE",
+      });
       const json = await res.json();
       if (json.success) {
-        addToast(
-          `Rota ${routeToDelete.origin} → ${routeToDelete.destination} excluída com sucesso!`,
-          "success"
-        );
+        addToast(t.toasts.routeDeleted, "success");
+        setRouteToDelete(null);
+        fetchRoutes();
+      } else {
+        addToast(json.error || "Failed to delete route", "error");
       }
-      setRouteToDelete(null);
-      fetchRoutes();
-    } catch (err: any) {
-      addToast(`Erro ao excluir rota: ${err.message}`, "error");
+    } catch (err) {
+      addToast(t.toasts.connError, "error");
     }
   };
 
-  const toggleGroupCollapse = (key: string) => {
-    setCollapsedGroups((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
-  };
-
-  // KPIs & Counts
+  // Contagens para Micro-KPIs e Tabs
   const counts = useMemo(() => {
     const total = routes.length;
     const active = routes.filter((r) => r.isActive).length;
-    const paused = routes.filter((r) => !r.isActive).length;
-    const target = routes.filter((r) => {
-      const p = r.latestPrice;
-      return r.isActive && p !== null && p !== undefined && p <= r.targetPrice;
-    }).length;
+    const paused = total - active;
+    const target = routes.filter(
+      (r) => r.isActive && r.latestPrice !== null && r.latestPrice !== undefined && r.latestPrice <= r.targetPrice
+    ).length;
 
     let lowestPrice: number | null = null;
     routes.forEach((r) => {
@@ -157,68 +153,52 @@ function RotasContent() {
     return { total, active, paused, target, lowestPrice };
   }, [routes]);
 
-  // Unique Airlines
+  // Lista de companhias únicas
   const availableAirlines = useMemo(() => {
     const set = new Set<string>();
     routes.forEach((r) => {
-      if (r.lastAirline && r.lastAirline.trim()) {
-        set.add(r.lastAirline.trim());
-      }
+      if (r.lastAirline) set.add(r.lastAirline.trim());
     });
     return Array.from(set).sort();
   }, [routes]);
 
-  // Filtros aplicados
+  // Filtragem
   const filteredRoutes = useMemo(() => {
-    return routes.filter((r) => {
-      // 1. Status Filter
-      if (statusFilter === "active" && !r.isActive) return false;
-      if (statusFilter === "paused" && r.isActive) return false;
-      if (statusFilter === "target") {
-        const p = r.latestPrice;
-        if (!r.isActive || p === null || p === undefined || p > r.targetPrice) return false;
+    return routes.filter((route) => {
+      // Busca
+      if (searchTerm.trim()) {
+        const q = searchTerm.toLowerCase().trim();
+        const origMatch = route.origin.toLowerCase().includes(q) || getAirportName(route.origin).toLowerCase().includes(q);
+        const destMatch = route.destination.toLowerCase().includes(q) || getAirportName(route.destination).toLowerCase().includes(q);
+        const ciaMatch = (route.lastAirline || "").toLowerCase().includes(q);
+        if (!origMatch && !destMatch && !ciaMatch) return false;
       }
 
-      // 2. Airline Filter
+      // Companhia
       if (selectedAirline !== "all") {
-        if ((r.lastAirline || "").toLowerCase() !== selectedAirline.toLowerCase()) {
+        if (!route.lastAirline || route.lastAirline.trim().toLowerCase() !== selectedAirline.toLowerCase()) {
           return false;
         }
       }
 
-      // 3. Text Search
-      if (searchTerm.trim()) {
-        const term = searchTerm.toLowerCase().trim();
-        const origin = (r.origin || "").toLowerCase();
-        const destination = (r.destination || "").toLowerCase();
-        const originName = (getAirportName(r.origin) || "").toLowerCase();
-        const destName = (getAirportName(r.destination) || "").toLowerCase();
-        const flightDate = (r.flightDate || "").toLowerCase();
-        const airline = (r.lastAirline || "").toLowerCase();
-
-        return (
-          origin.includes(term) ||
-          destination.includes(term) ||
-          originName.includes(term) ||
-          destName.includes(term) ||
-          flightDate.includes(term) ||
-          airline.includes(term)
-        );
+      // Status
+      if (statusFilter === "active" && !route.isActive) return false;
+      if (statusFilter === "paused" && route.isActive) return false;
+      if (statusFilter === "target") {
+        if (!route.isActive || route.latestPrice === null || route.latestPrice === undefined || route.latestPrice > route.targetPrice) {
+          return false;
+        }
       }
 
       return true;
     });
-  }, [routes, statusFilter, selectedAirline, searchTerm]);
+  }, [routes, searchTerm, selectedAirline, statusFilter]);
 
-  // Ordenação individual
+  // Lista plana ordenada (para modo não agrupado)
   const sortedFilteredRoutes = useMemo(() => {
     return [...filteredRoutes].sort((a, b) => {
-      if (sortBy === "date_asc") {
-        return a.flightDate.localeCompare(b.flightDate);
-      }
-      if (sortBy === "date_desc") {
-        return b.flightDate.localeCompare(a.flightDate);
-      }
+      if (sortBy === "date_asc") return a.flightDate.localeCompare(b.flightDate);
+      if (sortBy === "date_desc") return b.flightDate.localeCompare(a.flightDate);
       if (sortBy === "price_asc") {
         const priceA = a.latestPrice !== null && a.latestPrice !== undefined ? a.latestPrice : Infinity;
         const priceB = b.latestPrice !== null && b.latestPrice !== undefined ? b.latestPrice : Infinity;
@@ -241,7 +221,15 @@ function RotasContent() {
     });
   }, [filteredRoutes, sortBy]);
 
-  // Agrupamento por Origem e Destino exatos (ex: SAO-MIA ou GRU-FCO)
+  // Alternar colapso de grupo
+  const toggleGroupCollapse = (groupKey: string) => {
+    setCollapsedGroups((prev) => ({
+      ...prev,
+      [groupKey]: !prev[groupKey],
+    }));
+  };
+
+  // Agrupamento por Trecho (Origem - Destino)
   const routeGroups = useMemo(() => {
     const map = new Map<string, MonitoredRoute[]>();
 
@@ -342,19 +330,19 @@ function RotasContent() {
       <Navbar onSearchTriggered={fetchRoutes} />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-6">
-        {/* Header com Ação Primária */}
+        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-black tracking-tight text-slate-900">
-                Rotas Monitoradas
+                {t.routes.title}
               </h1>
               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-                {counts.total} destinos
+                {counts.total} {locale === "en" ? "routes" : "destinos"}
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
-              Gerenciamento completo de cotações, parâmetros de alerta e histórico retroativo.
+              {t.routes.subtitle}
             </p>
           </div>
 
@@ -367,7 +355,7 @@ function RotasContent() {
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white shadow-xs hover:shadow-sm transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Nova Rota</span>
+              <span>{t.routes.addRoute}</span>
             </button>
           </div>
         </div>
@@ -380,10 +368,10 @@ function RotasContent() {
             </div>
             <div>
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
-                Total Monitorado
+                {t.dashboard.kpis.monitoredRoutes}
               </span>
               <span className="text-base font-black text-slate-900 tabular-nums">
-                {counts.total} <span className="text-xs font-medium text-slate-400">rotas</span>
+                {counts.total} <span className="text-xs font-medium text-slate-400">{locale === "en" ? "routes" : "rotas"}</span>
               </span>
             </div>
           </div>
@@ -394,10 +382,10 @@ function RotasContent() {
             </div>
             <div>
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
-                Ativas
+                {t.common.active}
               </span>
               <span className="text-base font-black text-slate-900 tabular-nums">
-                {counts.active} <span className="text-xs font-medium text-slate-400">em varredura</span>
+                {counts.active} <span className="text-xs font-medium text-slate-400">{locale === "en" ? "scanning" : "em varredura"}</span>
               </span>
             </div>
           </div>
@@ -408,10 +396,10 @@ function RotasContent() {
             </div>
             <div>
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
-                No Alvo
+                {t.dashboard.kpis.dealsFound}
               </span>
               <span className="text-base font-black text-emerald-600 tabular-nums">
-                {counts.target} <span className="text-xs font-medium text-slate-400">prontas</span>
+                {counts.target} <span className="text-xs font-medium text-slate-400">{locale === "en" ? "ready" : "prontas"}</span>
               </span>
             </div>
           </div>
@@ -422,16 +410,21 @@ function RotasContent() {
             </div>
             <div>
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
-                Menor Tarifa
+                {t.dashboard.kpis.lowestPriceFound}
               </span>
               <span className="text-base font-black text-slate-900 tabular-nums">
                 {counts.lowestPrice ? formatCurrency(counts.lowestPrice) : "—"}
               </span>
+              {locale === "en" && counts.lowestPrice && (
+                <span className="text-[10px] text-slate-400 font-normal ml-1">
+                  ({formatUsdEstimate(counts.lowestPrice, "~")})
+                </span>
+              )}
             </div>
           </div>
         </div>
 
-        {/* SaaS Filter & Control Bar */}
+        {/* Filter & Control Bar */}
         <div className="p-3 bg-white rounded-2xl border border-slate-200/90 shadow-2xs">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             {/* Status Filter Tabs */}
@@ -444,7 +437,7 @@ function RotasContent() {
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                Todas ({counts.total})
+                {t.common.all} ({counts.total})
               </button>
               <button
                 onClick={() => setStatusFilter("active")}
@@ -454,7 +447,7 @@ function RotasContent() {
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                Ativas ({counts.active})
+                {t.routes.filterActive} ({counts.active})
               </button>
               <button
                 onClick={() => setStatusFilter("target")}
@@ -464,7 +457,7 @@ function RotasContent() {
                     : "text-slate-600 hover:text-emerald-700"
                 }`}
               >
-                Alvo ({counts.target})
+                {t.routes.filterTargetMet} ({counts.target})
               </button>
               <button
                 onClick={() => setStatusFilter("paused")}
@@ -474,7 +467,7 @@ function RotasContent() {
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                Pausadas ({counts.paused})
+                {t.routes.filterPaused} ({counts.paused})
               </button>
             </div>
 
@@ -485,7 +478,7 @@ function RotasContent() {
                 value={selectedAirline}
                 onChange={setSelectedAirline}
                 options={[
-                  { value: "all", label: "Todas as Cias" },
+                  { value: "all", label: t.dashboard.filters.allAirlines },
                   ...availableAirlines.map((cia) => ({ value: cia, label: cia })),
                 ]}
               />
@@ -496,35 +489,35 @@ function RotasContent() {
                 onChange={(val) => setSortBy(val as any)}
                 icon={<ArrowUpDown className="w-3.5 h-3.5" />}
                 options={[
-                  { value: "date_asc", label: "Data (Mais Próxima)" },
-                  { value: "date_desc", label: "Data (Mais Distante)" },
-                  { value: "price_asc", label: "Menor Preço" },
-                  { value: "discount_desc", label: "Maior Desconto" },
-                  { value: "price_desc", label: "Maior Preço" },
-                  { value: "route", label: "Trecho A-Z" },
+                  { value: "date_asc", label: locale === "en" ? "Date (Earliest)" : "Data (Mais Próxima)" },
+                  { value: "date_desc", label: locale === "en" ? "Date (Furthest)" : "Data (Mais Distante)" },
+                  { value: "price_asc", label: t.dashboard.filters.lowestPrice },
+                  { value: "discount_desc", label: t.dashboard.filters.dealProximity },
+                  { value: "price_desc", label: locale === "en" ? "Highest Price" : "Maior Preço" },
+                  { value: "route", label: locale === "en" ? "Route A-Z" : "Trecho A-Z" },
                 ]}
               />
 
               {/* View Mode Switch */}
               <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/60 justify-center">
-                <Tooltip content="Visualização agrupada por trecho">
+                <Tooltip content={locale === "en" ? "Grouped by route" : "Visualização agrupada por trecho"}>
                   <button
                     onClick={() => setIsGrouped(true)}
                     className={`p-1.5 rounded-lg transition-all cursor-pointer ${
                       isGrouped ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500 hover:text-slate-900"
                     }`}
-                    aria-label="Visualização agrupada por trecho"
+                    aria-label="Grouped view"
                   >
                     <Layers className="w-3.5 h-3.5" />
                   </button>
                 </Tooltip>
-                <Tooltip content="Visualização em lista individual">
+                <Tooltip content={locale === "en" ? "Individual card view" : "Visualização em lista individual"}>
                   <button
                     onClick={() => setIsGrouped(false)}
                     className={`p-1.5 rounded-lg transition-all cursor-pointer ${
                       !isGrouped ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500 hover:text-slate-900"
                     }`}
-                    aria-label="Visualização em lista individual"
+                    aria-label="Individual view"
                   >
                     <List className="w-3.5 h-3.5" />
                   </button>
@@ -535,7 +528,7 @@ function RotasContent() {
               <ExpandableSearch
                 value={searchTerm}
                 onChange={setSearchTerm}
-                placeholder="Buscar trecho, cia..."
+                placeholder={t.dashboard.filters.searchPlaceholder}
               />
             </div>
           </div>
@@ -544,14 +537,16 @@ function RotasContent() {
           {hasActiveFilters && (
             <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
               <span className="text-slate-500 font-medium">
-                Mostrando <strong>{filteredRoutes.length}</strong> de {routes.length} rotas cadastradas
+                {locale === "en"
+                  ? `Showing ${filteredRoutes.length} of ${routes.length} monitored routes`
+                  : `Mostrando ${filteredRoutes.length} de ${routes.length} rotas cadastradas`}
               </span>
               <button
                 onClick={clearFilters}
                 className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
               >
                 <X className="w-3 h-3" />
-                <span>Limpar filtros</span>
+                <span>{t.common.clearFilters}</span>
               </button>
             </div>
           )}
@@ -566,13 +561,13 @@ function RotasContent() {
               <Plane className="w-6 h-6" />
             </div>
             <h3 className="text-sm font-bold text-slate-900 mb-1">
-              {routes.length === 0
-                ? "Nenhuma rota cadastrada no momento"
-                : "Nenhuma rota corresponde aos filtros"}
+              {routes.length === 0 ? t.routes.emptyTitle : t.common.noResults}
             </h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto mb-4 font-medium">
               {routes.length === 0
-                ? "Cadastre sua primeira rota para iniciar o rastreamento automático de tarifas aéreas."
+                ? t.routes.emptyDescription
+                : locale === "en"
+                ? "Try adjusting your search filters or add a new route."
                 : "Tente alterar os termos de busca ou redefinir os filtros aplicados."}
             </p>
             {routes.length === 0 ? (
@@ -583,21 +578,19 @@ function RotasContent() {
                 }}
                 className="px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white transition-colors cursor-pointer"
               >
-                Cadastrar Nova Rota
+                {t.routes.addRoute}
               </button>
             ) : (
               <button
                 onClick={clearFilters}
                 className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
               >
-                Limpar Filtros
+                {t.common.clearFilters}
               </button>
             )}
           </div>
         ) : isGrouped ? (
-          /* ========================================================== */
-          /* MODO AGRUPADO POR ORIGEM E DESTINO                         */
-          /* ========================================================== */
+          /* MODO AGRUPADO */
           <div className="space-y-4">
             {routeGroups.map((group) => {
               const isCollapsed = Boolean(collapsedGroups[group.key]);
@@ -605,15 +598,15 @@ function RotasContent() {
               return (
                 <div
                   key={group.key}
-                  className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden transition-all"
+                  className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden transition-all hover:border-slate-300"
                 >
-                  {/* Cabeçalho do Grupo */}
+                  {/* Cabeçalho do Grupo (Acordeão Simplificado) */}
                   <div
                     onClick={() => toggleGroupCollapse(group.key)}
-                    className="p-4 bg-slate-50/80 hover:bg-slate-100/70 border-b border-slate-200/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 cursor-pointer select-none transition-colors"
+                    className="p-4 sm:px-5 sm:py-3.5 bg-slate-50/70 hover:bg-slate-100/70 border-b border-slate-200/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 cursor-pointer select-none transition-colors"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="p-1 rounded-lg text-slate-400 hover:text-slate-700">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-white border border-slate-200/80 shadow-2xs flex items-center justify-center text-slate-500 hover:text-slate-800 shrink-0 transition-transform">
                         {isCollapsed ? (
                           <ChevronDown className="w-4 h-4" />
                         ) : (
@@ -621,46 +614,52 @@ function RotasContent() {
                         )}
                       </div>
 
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <div className="flex items-center gap-1.5 font-black text-slate-900 tracking-tight text-base">
-                            <span className="px-2 py-0.5 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-800 shadow-2xs">
-                              {group.origin}
-                            </span>
-                            <ArrowRight className="w-4 h-4 text-slate-400 shrink-0" />
-                            <span className="px-2 py-0.5 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-800 shadow-2xs">
-                              {group.destination}
-                            </span>
-                          </div>
-
-                          <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-200/80 text-slate-700">
-                            {group.routes.length} {group.routes.length === 1 ? "data monitorada" : "datas monitoradas"}
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <div className="flex items-center gap-1.5 font-black text-slate-900 tracking-tight text-sm sm:text-base">
+                          <span className="font-mono font-black text-xs sm:text-sm px-2.5 py-0.5 rounded-lg bg-white border border-slate-200 text-slate-800 shadow-2xs tracking-wider">
+                            {group.origin}
                           </span>
-
-                          {group.hasTargetHit && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                              {group.targetHitsCount} no alvo
-                            </span>
-                          )}
+                          <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="font-mono font-black text-xs sm:text-sm px-2.5 py-0.5 rounded-lg bg-white border border-slate-200 text-slate-800 shadow-2xs tracking-wider">
+                            {group.destination}
+                          </span>
                         </div>
 
-                        <div className="text-xs text-slate-500 font-medium mt-0.5">
-                          {getAirportName(group.origin)} → {getAirportName(group.destination)}
-                        </div>
+                        <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-200/70 text-slate-700">
+                          {group.routes.length}{" "}
+                          {locale === "en"
+                            ? group.routes.length === 1
+                              ? "flight date"
+                              : "flight dates"
+                            : group.routes.length === 1
+                            ? "data monitorada"
+                            : "datas monitoradas"}
+                        </span>
+
+                        {group.hasTargetHit && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            {group.targetHitsCount} {locale === "en" ? "target met" : "no alvo"}
+                          </span>
+                        )}
                       </div>
                     </div>
 
                     {/* Preço Mínimo do Grupo */}
-                    <div className="flex items-center gap-3 sm:justify-end">
+                    <div className="flex items-center gap-3 sm:justify-end shrink-0">
                       {group.lowestPrice !== null && (
                         <div className="text-right">
                           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
-                            A partir de
+                            {locale === "en" ? "Starting from" : "A partir de"}
                           </span>
-                          <span className="text-base font-black text-emerald-600 tabular-nums">
+                          <span className="text-lg sm:text-xl font-black text-emerald-600 tabular-nums">
                             {formatCurrency(group.lowestPrice)}
                           </span>
+                          {locale === "en" && (
+                            <span className="text-[11px] text-slate-400 font-normal ml-1">
+                              ({formatUsdEstimate(group.lowestPrice, "~")})
+                            </span>
+                          )}
                         </div>
                       )}
                     </div>
@@ -668,11 +667,12 @@ function RotasContent() {
 
                   {/* Lista de cards do grupo */}
                   {!isCollapsed && (
-                    <div className="p-3.5 space-y-3 bg-slate-50/30 animate-fadeIn">
+                    <div className="p-3.5 sm:p-4 space-y-3 bg-slate-50/40 animate-fadeIn">
                       {group.routes.map((route) => (
                         <RouteCard
                           key={route.id}
                           route={route}
+                          isInsideGroup={true}
                           onEdit={(r) => {
                             setEditingRoute(r);
                             setIsRouteModalOpen(true);
@@ -694,14 +694,13 @@ function RotasContent() {
             })}
           </div>
         ) : (
-          /* ========================================================== */
-          /* MODO LISTA CONTÍNUA INDIVIDUAL                             */
-          /* ========================================================== */
+          /* MODO LISTA CONTÍNUA INDIVIDUAL */
           <div className="space-y-3">
             {sortedFilteredRoutes.map((route) => (
               <RouteCard
                 key={route.id}
                 route={route}
+                isInsideGroup={false}
                 onEdit={(r) => {
                   setEditingRoute(r);
                   setIsRouteModalOpen(true);
@@ -745,9 +744,14 @@ function RotasContent() {
         isOpen={Boolean(routeToDelete)}
         onConfirm={confirmDelete}
         onCancel={() => setRouteToDelete(null)}
-        title="Excluir Rota Monitorada"
-        message={`Tem certeza que deseja excluir a rota ${routeToDelete?.origin} → ${routeToDelete?.destination} (${routeToDelete?.flightDate})? Todo o histórico de preços associado será perdido.`}
-        confirmLabel="Excluir Rota"
+        title={t.modal.deleteTitle}
+        message={
+          locale === "en"
+            ? `Are you sure you want to delete the route ${routeToDelete?.origin} → ${routeToDelete?.destination} (${routeToDelete?.flightDate})? All associated price tracking history will be permanently erased.`
+            : `Tem certeza que deseja excluir a rota ${routeToDelete?.origin} → ${routeToDelete?.destination} (${routeToDelete?.flightDate})? Todo o histórico de preços associado será perdido.`
+        }
+        confirmLabel={t.modal.deleteButton}
+        cancelLabel={t.common.cancel}
         variant="danger"
       />
     </div>

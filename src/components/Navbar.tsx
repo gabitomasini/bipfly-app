@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Plane, Compass, Settings, RefreshCw, BarChart2, Terminal, Sparkles } from "lucide-react";
+import { Plane, Settings, RefreshCw, BarChart2, Terminal, Sparkles } from "lucide-react";
 import { SchedulerStatus, AppSettings } from "@/lib/types";
 import Tooltip from "@/components/Tooltip";
 import { useToast } from "@/components/Toast";
+import { useTranslation } from "@/lib/i18n/context";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 interface NavbarProps {
   onSearchTriggered?: () => void;
@@ -15,6 +17,7 @@ interface NavbarProps {
 export default function Navbar({ onSearchTriggered }: NavbarProps) {
   const pathname = usePathname();
   const { addToast } = useToast();
+  const { t } = useTranslation();
   const [schedulerStatus, setSchedulerStatus] = useState<SchedulerStatus | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -48,26 +51,26 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
       const data = await res.json();
       if (data.success) {
         addToast(
-          `Busca iniciada! ${data.searched || "Todas as"} rotas ativas estão sendo atualizadas.`,
+          `${t.toasts.searchStarted} ${t.toasts.searchStartedDesc}`,
           "success"
         );
         onSearchTriggered?.();
       } else {
-        addToast(data.error || "Não foi possível iniciar a busca agora.", "error");
+        addToast(data.error || t.toasts.searchFailed, "error");
       }
     } catch {
-      addToast("Erro de conexão. Verifique o servidor.", "error");
+      addToast(t.toasts.connError, "error");
     } finally {
       setIsSearching(false);
     }
   };
 
   const navLinks = [
-    { href: "/", label: "Dashboard", icon: Sparkles },
-    { href: "/rotas", label: "Rotas", icon: Plane },
-    { href: "/historico", label: "Histórico", icon: BarChart2 },
-    { href: "/logs", label: "Logs", icon: Terminal },
-    { href: "/configuracoes", label: "Ajustes", icon: Settings },
+    { href: "/", label: t.nav.dashboard, icon: Sparkles },
+    { href: "/routes", label: t.nav.routes, icon: Plane },
+    { href: "/history", label: t.nav.history, icon: BarChart2 },
+    { href: "/logs", label: t.nav.logs, icon: Terminal },
+    { href: "/settings", label: t.nav.settings, icon: Settings },
   ];
 
   return (
@@ -85,20 +88,20 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-black text-base text-slate-900 tracking-tight">
-                  Radar Passagens
+                  {t.nav.brand}
                 </span>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200/60">
-                  SaaS
+                  {t.nav.badge}
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 font-medium hidden sm:block">
-                Monitor de Ofertas Aéreas
+                {t.nav.subtitle}
               </p>
             </div>
           </Link>
 
           {/* Navigation Links with Active Indicator Pill */}
-          <nav className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-2xl border border-slate-200/60 overflow-x-auto max-w-full">
+          <nav className="hidden md:flex items-center gap-1 bg-slate-100/80 p-1 rounded-2xl border border-slate-200/60 overflow-x-auto max-w-full">
             {navLinks.map((link) => {
               const Icon = link.icon;
               const isActive =
@@ -127,9 +130,11 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
             })}
           </nav>
 
-          {/* Search Trigger CTA */}
-          <div className="flex items-center gap-2.5 shrink-0">
-            <Tooltip content="Executar varredura agora para todas as rotas ativas">
+          {/* Right Actions: Language Switcher + Search Trigger CTA */}
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+            <LanguageSwitcher />
+
+            <Tooltip content={t.nav.scanAllTooltip}>
               <button
                 onClick={handleRunAllNow}
                 disabled={isSearching}
@@ -144,7 +149,12 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
                     isSearching ? "animate-spin text-sky-600" : "text-slate-300"
                   }`}
                 />
-                <span>{isSearching ? "Varrendo rotas..." : "Buscar Todos"}</span>
+                <span className="hidden sm:inline">
+                  {isSearching ? t.nav.scanning : t.nav.scanAll}
+                </span>
+                <span className="sm:hidden">
+                  {isSearching ? "..." : t.common.refresh}
+                </span>
               </button>
             </Tooltip>
           </div>
