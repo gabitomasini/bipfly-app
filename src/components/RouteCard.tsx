@@ -12,15 +12,12 @@ import {
   Pause,
   Play,
   History,
-  CheckCircle2,
-  Clock,
   Sparkles,
   Users,
   Calendar,
-  AlertCircle,
 } from "lucide-react";
 import { MonitoredRoute, FlightOption } from "@/lib/types";
-import { getAirportName, getGoogleFlightsUrl } from "@/lib/utils";
+import { getGoogleFlightsUrl } from "@/lib/utils";
 import AirlineBadge from "@/components/AirlineBadge";
 import Tooltip from "@/components/Tooltip";
 import { useTranslation } from "@/lib/i18n/context";
@@ -46,7 +43,7 @@ export default function RouteCard({
   onRefreshList,
   isInsideGroup = false,
 }: RouteCardProps) {
-  const { t, formatCurrency, formatUsdEstimate, formatDate, formatRelativeTime, locale } = useTranslation();
+  const { t, formatCurrency, formatUsdEstimate, formatDate, locale } = useTranslation();
   const [isSearching, setIsSearching] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isBackfilling, setIsBackfilling] = useState(false);
@@ -147,7 +144,7 @@ export default function RouteCard({
 
   return (
     <div
-      className={`relative p-3.5 sm:p-4 rounded-2xl border bg-white shadow-2xs transition-all hover:shadow-md ${
+      className={`relative p-4 sm:px-6 sm:py-5 rounded-2xl border bg-white shadow-2xs transition-all hover:shadow-md ${
         isMenuOpen ? "z-30" : "z-0"
       } ${
         !route.isActive
@@ -158,7 +155,7 @@ export default function RouteCard({
       }`}
     >
       {/* UMA ÚNICA LINHA HORIZONTAL */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 sm:gap-4">
         {/* Bloco Esquerdo (Contexto): GRU → CWB (se simples) • Data • LATAM • 1 Adult */}
         <div className="flex items-center gap-3 text-xs text-slate-600 flex-wrap shrink-0">
           {!isInsideGroup && (
@@ -202,51 +199,30 @@ export default function RouteCard({
           )}
         </div>
 
-        {/* Bloco Central (Preço): Preço Principal Grande + Meta e Delta abaixo */}
-        <div className="flex flex-col items-start lg:items-center justify-center shrink-0">
-          {/* Main Price */}
-          <span
-            className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums leading-none ${
-              hasPrice
-                ? isBelowLimit
-                  ? "text-emerald-600"
-                  : "text-slate-900"
-                : "text-slate-400"
-            }`}
-          >
-            {hasPrice ? formatCurrency(currentPrice) : "—"}
-          </span>
-
-          {/* Subtitle: Target & Delta & USD */}
-          <div className="text-xs text-slate-500 font-medium flex items-center gap-1.5 mt-1">
-            <span>{t.common.target}:</span>
-            <strong className="text-slate-700 font-bold tabular-nums">
-              {formatCurrency(target)}
-            </strong>
-
-            {hasPrice ? (
-              isBelowLimit ? (
-                <span className="text-emerald-600 font-bold tabular-nums">
-                  (-{formatCurrency(diff)})
-                </span>
-              ) : (
-                <span className="text-rose-600 font-bold tabular-nums">
-                  (+{formatCurrency(currentPrice - target)})
-                </span>
-              )
-            ) : null}
+        {/* Bloco Direito: Preço alinhado à direita + Ações & Timestamp integrados */}
+        <div className="flex items-center gap-3 sm:gap-4 shrink-0 justify-between sm:justify-end">
+          {/* Preço Alinhado à Direita (text-right) */}
+          <div className="flex items-baseline gap-1.5 justify-end text-right shrink-0">
+            <span
+              className={`text-xl sm:text-2xl font-black tracking-tight tabular-nums ${
+                hasPrice
+                  ? isBelowLimit
+                    ? "text-emerald-600"
+                    : "text-slate-900"
+                  : "text-slate-400"
+              }`}
+            >
+              {hasPrice ? formatCurrency(currentPrice) : "—"}
+            </span>
 
             {locale === "en" && hasPrice && (
-              <span className="text-slate-400 font-normal">
-                ({formatUsdEstimate(currentPrice)})
+              <span className="text-xs text-slate-400 font-normal">
+                ({formatUsdEstimate(currentPrice, "~")})
               </span>
             )}
           </div>
-        </div>
 
-        {/* Bloco Direito (Ações + Verificado há 2h empilhado) */}
-        <div className="flex flex-col items-start lg:items-end justify-center gap-1 shrink-0">
-          {/* Action Buttons Row */}
+          {/* Action Buttons */}
           <div className="flex items-center gap-1.5 shrink-0">
             {/* Primary Action: View Flight */}
             <Tooltip content={t.routes.cardViewFlightTooltip}>
@@ -354,16 +330,6 @@ export default function RouteCard({
                 </div>
               )}
             </div>
-          </div>
-
-          {/* Time text directly beneath buttons */}
-          <div className="text-[11px] text-slate-400 font-medium flex items-center gap-1 justify-end w-full whitespace-nowrap pr-0.5">
-            <Clock className="w-3 h-3 text-slate-400 shrink-0" />
-            <span>
-              {route.lastSearchedAt
-                ? `${locale === "en" ? "Checked" : "Verificado"} ${formatRelativeTime(route.lastSearchedAt)}`
-                : t.dashboard.table.pendingScan}
-            </span>
           </div>
         </div>
       </div>

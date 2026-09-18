@@ -719,7 +719,7 @@ function RotasContent() {
 
                   {/* Lista de cards do grupo */}
                   {!isCollapsed && (
-                    <div className="p-3.5 sm:p-4 space-y-3 bg-slate-50/40 rounded-b-2xl animate-fadeIn">
+                    <div className="p-4 sm:p-5 space-y-3.5 bg-slate-50/40 rounded-b-2xl animate-fadeIn">
                       {group.routes.map((route) => (
                         <RouteCard
                           key={route.id}
