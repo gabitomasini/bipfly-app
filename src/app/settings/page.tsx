@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import Navbar from "@/components/Navbar";
 import { AppSettings, SchedulerStatus } from "@/lib/types";
 import { formatDateTimeLocale, formatCurrencyLocale } from "@/lib/utils";
@@ -19,11 +19,13 @@ import {
   Globe,
   Zap,
   RefreshCw,
+  Check,
 } from "lucide-react";
 
 export default function ConfiguracoesPage() {
   const { t, locale } = useTranslation();
   const { addToast } = useToast();
+  const timeInputRef = useRef<HTMLInputElement>(null);
   const [settings, setSettings] = useState<AppSettings>({
     scheduleHours: "03:00,14:00",
     searchProvider: "auto",
@@ -129,6 +131,34 @@ export default function ConfiguracoesPage() {
     setHourError(null);
     setHoursList(presetHours);
     setSettings((prev) => ({ ...prev, scheduleHours: presetHours.join(",") }));
+  };
+
+  const activePreset = useMemo(() => {
+    const current = [...hoursList].sort().join(",");
+    const p1 = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, "0")}:00`).sort().join(",");
+    const p3 = ["00:00", "03:00", "06:00", "09:00", "12:00", "15:00", "18:00", "21:00"].sort().join(",");
+    const p4 = ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00"].sort().join(",");
+    const p6 = ["00:00", "06:00", "12:00", "18:00"].sort().join(",");
+    const pTwice = ["03:00", "14:00"].sort().join(",");
+
+    if (current === p1) return "1h";
+    if (current === p3) return "3h";
+    if (current === p4) return "4h";
+    if (current === p6) return "6h";
+    if (current === pTwice) return "twice";
+    return "custom";
+  }, [hoursList]);
+
+  const handleCancelSettings = () => {
+    if (!initialSettings) return;
+    setSettings(initialSettings);
+    const parts = (initialSettings.scheduleHours || "03:00,14:00")
+      .split(",")
+      .map((s: string) => s.trim())
+      .filter((s: string) => s);
+    setHoursList(parts);
+    setHourError(null);
+    setNewHourInput("");
   };
 
   const handleSaveSettings = async (e?: React.FormEvent) => {
@@ -382,6 +412,22 @@ export default function ConfiguracoesPage() {
                 <button
                   type="button"
                   onClick={() =>
+                    handleApplyPreset(
+                      Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, "0")}:00`)
+                    )
+                  }
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs transition-all cursor-pointer ${
+                    activePreset === "1h"
+                      ? "bg-sky-600 hover:bg-sky-700 text-white border-sky-600 shadow-xs font-bold ring-2 ring-sky-500/20"
+                      : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200 font-medium hover:border-slate-300 shadow-2xs"
+                  }`}
+                >
+                  {activePreset === "1h" && <Check className="w-3.5 h-3.5 shrink-0" />}
+                  <span>{t.settings.presetEvery1h}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
                     handleApplyPreset([
                       "00:00",
                       "03:00",
@@ -393,9 +439,14 @@ export default function ConfiguracoesPage() {
                       "21:00",
                     ])
                   }
-                  className="px-3.5 py-1.5 rounded-lg bg-sky-100 hover:bg-sky-200 border border-sky-300 text-xs font-bold text-sky-800 transition-colors cursor-pointer"
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs transition-all cursor-pointer ${
+                    activePreset === "3h"
+                      ? "bg-sky-600 hover:bg-sky-700 text-white border-sky-600 shadow-xs font-bold ring-2 ring-sky-500/20"
+                      : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200 font-medium hover:border-slate-300 shadow-2xs"
+                  }`}
                 >
-                  {t.settings.presetEvery3h}
+                  {activePreset === "3h" && <Check className="w-3.5 h-3.5 shrink-0" />}
+                  <span>{t.settings.presetEvery3h}</span>
                 </button>
                 <button
                   type="button"
@@ -409,25 +460,55 @@ export default function ConfiguracoesPage() {
                       "20:00",
                     ])
                   }
-                  className="px-3.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs transition-all cursor-pointer ${
+                    activePreset === "4h"
+                      ? "bg-sky-600 hover:bg-sky-700 text-white border-sky-600 shadow-xs font-bold ring-2 ring-sky-500/20"
+                      : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200 font-medium hover:border-slate-300 shadow-2xs"
+                  }`}
                 >
-                  {t.settings.presetEvery4h}
+                  {activePreset === "4h" && <Check className="w-3.5 h-3.5 shrink-0" />}
+                  <span>{t.settings.presetEvery4h}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() =>
                     handleApplyPreset(["00:00", "06:00", "12:00", "18:00"])
                   }
-                  className="px-3.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs transition-all cursor-pointer ${
+                    activePreset === "6h"
+                      ? "bg-sky-600 hover:bg-sky-700 text-white border-sky-600 shadow-xs font-bold ring-2 ring-sky-500/20"
+                      : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200 font-medium hover:border-slate-300 shadow-2xs"
+                  }`}
                 >
-                  {t.settings.presetEvery6h}
+                  {activePreset === "6h" && <Check className="w-3.5 h-3.5 shrink-0" />}
+                  <span>{t.settings.presetEvery6h}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleApplyPreset(["03:00", "14:00"])}
-                  className="px-3.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs transition-all cursor-pointer ${
+                    activePreset === "twice"
+                      ? "bg-sky-600 hover:bg-sky-700 text-white border-sky-600 shadow-xs font-bold ring-2 ring-sky-500/20"
+                      : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200 font-medium hover:border-slate-300 shadow-2xs"
+                  }`}
                 >
-                  {t.settings.presetTwiceDaily}
+                  {activePreset === "twice" && <Check className="w-3.5 h-3.5 shrink-0" />}
+                  <span>{t.settings.presetTwiceDaily}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    timeInputRef.current?.focus();
+                    timeInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs transition-all cursor-pointer ${
+                    activePreset === "custom"
+                      ? "bg-sky-600 hover:bg-sky-700 text-white border-sky-600 shadow-xs font-bold ring-2 ring-sky-500/20"
+                      : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200 font-medium hover:border-slate-300 shadow-2xs"
+                  }`}
+                >
+                  {activePreset === "custom" && <Check className="w-3.5 h-3.5 shrink-0" />}
+                  <span>{t.settings.presetCustom}</span>
                 </button>
               </div>
             </div>
@@ -464,6 +545,7 @@ export default function ConfiguracoesPage() {
             <div className="space-y-2 pt-2">
               <div className="flex items-center gap-3">
                 <input
+                  ref={timeInputRef}
                   type="time"
                   value={newHourInput}
                   onChange={(e) => {
@@ -629,13 +711,22 @@ export default function ConfiguracoesPage() {
                   <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
                   <span>{t.settings.unsavedChanges}</span>
                 </div>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-6 py-2.5 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white shadow-xs transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  {saving ? t.settings.savingBtn : t.settings.saveBtn}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCancelSettings}
+                    className="px-4 py-2.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 transition-colors cursor-pointer"
+                  >
+                    {t.common.cancel}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="px-6 py-2.5 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {saving ? t.settings.savingBtn : t.settings.saveBtn}
+                  </button>
+                </div>
               </div>
             </div>
           )}

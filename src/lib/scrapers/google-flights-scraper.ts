@@ -177,17 +177,58 @@ export async function scrapeGoogleFlights(
 
         // 5. Companhia Aérea
         const knownAirlines = [
-          "Air Europa", "Tap Air Portugal", "TAP", "ITA Airways", "ITA", "LATAM", "GOL", "Azul",
-          "Air France", "KLM", "Iberia", "British Airways", "American Airlines",
-          "Delta", "United", "Lufthansa", "Emirates", "Qatar Airways", "Copa Airlines",
-          "Avianca", "Turkish Airlines", "Swiss", "Aerolineas Argentinas"
+          "British Airways", "Virgin Atlantic", "Norse Atlantic Airways", "Norse Atlantic", "Norse",
+          "JetBlue", "Delta", "American Airlines", "United", "Air France", "KLM", "Iberia",
+          "Air Europa", "TAP Air Portugal", "TAP", "ITA Airways", "ITA", "LATAM", "GOL", "Azul",
+          "Lufthansa", "Emirates", "Qatar Airways", "Copa Airlines", "Avianca", "Turkish Airlines",
+          "Swiss", "Aer Lingus", "Icelandair", "SAS", "Scandinavian Airlines", "Air Canada",
+          "Aerolineas Argentinas", "Etihad", "Singapore Airlines", "Qantas", "Finnair", "Austrian",
+          "WestJet", "French Bee", "Level", "Condor", "PLAY", "Air Transat", "Brussels Airlines"
         ];
-        let airlineName = "Companhia Aérea";
-        for (const a of knownAirlines) {
-          if (new RegExp(a, "i").test(ariaCombined) || new RegExp(a, "i").test(fullText)) {
-            airlineName = a;
+        
+        let airlineName = "";
+
+        // 1. Tenta extrair de tags <img> com alt da companhia aérea
+        const imgEls = card.querySelectorAll("img[alt]");
+        for (const img of Array.from(imgEls)) {
+          const alt = (img.getAttribute("alt") || "").trim();
+          if (alt && !/logo|icon|imagem|flight|voo|airline|companhia/i.test(alt) && alt.length >= 2) {
+            airlineName = alt;
             break;
           }
+        }
+
+        // 2. Tenta extrair de seletores de classe de texto do Google Flights
+        if (!airlineName) {
+          const airlineEl = card.querySelector(".sSHqwe span, .sSHqwe, .TQqCae, [data-airline]");
+          if (airlineEl && airlineEl.textContent) {
+            const txt = airlineEl.textContent.trim();
+            if (txt && !/^\d/.test(txt) && !/parada|escala|h|min|R\$|\$|voo direto|sem escalas/i.test(txt)) {
+              airlineName = txt;
+            }
+          }
+        }
+
+        // 3. Tenta encontrar correspondência com a lista global de companhias
+        if (!airlineName) {
+          for (const a of knownAirlines) {
+            if (new RegExp(`\\b${a}\\b`, "i").test(ariaCombined) || new RegExp(`\\b${a}\\b`, "i").test(fullText)) {
+              airlineName = a;
+              break;
+            }
+          }
+        }
+
+        // 4. Extração via regex em aria-label (ex: "Voo da British Airways às 07:41...")
+        if (!airlineName) {
+          const ariaMatch = ariaCombined.match(/(?:Voo da|Voo operado por|Operado por|Flight by|Operated by)\s+([A-Za-zÀ-ÿ0-9\s]+?)(?:,|\.|\s+às|\s+at|\s+com)/i);
+          if (ariaMatch && ariaMatch[1]) {
+            airlineName = ariaMatch[1].trim();
+          }
+        }
+
+        if (!airlineName) {
+          airlineName = "Companhia Aérea";
         }
 
         list.push({

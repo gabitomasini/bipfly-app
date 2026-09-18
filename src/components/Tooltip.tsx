@@ -5,7 +5,7 @@ import { useState, useRef, ReactNode } from "react";
 interface TooltipProps {
   content: ReactNode;
   children: ReactNode;
-  position?: "top" | "bottom" | "left" | "right";
+  position?: "top" | "bottom" | "left" | "right" | "top-left" | "top-right";
   delay?: number;
   className?: string;
 }
@@ -40,8 +40,10 @@ export default function Tooltip({
   const positionClasses = {
     top: "bottom-full left-1/2 -translate-x-1/2 mb-1.5",
     bottom: "top-full left-1/2 -translate-x-1/2 mt-1.5",
-    left: "right-full top-1/2 -translate-y-1/2 mr-1.5",
-    right: "left-full top-1/2 -translate-y-1/2 ml-1.5",
+    left: "right-full top-1/2 -translate-y-1/2 mr-2",
+    right: "left-full top-1/2 -translate-y-1/2 ml-2",
+    "top-left": "bottom-full right-0 mb-1.5",
+    "top-right": "bottom-full left-0 mb-1.5",
   }[position];
 
   return (

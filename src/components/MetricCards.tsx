@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { MonitoredRoute, SchedulerStatus } from "@/lib/types";
 import { Plane, TrendingDown, Target, Clock, ArrowUpRight, CheckCircle2 } from "lucide-react";
@@ -13,6 +14,15 @@ interface MetricCardsProps {
 export default function MetricCards({ routes, schedulerStatus }: MetricCardsProps) {
   const router = useRouter();
   const { t, formatCurrency, formatUsdEstimate, locale } = useTranslation();
+  const [now, setNow] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   const totalCount = routes.length;
   const activeRoutes = routes.filter((r) => r.isActive);
   const activeCount = activeRoutes.length;
@@ -35,16 +45,110 @@ export default function MetricCards({ routes, schedulerStatus }: MetricCardsProp
     }
   }
 
-  // Format next run time
-  const nextRunText = schedulerStatus?.nextRun
-    ? new Date(schedulerStatus.nextRun).toLocaleTimeString(locale === "pt" ? "pt-BR" : "en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: locale === "en",
+  // Next run date computation
+  const nextRunDate = useMemo(() => {
+    if (schedulerStatus?.nextRun) {
+      const d = new Date(schedulerStatus.nextRun);
+      if (!isNaN(d.getTime())) return d;
+    }
+    const hours = schedulerStatus?.scheduleHours || ["03:00", "14:00"];
+    const parsed = hours
+      .map((h) => {
+        const [hh, mm] = h.split(":").map(Number);
+        return { str: h, mins: hh * 60 + mm };
       })
-    : schedulerStatus?.scheduleHours?.[0] || "03:00";
+      .sort((a, b) => a.mins - b.mins);
+
+    const currentMins = now.getHours() * 60 + now.getMinutes();
+    for (const item of parsed) {
+      if (item.mins > currentMins) {
+        const d = new Date(now);
+        const [hh, mm] = item.str.split(":").map(Number);
+        d.setHours(hh, mm, 0, 0);
+        return d;
+      }
+    }
+    const first = parsed[0] || { str: "03:00" };
+    const d = new Date(now);
+    d.setDate(d.getDate() + 1);
+    const [hh, mm] = first.str.split(":").map(Number);
+    d.setHours(hh, mm, 0, 0);
+    return d;
+  }, [schedulerStatus?.nextRun, schedulerStatus?.scheduleHours, now]);
+
+  // Format next run time
+  const nextRunText = nextRunDate.toLocaleTimeString(locale === "pt" ? "pt-BR" : "en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: locale === "en",
+  });
 
   const isSchedulerActive = schedulerStatus?.running !== false;
+
+  // Real progress and remaining time calculation
+  const { progressPercent, remainingMs } = useMemo(() => {
+    const hours = schedulerStatus?.scheduleHours?.length
+      ? schedulerStatus.scheduleHours
+      : ["03:00", "14:00"];
+
+    const sortedMins = hours
+      .map((h) => {
+        const [hh, mm] = h.split(":").map(Number);
+        return hh * 60 + mm;
+      })
+      .sort((a, b) => a - b);
+
+    const nextHour = nextRunDate.getHours();
+    const nextMin = nextRunDate.getMinutes();
+    const nextTotalMins = nextHour * 60 + nextMin;
+
+    let idx = sortedMins.indexOf(nextTotalMins);
+    if (idx === -1) {
+      idx = sortedMins.findIndex((m) => m >= nextTotalMins);
+      if (idx === -1) idx = 0;
+    }
+
+    const prevIdx = (idx - 1 + sortedMins.length) % sortedMins.length;
+    const prevMins = sortedMins[prevIdx];
+
+    const prevRunDate = new Date(nextRunDate);
+    const prevH = Math.floor(prevMins / 60);
+    const prevM = prevMins % 60;
+
+    if (prevMins >= nextTotalMins) {
+      prevRunDate.setDate(prevRunDate.getDate() - 1);
+    }
+    prevRunDate.setHours(prevH, prevM, 0, 0);
+
+    const total = nextRunDate.getTime() - prevRunDate.getTime();
+    const elapsed = now.getTime() - prevRunDate.getTime();
+    const pct = total > 0 ? Math.min(100, Math.max(0, (elapsed / total) * 100)) : 0;
+    const rem = Math.max(0, nextRunDate.getTime() - now.getTime());
+
+    return { progressPercent: pct, remainingMs: rem };
+  }, [schedulerStatus?.scheduleHours, nextRunDate, now]);
+
+  const remainingFormatted = useMemo(() => {
+    if (!isSchedulerActive) {
+      return locale === "en" ? "Paused" : "Pausado";
+    }
+    if (remainingMs <= 0) {
+      return locale === "en" ? "Running now" : "Executando agora";
+    }
+
+    const totalSecs = Math.floor(remainingMs / 1000);
+    const hours = Math.floor(totalSecs / 3600);
+    const minutes = Math.floor((totalSecs % 3600) / 60);
+    const seconds = totalSecs % 60;
+
+    if (hours > 0) {
+      return locale === "en" ? `in ${hours}h ${minutes}m ${seconds}s` : `em ${hours}h ${minutes}m ${seconds}s`;
+    }
+    if (minutes > 0) {
+      return locale === "en" ? `in ${minutes}m ${seconds}s` : `em ${minutes}m ${seconds}s`;
+    }
+    return locale === "en" ? `in ${seconds}s` : `em ${seconds}s`;
+  }, [remainingMs, locale, isSchedulerActive]);
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -209,11 +313,16 @@ export default function MetricCards({ routes, schedulerStatus }: MetricCardsProp
           {/* Visual Progress Bar */}
           <div className="mt-3">
             <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-              <div className="bg-indigo-600 h-full rounded-full w-3/4 animate-pulse" />
+              <div
+                className="bg-indigo-600 h-full rounded-full transition-all duration-1000 ease-linear"
+                style={{ width: `${isSchedulerActive ? Math.min(100, Math.max(2, Math.round(progressPercent))) : 0}%` }}
+              />
             </div>
             <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium mt-1">
               <span>{t.dashboard.kpis.autoScraper}</span>
-              <span>{locale === "en" ? "Auto scan cycle" : "Horário programado"}</span>
+              <span className="font-semibold text-indigo-600 tabular-nums">
+                {remainingFormatted}
+              </span>
             </div>
           </div>
         </div>
@@ -221,3 +330,4 @@ export default function MetricCards({ routes, schedulerStatus }: MetricCardsProp
     </div>
   );
 }
+

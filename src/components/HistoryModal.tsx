@@ -282,8 +282,8 @@ export default function HistoryModal({ isOpen, route, onClose }: HistoryModalPro
                               <span
                                 className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold ${
                                   isBelow
-                                    ? "bg-emerald-100 text-emerald-800"
-                                    : "bg-slate-100 text-slate-600"
+                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs"
+                                    : "bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs"
                                 }`}
                               >
                                 {isBelow ? t.dashboard.table.targetMet : t.dashboard.table.aboveTarget}

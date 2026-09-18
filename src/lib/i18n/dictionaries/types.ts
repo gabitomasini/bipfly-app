@@ -314,10 +314,12 @@ export interface TranslationDictionary {
     scheduleTitle: string;
     scheduleSubtitle: string;
     presetLabel: string;
+    presetEvery1h: string;
     presetEvery3h: string;
     presetEvery4h: string;
     presetEvery6h: string;
     presetTwiceDaily: string;
+    presetCustom: string;
     scheduledHours: string;
     addTime: string;
     removeTime: string;
