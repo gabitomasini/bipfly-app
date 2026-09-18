@@ -399,17 +399,17 @@ export default function DashboardPage() {
                 <table className="w-full table-fixed text-left text-xs text-slate-600">
                   <thead className="bg-slate-50/90 text-[11px] font-bold text-slate-500 border-b border-slate-200/80 uppercase tracking-wider">
                     <tr>
-                      <th className="py-3 px-3 sm:px-4 text-left w-[34%]">
+                      <th className="py-3 px-3 sm:px-4 text-left w-[32%]">
                         {locale === "en" ? "Route & Flight" : "Rota & Voo"}
                       </th>
-                      <th className="py-3 px-3 sm:px-4 text-left w-[26%]">
+                      <th className="py-3 pl-2 pr-6 sm:pr-8 text-right w-[24%]">
                         {locale === "en" ? "Current & Target Price" : "Preço Atual & Meta"}
                       </th>
-                      <th className="py-3 px-3 sm:px-4 text-center w-[22%]">
+                      <th className="py-3 pl-6 sm:pl-8 pr-3 sm:pr-4 text-left w-[26%]">
                         {t.dashboard.table.colStatus}
                       </th>
                       <th className="py-3 px-3 sm:px-4 text-right w-[18%]">
-                        {t.dashboard.table.colActions}
+                        <span className="sr-only">{t.dashboard.table.colActions}</span>
                       </th>
                     </tr>
                   </thead>
@@ -418,9 +418,8 @@ export default function DashboardPage() {
                       const hasPrice = route.latestPrice !== null && route.latestPrice !== undefined;
                       const price = route.latestPrice as number;
                       const isBelow = hasPrice && price <= route.targetPrice;
-                      const diff = hasPrice ? route.targetPrice - price : 0;
                       const diffPercent = hasPrice && route.targetPrice > 0
-                        ? Math.round(Math.abs(diff / route.targetPrice) * 100)
+                        ? Math.round(Math.abs((route.targetPrice - price) / route.targetPrice) * 100)
                         : 0;
 
                       const flightUrl =
@@ -440,7 +439,7 @@ export default function DashboardPage() {
                           className="hover:bg-slate-50/80 transition-colors"
                         >
                           {/* Coluna 1: ROTA & VOO */}
-                          <td className="py-3.5 px-3 sm:px-4 text-left">
+                          <td className="py-3.5 px-3 sm:px-4 text-left align-middle">
                             {/* Linha superior: IATA + Companhia Aérea Inline */}
                             <div className="flex items-center gap-2 min-w-0">
                               <div className="inline-flex items-center gap-1.5 font-black text-slate-900 text-sm tracking-tight shrink-0">
@@ -465,9 +464,9 @@ export default function DashboardPage() {
                           </td>
 
                           {/* Coluna 2: PREÇO ATUAL & META */}
-                          <td className="py-3.5 px-3 sm:px-4 text-left tabular-nums">
+                          <td className="py-3.5 pl-2 pr-6 sm:pr-8 text-right tabular-nums align-middle">
                             {/* Linha superior: Preço atual */}
-                            <div className="flex items-baseline gap-1.5">
+                            <div className="flex items-baseline justify-end gap-1.5">
                               <span
                                 className={`text-sm sm:text-base font-black tracking-tight tabular-nums ${
                                   hasPrice
@@ -493,21 +492,19 @@ export default function DashboardPage() {
                           </td>
 
                           {/* Coluna 3: STATUS */}
-                          <td className="py-3.5 px-3 sm:px-4 text-center whitespace-nowrap">
+                          <td className="py-3.5 pl-6 sm:pl-8 pr-3 sm:pr-4 text-left whitespace-nowrap align-middle">
                             {!hasPrice ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs">
-                                <Clock className="w-3 h-3" />
-                                <span>{t.dashboard.table.pendingScan}</span>
+                              <span className="inline-flex items-center justify-center gap-1.5 w-[175px] py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs">
+                                <Clock className="w-3.5 h-3.5 shrink-0" />
+                                <span className="truncate">{t.dashboard.table.pendingScan}</span>
                               </span>
                             ) : isBelow ? (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs">
+                              <span className="inline-flex items-center justify-center gap-1.5 w-[175px] py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs">
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                <span>
-                                  {t.dashboard.table.targetMet} (-{formatCurrency(diff)})
-                                </span>
+                                <span>{t.dashboard.table.targetMet}</span>
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs">
+                              <span className="inline-flex items-center justify-center gap-1 w-[175px] py-1 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs">
                                 <span>
                                   +{formatCurrency(price - route.targetPrice)} (+{diffPercent}%)
                                 </span>
@@ -516,9 +513,9 @@ export default function DashboardPage() {
                           </td>
 
                           {/* Coluna 4: AÇÕES */}
-                          <td className="py-3.5 px-3 sm:px-4 text-right whitespace-nowrap">
+                          <td className="py-3.5 px-3 sm:px-4 text-right whitespace-nowrap align-middle">
                             <div
-                              className="relative inline-flex items-center gap-1.5 justify-end"
+                              className="relative inline-flex items-center gap-2 justify-end"
                               ref={openMenuRowId === route.id ? activeMenuRef : null}
                             >
                               {/* Primary: View Flight */}
