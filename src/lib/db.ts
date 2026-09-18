@@ -13,7 +13,7 @@ import {
 } from "./types";
 
 const DB_NAME = "radar_passagens.db";
-const DB_PATH = path.join(process.cwd(), DB_NAME);
+const DB_PATH = process.env.DATABASE_PATH || path.join(process.cwd(), DB_NAME);
 
 let dbInstance: Database.Database | null = null;
 
