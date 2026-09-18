@@ -15,11 +15,15 @@ import {
   Sparkles,
   Users,
   Calendar,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
 } from "lucide-react";
 import { MonitoredRoute, FlightOption } from "@/lib/types";
 import { getGoogleFlightsUrl } from "@/lib/utils";
 import AirlineBadge from "@/components/AirlineBadge";
 import Tooltip from "@/components/Tooltip";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { useTranslation } from "@/lib/i18n/context";
 
 interface RouteCardProps {
@@ -43,13 +47,15 @@ export default function RouteCard({
   onRefreshList,
   isInsideGroup = false,
 }: RouteCardProps) {
-  const { t, formatCurrency, formatUsdEstimate, formatDate, locale } = useTranslation();
+  const { t, formatCurrency, formatUsdEstimate, formatDate, formatDateTime, locale } = useTranslation();
   const [isSearching, setIsSearching] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isBackfilling, setIsBackfilling] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isUnpauseConfirmOpen, setIsUnpauseConfirmOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Close menu on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -64,66 +70,112 @@ export default function RouteCard({
     };
   }, [isMenuOpen]);
 
-  const handleSearchNow = async () => {
-    setIsMenuOpen(false);
+  const executeSearch = async () => {
     setIsSearching(true);
     setFeedback(null);
     try {
-      const res = await fetch("/api/search", {
+      const res = await fetch("/api/scraper/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ routeId: route.id }),
+        body: JSON.stringify({
+          origin: route.origin,
+          destination: route.destination,
+          date: route.flightDate,
+          passengers: route.passengers || 1,
+        }),
       });
-      const json = await res.json();
-      if (json.success) {
-        setFeedback(
-          locale === "en"
-            ? "Price updated successfully!"
-            : "Cotação atualizada com sucesso!"
-        );
-        onRefreshList();
-        if (json.data?.foundOptions && onViewLiveResults) {
-          onViewLiveResults(route, json.data.foundOptions);
+      const data = await res.json();
+      if (data.success) {
+        if (data.options && data.options.length > 0 && onViewLiveResults) {
+          onViewLiveResults(route, data.options);
+        } else {
+          setFeedback(
+            locale === "en"
+              ? "Price updated successfully!"
+              : "Cotação atualizada com sucesso!"
+          );
+          setTimeout(() => setFeedback(null), 4000);
         }
+        onRefreshList();
       } else {
         setFeedback(
-          `${locale === "en" ? "Error:" : "Erro:"} ${json.error || t.toasts.searchFailed}`
+          data.error ||
+            (locale === "en"
+              ? "Failed to check flight prices."
+              : "Erro ao buscar cotação.")
         );
+        setTimeout(() => setFeedback(null), 4000);
       }
-    } catch (err: any) {
-      setFeedback(`${locale === "en" ? "Error:" : "Erro:"} ${err.message}`);
+    } catch {
+      setFeedback(
+        locale === "en"
+          ? "Failed to check flight prices."
+          : "Erro ao buscar cotação."
+      );
+      setTimeout(() => setFeedback(null), 4000);
     } finally {
       setIsSearching(false);
-      setTimeout(() => setFeedback(null), 4000);
     }
   };
 
+  const handleSearchClick = () => {
+    if (!route.isActive) {
+      setIsUnpauseConfirmOpen(true);
+    } else {
+      executeSearch();
+    }
+  };
+
+  const handleConfirmUnpauseAndSearch = async () => {
+    setIsUnpauseConfirmOpen(false);
+    try {
+      await fetch(`/api/routes/${route.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: true, ativo: true }),
+      });
+      onRefreshList();
+    } catch (err) {
+      console.error("Error unpausing route:", err);
+    }
+    executeSearch();
+  };
+
   const handleBackfillHistory = async () => {
-    setIsMenuOpen(false);
     setIsBackfilling(true);
+    setIsMenuOpen(false);
     setFeedback(null);
     try {
       const res = await fetch(`/api/routes/${route.id}/backfill`, {
         method: "POST",
       });
-      const json = await res.json();
-      if (json.success) {
+      const data = await res.json();
+      if (data.success) {
         setFeedback(
           locale === "en"
-            ? `30-day historical data simulated! (${json.inserted} entries created)`
-            : `Histórico de 30 dias gerado! (${json.inserted} registros criados)`
+            ? "30-day historical data imported successfully!"
+            : "Histórico de 30 dias importado com sucesso!"
         );
+        setTimeout(() => setFeedback(null), 4000);
         onRefreshList();
       } else {
         setFeedback(
-          `${locale === "en" ? "Error:" : "Erro:"} ${json.error || t.history.backfillError}`
+          data.error ||
+            (locale === "en"
+              ? "Failed to import historical data."
+              : "Erro ao importar histórico.")
         );
+        setTimeout(() => setFeedback(null), 4000);
       }
-    } catch (err: any) {
-      setFeedback(`${locale === "en" ? "Error:" : "Erro:"} ${err.message}`);
+    } catch {
+      setFeedback(
+        locale === "en"
+          ? "Failed to import historical data."
+          : "Erro ao importar histórico."
+      );
+      setTimeout(() => setFeedback(null), 4000);
     } finally {
       setIsBackfilling(false);
-      setTimeout(() => setFeedback(null), 4000);
     }
   };
 
@@ -144,20 +196,24 @@ export default function RouteCard({
 
   return (
     <div
-      className={`relative p-4 sm:px-6 sm:py-5 rounded-2xl border bg-white shadow-2xs transition-all hover:shadow-md ${
+      className={`relative p-4 sm:px-6 sm:py-5 rounded-2xl border transition-all hover:shadow-md ${
         isMenuOpen ? "z-30" : "z-0"
       } ${
         !route.isActive
-          ? "opacity-60 border-slate-200 bg-slate-50/40"
+          ? "border-slate-200/90 bg-slate-50/75 shadow-none"
           : isBelowLimit
-          ? "border-emerald-300 ring-1 ring-emerald-400/20 bg-emerald-50/5"
-          : "border-slate-200/90"
+          ? "border-[#2ab85e]/50 border-l-4 border-l-[#2ab85e] bg-white shadow-2xs"
+          : "border-slate-200/90 bg-white shadow-2xs"
       }`}
     >
       {/* UMA ÚNICA LINHA HORIZONTAL */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 sm:gap-4">
         {/* Bloco Esquerdo (Contexto): GRU → CWB (se simples) • Data • LATAM • 1 Adult */}
-        <div className="flex items-center gap-3 text-xs text-slate-600 flex-wrap shrink-0">
+        <div
+          className={`flex items-center gap-3 text-xs flex-wrap shrink-0 ${
+            !route.isActive ? "opacity-75" : "text-slate-600"
+          }`}
+        >
           {!isInsideGroup && (
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 text-xs font-mono font-black shadow-2xs">
               <span>{route.origin}</span>
@@ -191,34 +247,102 @@ export default function RouteCard({
             </span>
           </span>
 
-          {/* Paused status badge if paused */}
-          {!route.isActive && (
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
-              {t.common.paused}
+          {/* Paused status badge (apenas no modo agrupado) */}
+          {isInsideGroup && !route.isActive && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs">
+              <Pause className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+              <span>{t.common.paused}</span>
             </span>
           )}
         </div>
 
-        {/* Bloco Direito: Preço alinhado à direita + Ações & Timestamp integrados */}
+        {/* Bloco Direito: Preço alinhado à direita + Hint de alerta + Ações integradas */}
         <div className="flex items-center gap-3 sm:gap-4 shrink-0 justify-between sm:justify-end">
-          {/* Preço Alinhado à Direita (text-right) */}
-          <div className="flex items-baseline gap-1.5 justify-end text-right shrink-0">
-            <span
-              className={`text-xl sm:text-2xl font-black tracking-tight tabular-nums ${
-                hasPrice
-                  ? isBelowLimit
-                    ? "text-emerald-600"
-                    : "text-slate-900"
-                  : "text-slate-400"
-              }`}
-            >
-              {hasPrice ? formatCurrency(currentPrice) : "—"}
-            </span>
-
-            {locale === "en" && hasPrice && (
-              <span className="text-xs text-slate-400 font-normal">
-                ({formatUsdEstimate(currentPrice, "~")})
+          {/* Preço Alinhado à Direita com Hint de Alerta de Preço */}
+          <div className="flex items-center gap-2 justify-end text-right shrink-0">
+            <div className={`flex items-baseline gap-1.5 ${!route.isActive ? "opacity-75" : ""}`}>
+              <span
+                className={`text-xl sm:text-2xl font-black tracking-tight tabular-nums leading-none ${
+                  !route.isActive
+                    ? "text-slate-400"
+                    : hasPrice
+                    ? isBelowLimit
+                      ? "text-emerald-600"
+                      : "text-slate-900"
+                    : "text-slate-400"
+                }`}
+              >
+                {hasPrice ? formatCurrency(currentPrice) : "—"}
               </span>
+
+              {locale === "en" && hasPrice && (
+                <span className="text-xs text-slate-400 font-normal">
+                  ({formatUsdEstimate(currentPrice, "~")})
+                </span>
+              )}
+            </div>
+
+            {/* Hint de Alerta / Status no modo lista */}
+            {!isInsideGroup && (
+              <Tooltip
+                className="translate-y-[1.5px]"
+                content={
+                  !route.isActive ? (
+                    <div className="flex items-center gap-1.5 text-[11px]">
+                      <Pause className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>
+                        {locale === "en"
+                          ? `Monitoring paused on ${formatDateTime(route.updatedAt)}`
+                          : `Monitoramento pausado em ${formatDateTime(route.updatedAt)}`}
+                      </span>
+                    </div>
+                  ) : !hasPrice ? (
+                    <div className="flex items-center gap-1.5 text-[11px]">
+                      <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>{t.dashboard.table.pendingScan}</span>
+                    </div>
+                  ) : isBelowLimit ? (
+                    <div className="flex items-center gap-1.5 text-[11px]">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span>
+                        {t.common.target}: {formatCurrency(target)} (-{formatCurrency(diff)}{" "}
+                        {locale === "en" ? "target met" : "no alvo"})
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 text-[11px]">
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                      <span>
+                        {t.common.target}: {formatCurrency(target)} (+{formatCurrency(currentPrice - target)}{" "}
+                        {locale === "en" ? "above target" : "acima da meta"})
+                      </span>
+                    </div>
+                  )
+                }
+              >
+                <div
+                  className={`inline-flex items-center justify-center w-5 h-5 rounded-full cursor-help transition-all hover:scale-110 shadow-2xs ${
+                    !route.isActive
+                      ? "bg-amber-50 text-amber-600 border border-amber-200"
+                      : !hasPrice
+                      ? "bg-amber-50 text-amber-600 border border-amber-200"
+                      : isBelowLimit
+                      ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                      : "bg-rose-50 text-rose-600 border border-rose-200/80"
+                  }`}
+                  aria-label="Status alert"
+                >
+                  {!route.isActive ? (
+                    <Pause className="w-3 h-3 text-amber-600" />
+                  ) : !hasPrice ? (
+                    <Clock className="w-3 h-3" />
+                  ) : isBelowLimit ? (
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  ) : (
+                    <AlertCircle className="w-3 h-3 text-rose-600" />
+                  )}
+                </div>
+              </Tooltip>
             )}
           </div>
 
@@ -230,7 +354,11 @@ export default function RouteCard({
                 href={flightUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 active:bg-sky-800 border border-transparent transition-all shadow-xs hover:shadow-md cursor-pointer whitespace-nowrap shrink-0"
+                className={`inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl text-xs font-bold border transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                  !route.isActive
+                    ? "bg-slate-100 text-slate-400 hover:bg-slate-200/70 hover:text-slate-600 border-slate-200/70 shadow-none"
+                    : "text-white bg-sky-600 hover:bg-sky-700 active:bg-sky-800 border-transparent shadow-xs hover:shadow-md"
+                }`}
                 aria-label={t.routes.cardViewFlightTooltip}
               >
                 <span>{t.common.viewFlight}</span>
@@ -241,8 +369,8 @@ export default function RouteCard({
             {/* Secondary: Refresh / Scan */}
             <Tooltip content={t.routes.cardSearchTooltip}>
               <button
-                onClick={handleSearchNow}
-                disabled={isSearching || !route.isActive}
+                onClick={handleSearchClick}
+                disabled={isSearching}
                 className="inline-flex items-center justify-center h-9 w-9 rounded-xl text-sky-600 bg-sky-50 hover:bg-sky-100 hover:text-sky-700 border border-sky-100 transition-all cursor-pointer disabled:opacity-40 shrink-0"
                 aria-label={t.routes.cardSearchTooltip}
               >
@@ -341,6 +469,29 @@ export default function RouteCard({
           <span>{feedback}</span>
         </div>
       )}
+
+      {/* Confirmation Modal to Unpause & Search */}
+      <ConfirmDialog
+        isOpen={isUnpauseConfirmOpen}
+        onConfirm={handleConfirmUnpauseAndSearch}
+        onCancel={() => setIsUnpauseConfirmOpen(false)}
+        title={
+          locale === "en"
+            ? "Resume Monitoring & Check Prices?"
+            : "Reativar Monitoramento e Buscar Preços?"
+        }
+        message={
+          locale === "en"
+            ? "This route is currently paused. Searching now will automatically resume active monitoring for this flight."
+            : "Esta rota está atualmente pausada. Buscar agora irá reativar o monitoramento automático deste voo."
+        }
+        confirmLabel={
+          locale === "en" ? "Resume & Search" : "Reativar e Buscar"
+        }
+        confirmIcon={<RefreshCw className="w-3.5 h-3.5 shrink-0" />}
+        cancelLabel={locale === "en" ? "Cancel" : "Cancelar"}
+        variant="default"
+      />
     </div>
   );
 }

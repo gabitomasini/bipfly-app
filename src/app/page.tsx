@@ -42,7 +42,7 @@ export default function DashboardPage() {
   // Filters and sorting state
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedAirline, setSelectedAirline] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | "target" | "above" | "paused">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "target" | "above">("all");
   const [sortBy, setSortBy] = useState<"price_asc" | "price_desc" | "discount_desc" | "date_asc" | "route">("price_asc");
 
   // Modals & action states
@@ -134,15 +134,18 @@ export default function DashboardPage() {
   const availableAirlines = useMemo(() => {
     const set = new Set<string>();
     routes.forEach((r) => {
-      if (r.lastAirline) set.add(r.lastAirline.trim());
+      if (r.isActive && r.lastAirline) set.add(r.lastAirline.trim());
     });
     return Array.from(set).sort();
   }, [routes]);
 
-  // Filtered and sorted routes
+  // Filtered and sorted routes (paused routes are hidden on the dashboard)
   const filteredRoutes = useMemo(() => {
     return routes
       .filter((route) => {
+        // Ocultar rotas pausadas na tela inicial de dashboard
+        if (!route.isActive) return false;
+
         // Search query filter
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase().trim();
@@ -161,15 +164,13 @@ export default function DashboardPage() {
 
         // Status filter
         if (statusFilter === "target") {
-          if (!route.isActive || route.latestPrice === null || route.latestPrice === undefined || route.latestPrice > route.targetPrice) {
+          if (route.latestPrice === null || route.latestPrice === undefined || route.latestPrice > route.targetPrice) {
             return false;
           }
         } else if (statusFilter === "above") {
-          if (!route.isActive || route.latestPrice === null || route.latestPrice === undefined || route.latestPrice <= route.targetPrice) {
+          if (route.latestPrice === null || route.latestPrice === undefined || route.latestPrice <= route.targetPrice) {
             return false;
           }
-        } else if (statusFilter === "paused") {
-          if (route.isActive) return false;
         }
 
         return true;
@@ -197,6 +198,10 @@ export default function DashboardPage() {
         }
       });
   }, [routes, searchQuery, selectedAirline, statusFilter, sortBy]);
+
+  const activeRoutesCount = useMemo(() => {
+    return routes.filter((r) => r.isActive).length;
+  }, [routes]);
 
   const onTargetCount = useMemo(() => {
     return routes.filter(
@@ -272,7 +277,7 @@ export default function DashboardPage() {
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  {t.common.all}
+                  {t.common.all} ({activeRoutesCount})
                 </button>
                 <button
                   onClick={() => setStatusFilter("target")}
@@ -293,16 +298,6 @@ export default function DashboardPage() {
                   }`}
                 >
                   {t.dashboard.filters.statusAbove}
-                </button>
-                <button
-                  onClick={() => setStatusFilter("paused")}
-                  className={`py-1 px-3 rounded-lg font-semibold transition-all whitespace-nowrap cursor-pointer ${
-                    statusFilter === "paused"
-                      ? "bg-white text-slate-900 shadow-2xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  {t.common.paused}
                 </button>
               </div>
 

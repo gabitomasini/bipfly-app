@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Plane, Calendar, DollarSign, AlertCircle, Sparkles, Users } from "lucide-react";
+import { X, Plane, Calendar, DollarSign, AlertCircle, Sparkles, Users, Calculator } from "lucide-react";
 import { MonitoredRoute } from "@/lib/types";
 import AirportCombobox from "./AirportCombobox";
 import CustomSelect from "./CustomSelect";
 import { useModalBehavior } from "@/hooks/useModalBehavior";
 import { useTranslation } from "@/lib/i18n/context";
+import { BRL_TO_USD_RATE, convertUsdToBrl } from "@/lib/i18n/formatters";
 
 interface RouteModalProps {
   isOpen: boolean;
@@ -39,7 +40,12 @@ export default function RouteModal({
       setDestination(routeToEdit.destination);
       setFlightDate(routeToEdit.flightDate);
       setPassengers(routeToEdit.passengers || 1);
-      setTargetPrice(String(routeToEdit.targetPrice));
+      if (locale === "en") {
+        const usdVal = Math.round(routeToEdit.targetPrice * BRL_TO_USD_RATE);
+        setTargetPrice(String(usdVal));
+      } else {
+        setTargetPrice(String(routeToEdit.targetPrice));
+      }
       setIsActive(routeToEdit.isActive);
     } else {
       const defaultDate = new Date();
@@ -50,13 +56,19 @@ export default function RouteModal({
       setDestination("LHR");
       setFlightDate(isoDate);
       setPassengers(1);
-      setTargetPrice("550");
+      setTargetPrice(locale === "en" ? "100" : "550");
       setIsActive(true);
     }
     setError(null);
-  }, [routeToEdit, isOpen]);
+  }, [routeToEdit, isOpen, locale]);
 
   if (!isOpen) return null;
+
+  const numericInputPrice = parseFloat(targetPrice.replace(",", ".")) || 0;
+  const convertedBrlPreview =
+    locale === "en" && numericInputPrice > 0
+      ? convertUsdToBrl(numericInputPrice)
+      : null;
 
   const setDateOffsetDays = (days: number) => {
     const d = new Date();
@@ -105,6 +117,12 @@ export default function RouteModal({
       return;
     }
 
+    // In English mode, the user entered USD. Convert to BRL for backend storage so scraper price matching is consistent.
+    const finalTargetPriceBrl =
+      locale === "en"
+        ? Math.round(convertUsdToBrl(parsedPrice) * 100) / 100
+        : parsedPrice;
+
     setLoading(true);
     try {
       if (routeToEdit) {
@@ -116,7 +134,7 @@ export default function RouteModal({
             destination: normDestination,
             flightDate,
             passengers: Number(passengers),
-            targetPrice: parsedPrice,
+            targetPrice: finalTargetPriceBrl,
             isActive,
           }),
         });
@@ -131,7 +149,7 @@ export default function RouteModal({
             destination: normDestination,
             flightDate,
             passengers: Number(passengers),
-            targetPrice: parsedPrice,
+            targetPrice: finalTargetPriceBrl,
             isActive: true,
           }),
         });
@@ -255,13 +273,21 @@ export default function RouteModal({
           {/* Target Price and Passengers */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
-                <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
-                <span>{t.modal.targetPriceLabel}</span>
+              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{locale === "en" ? "Target Price (USD)" : t.modal.targetPriceLabel}</span>
+                </span>
+                {locale === "en" && (
+                  <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200/80 flex items-center gap-1">
+                    <Calculator className="w-3 h-3 text-sky-600" />
+                    <span>Auto-converts to BRL</span>
+                  </span>
+                )}
               </label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                  {locale === "pt" ? "R$" : "$"}
+                  {locale === "en" ? "$" : "R$"}
                 </span>
                 <input
                   type="number"
@@ -269,14 +295,40 @@ export default function RouteModal({
                   min={1}
                   value={targetPrice}
                   onChange={(e) => setTargetPrice(e.target.value)}
-                  placeholder={t.modal.targetPricePlaceholder}
+                  placeholder={locale === "en" ? "e.g. 150" : t.modal.targetPricePlaceholder}
                   required
                   className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm font-black focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors font-mono"
                 />
               </div>
-              <span className="text-[11px] text-slate-400 mt-1 block">
-                {t.modal.targetPriceDesc}
-              </span>
+
+              {locale === "en" ? (
+                <div className="mt-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200/90 text-xs flex flex-col gap-1">
+                  <div className="flex items-center justify-between font-semibold text-slate-800">
+                    <span className="flex items-center gap-1.5 text-slate-600 text-[11px]">
+                      <Calculator className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                      <span>Converted to BRL:</span>
+                    </span>
+                    <strong className="text-xs font-black text-slate-900 font-mono">
+                      {convertedBrlPreview !== null
+                        ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(convertedBrlPreview)
+                        : "R$ 0,00"}
+                    </strong>
+                  </div>
+                  <p className="text-[10.5px] text-slate-500 leading-tight">
+                    💡 <strong>Saved in Reais</strong>: Flight scraper tracks prices in BRL. This target will be stored as approx.{" "}
+                    <strong className="text-slate-700">
+                      {convertedBrlPreview !== null
+                        ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(convertedBrlPreview)
+                        : "R$ 0,00"}
+                    </strong>{" "}
+                    (1 USD ≈ R$ {(1 / BRL_TO_USD_RATE).toFixed(2)}).
+                  </p>
+                </div>
+              ) : (
+                <span className="text-[11px] text-slate-400 mt-1 block">
+                  {t.modal.targetPriceDesc}
+                </span>
+              )}
             </div>
 
             <div>

@@ -610,26 +610,26 @@ function RotasContent() {
           </div>
         ) : isGrouped ? (
           /* MODO AGRUPADO */
-          <div className="space-y-4">
+          <div className="space-y-6">
             {routeGroups.map((group) => {
               const isCollapsed = Boolean(collapsedGroups[group.key]);
 
               return (
                 <div
                   key={group.key}
-                  className={`bg-white rounded-2xl border border-slate-200/90 shadow-2xs transition-all hover:border-slate-300 ${
+                  className={`bg-white rounded-2xl border border-slate-200/90 shadow-sm transition-all hover:border-slate-300 hover:shadow-md ${
                     isCollapsed ? "overflow-hidden" : ""
                   }`}
                 >
-                  {/* Cabeçalho do Grupo (Acordeão Simplificado) */}
+                  {/* Cabeçalho do Grupo (Acordeão Editorial e Contrastante) */}
                   <div
                     onClick={() => toggleGroupCollapse(group.key)}
-                    className={`p-4 sm:px-5 sm:py-3.5 bg-slate-50/70 hover:bg-slate-100/70 border-b border-slate-200/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 cursor-pointer select-none transition-colors ${
-                      isCollapsed ? "rounded-2xl" : "rounded-t-2xl"
+                    className={`p-4 sm:px-6 sm:py-4 bg-slate-50/70 hover:bg-slate-100/70 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3.5 cursor-pointer select-none transition-colors ${
+                      isCollapsed ? "rounded-2xl" : "rounded-t-2xl border-b border-slate-200/80"
                     }`}
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
-                      <div className="w-7 h-7 rounded-full bg-white border border-slate-200/80 shadow-2xs flex items-center justify-center text-slate-500 hover:text-slate-800 shrink-0 transition-transform">
+                      <div className="w-8 h-8 rounded-full bg-white border border-slate-200/80 shadow-2xs flex items-center justify-center text-slate-500 hover:text-slate-800 shrink-0 transition-transform">
                         {isCollapsed ? (
                           <ChevronDown className="w-4 h-4" />
                         ) : (
@@ -637,48 +637,55 @@ function RotasContent() {
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2.5 flex-wrap">
-                        <div className="flex items-center gap-1.5 font-black text-slate-900 tracking-tight text-sm sm:text-base">
-                          <span className="font-mono font-black text-xs sm:text-sm px-2.5 py-0.5 rounded-lg bg-white border border-slate-200 text-slate-800 shadow-2xs tracking-wider">
-                            {group.origin}
-                          </span>
-                          <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span className="font-mono font-black text-xs sm:text-sm px-2.5 py-0.5 rounded-lg bg-white border border-slate-200 text-slate-800 shadow-2xs tracking-wider">
-                            {group.destination}
+                      {/* Título Editorial da Rota + Nomes das Cidades */}
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-2 font-black text-slate-900 tracking-tight text-base sm:text-lg">
+                          <span>{group.origin}</span>
+                          <ArrowRight className="w-4 h-4 text-sky-600 stroke-[2.5] shrink-0" />
+                          <span>{group.destination}</span>
+
+                          <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-200/80 text-slate-700 ml-1">
+                            {group.routes.length}{" "}
+                            {locale === "en"
+                              ? group.routes.length === 1
+                                ? "flight date"
+                                : "flight dates"
+                              : group.routes.length === 1
+                              ? "data monitorada"
+                              : "datas monitoradas"}
                           </span>
                         </div>
 
-                        <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-200/70 text-slate-700">
-                          {group.routes.length}{" "}
-                          {locale === "en"
-                            ? group.routes.length === 1
-                              ? "flight date"
-                              : "flight dates"
-                            : group.routes.length === 1
-                            ? "data monitorada"
-                            : "datas monitoradas"}
-                        </span>
-
-                        {/* Date summary in muted text */}
-                        {group.earliestDate && (
-                          <span className="text-xs sm:text-sm text-slate-500 font-medium">
-                            {group.routes.length === 1 || group.earliestDate === group.latestDate
-                              ? formatDate(group.earliestDate)
-                              : `${formatDate(group.earliestDate)} – ${formatDate(group.latestDate)}`}
+                        {/* Nome por extenso das cidades e datas */}
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium flex-wrap">
+                          <span>
+                            {getAirportName(group.origin)} → {getAirportName(group.destination)}
                           </span>
-                        )}
+                          {group.earliestDate && (
+                            <>
+                              <span className="text-slate-300">•</span>
+                              <span className="text-slate-600 font-semibold">
+                                {group.routes.length === 1 || group.earliestDate === group.latestDate
+                                  ? formatDate(group.earliestDate)
+                                  : `${formatDate(group.earliestDate)} – ${formatDate(group.latestDate)}`}
+                              </span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
 
                     {/* Preço e Status Empilhados Verticalmente */}
                     {group.lowestPrice !== null && group.lowestPriceRoute ? (
                       <div className="flex flex-col items-end gap-1 shrink-0 text-right">
-                        {/* Linha superior: STARTING FROM R$667.00 (~$120 USD) */}
-                        <div className="flex items-baseline gap-1.5 flex-wrap justify-end">
-                          <span className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider">
-                            {locale === "en" ? "Starting from" : "A partir de"}
-                          </span>
-                          <span className="text-base sm:text-lg font-black text-slate-900 tabular-nums">
+                        {/* Linha superior: STARTING FROM empilhado acima */}
+                        <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider block">
+                          {locale === "en" ? "Starting from" : "A partir de"}
+                        </span>
+
+                        {/* Linha intermediária: Preço principal + USD */}
+                        <div className="flex items-baseline gap-1.5 justify-end">
+                          <span className="text-xl sm:text-2xl font-black text-slate-900 tabular-nums leading-none">
                             {formatCurrency(group.lowestPrice)}
                           </span>
                           {locale === "en" && (
@@ -690,7 +697,7 @@ function RotasContent() {
 
                         {/* Linha inferior alinhada à direita: badge compacto */}
                         {group.lowestPrice <= group.lowestPriceRoute.targetPrice ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs mt-0.5">
                             <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
                             <span>
                               -{formatCurrency(group.lowestPriceRoute.targetPrice - group.lowestPrice)}{" "}
@@ -698,7 +705,7 @@ function RotasContent() {
                             </span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200/80">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200/80 mt-0.5">
                             <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
                             <span>
                               +{formatCurrency(group.lowestPrice - group.lowestPriceRoute.targetPrice)}{" "}
@@ -719,7 +726,7 @@ function RotasContent() {
 
                   {/* Lista de cards do grupo */}
                   {!isCollapsed && (
-                    <div className="p-4 sm:p-5 space-y-3.5 bg-slate-50/40 rounded-b-2xl animate-fadeIn">
+                    <div className="p-4 sm:p-5 space-y-3.5 bg-slate-100/35 rounded-b-2xl animate-fadeIn">
                       {group.routes.map((route) => (
                         <RouteCard
                           key={route.id}

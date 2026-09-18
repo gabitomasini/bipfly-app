@@ -4,12 +4,20 @@ import { SupportedLocale } from "./dictionaries/types";
  * Approximate BRL to USD exchange rate for estimated conversions (~5.55 BRL per USD)
  */
 export const BRL_TO_USD_RATE = 0.18;
+export const USD_TO_BRL_RATE = 1 / BRL_TO_USD_RATE;
 
 /**
  * Calculates the estimated USD value from BRL amount
  */
 export function convertBrlToUsd(amountInBrl: number): number {
   return amountInBrl * BRL_TO_USD_RATE;
+}
+
+/**
+ * Calculates the estimated BRL value from USD amount
+ */
+export function convertUsdToBrl(amountInUsd: number): number {
+  return amountInUsd * USD_TO_BRL_RATE;
 }
 
 /**

@@ -1,6 +1,8 @@
 "use client";
 
-import { AlertTriangle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { AlertTriangle, RefreshCw, X } from "lucide-react";
 import { useModalBehavior } from "@/hooks/useModalBehavior";
 
 interface ConfirmDialogProps {
@@ -11,6 +13,8 @@ interface ConfirmDialogProps {
   message: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  confirmIcon?: React.ReactNode;
+  icon?: React.ReactNode;
   variant?: "danger" | "default";
 }
 
@@ -22,23 +26,30 @@ export default function ConfirmDialog({
   message,
   confirmLabel = "Confirmar",
   cancelLabel = "Cancelar",
+  confirmIcon,
+  icon,
   variant = "default",
 }: ConfirmDialogProps) {
+  const [mounted, setMounted] = useState(false);
   const { overlayProps, containerRef } = useModalBehavior({
     isOpen,
     onClose: onCancel,
   });
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!isOpen || !mounted) return null;
 
   const confirmBtnClass =
     variant === "danger"
-      ? "bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white"
-      : "bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white";
+      ? "bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white shadow-xs hover:shadow-md"
+      : "bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white shadow-xs hover:shadow-md";
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn"
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-dialog-title"
@@ -46,44 +57,66 @@ export default function ConfirmDialog({
     >
       <div
         ref={containerRef}
-        className="glass-panel w-full max-w-md bg-white border border-slate-200 shadow-2xl p-6 space-y-4"
+        className="relative w-full max-w-lg bg-white border border-slate-200/90 rounded-2xl shadow-2xl p-6 sm:p-7 text-left animate-fadeIn"
       >
-        {/* Header */}
-        <div className="flex items-start gap-3">
-          {variant === "danger" && (
-            <div className="p-2 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 shrink-0">
+        {/* Close Button Top Right */}
+        <button
+          onClick={onCancel}
+          className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+          aria-label="Close"
+        >
+          <X className="w-4 h-4" />
+        </button>
+
+        {/* Header: Context Icon + Title & Description (Left-aligned) */}
+        <div className="flex items-start gap-3.5 pr-6">
+          <div
+            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+              variant === "danger"
+                ? "bg-rose-50 border-rose-100 text-rose-600"
+                : "bg-sky-50 border-sky-100 text-sky-600"
+            }`}
+          >
+            {icon ? (
+              icon
+            ) : variant === "danger" ? (
               <AlertTriangle className="w-5 h-5" />
-            </div>
-          )}
-          <div>
+            ) : (
+              <RefreshCw className="w-5 h-5" />
+            )}
+          </div>
+
+          <div className="space-y-1.5 min-w-0">
             <h3
               id="confirm-dialog-title"
-              className="text-base font-bold text-slate-900"
+              className="text-base sm:text-lg font-bold text-slate-900 leading-snug"
             >
               {title}
             </h3>
-            <p className="text-xs text-slate-600 mt-1 font-medium leading-relaxed">
+            <p className="text-xs sm:text-sm text-slate-600 font-normal leading-relaxed">
               {message}
             </p>
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center justify-end gap-3 pt-2">
+        {/* Footer Actions: Right-aligned */}
+        <div className="flex items-center justify-end gap-3 pt-6">
           <button
             onClick={onCancel}
-            className="px-4 py-2 rounded-xl text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+            className="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
           >
             {cancelLabel}
           </button>
           <button
             onClick={onConfirm}
-            className={`px-4 py-2 rounded-xl text-sm font-bold shadow-xs transition-colors cursor-pointer ${confirmBtnClass}`}
+            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer inline-flex items-center gap-2 ${confirmBtnClass}`}
           >
-            {confirmLabel}
+            {confirmIcon}
+            <span>{confirmLabel}</span>
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
