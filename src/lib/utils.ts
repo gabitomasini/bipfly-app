@@ -105,6 +105,12 @@ export function getAirportName(iata: string): string {
   return AIRPORT_NAMES[code] || code;
 }
 
+export function getAirportCity(iata: string): string {
+  const full = getAirportName(iata);
+  const city = full.split("(")[0].trim();
+  return city || (iata || "").toUpperCase().trim();
+}
+
 export function getGoogleFlightsUrl(
   origin: string,
   destination: string,
