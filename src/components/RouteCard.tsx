@@ -147,7 +147,9 @@ export default function RouteCard({
 
   return (
     <div
-      className={`p-4 sm:p-5 rounded-2xl border bg-white shadow-2xs transition-all hover:shadow-md ${
+      className={`relative p-4 sm:p-5 rounded-2xl border bg-white shadow-2xs transition-all hover:shadow-md ${
+        isMenuOpen ? "z-30" : "z-0"
+      } ${
         !route.isActive
           ? "opacity-60 border-slate-200 bg-slate-50/40"
           : isBelowLimit
@@ -155,244 +157,221 @@ export default function RouteCard({
           : "border-slate-200/90"
       }`}
     >
-      {/* If in continuous list mode (not inside group), show compact route code header */}
-      {!isInsideGroup && (
-        <div className="flex items-center justify-between gap-2 pb-2.5 mb-3 border-b border-slate-100">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 text-xs font-mono font-black">
-            <span>{route.origin}</span>
-            <ArrowRight className="w-3 h-3 text-slate-400" />
-            <span>{route.destination}</span>
-          </div>
+      {/* Top Bar: Status / Delta Chip on Left (+ standalone Route Code if not in group) */}
+      <div className="flex items-center justify-between gap-2 pb-2.5 mb-3 border-b border-slate-100">
+        <div className="flex items-center gap-2 flex-wrap">
+          {!isInsideGroup && (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 text-xs font-mono font-black mr-1">
+              <span>{route.origin}</span>
+              <ArrowRight className="w-3 h-3 text-slate-400" />
+              <span>{route.destination}</span>
+            </div>
+          )}
 
-          {!route.isActive && (
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
-              {t.common.paused}
+          {/* Status / Delta Chip on Top Left */}
+          {!hasPrice ? (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+              <Clock className="w-3 h-3" />
+              <span>{t.dashboard.table.pendingScan}</span>
+            </span>
+          ) : isBelowLimit ? (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+              <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+              <span>
+                -{formatCurrency(diff)} {t.dashboard.table.targetMet.toLowerCase()}
+              </span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200/80">
+              <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
+              <span>
+                +{formatCurrency(currentPrice - target)} {t.dashboard.table.aboveTargetDiff}
+              </span>
             </span>
           )}
         </div>
-      )}
 
-      {/* Main Content: Metadata on Left, Prices & CTAs on Right */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        {/* Left Side: Clean Single-Line Metadata */}
-        <div className="space-y-1.5 min-w-0">
-          <div className="flex items-center gap-2.5 text-xs text-slate-600 flex-wrap">
-            {/* Flight Date */}
-            <span className="inline-flex items-center gap-1.5 font-bold text-slate-900">
-              <Calendar className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-              <span>{formatDate(route.flightDate)}</span>
+        {!route.isActive && (
+          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+            {t.common.paused}
+          </span>
+        )}
+      </div>
+
+      {/* Main Row: Metadata (Left), Prices (Center), CTAs & Time (Right) in ONE PERFECT HORIZONTAL AXIS */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6">
+        {/* Left: Metadata (Date, Airline, Flight Number, Passengers) */}
+        <div className="flex items-center gap-3 text-xs text-slate-600 flex-wrap shrink-0">
+          {/* Flight Date */}
+          <span className="inline-flex items-center gap-1.5 font-bold text-slate-900">
+            <Calendar className="w-4 h-4 text-sky-600 shrink-0" />
+            <span>{formatDate(route.flightDate)}</span>
+          </span>
+
+          {/* Airline */}
+          <AirlineBadge airline={route.lastAirline} size="sm" />
+
+          {/* Flight Number */}
+          {route.lastFlightNumber && (
+            <span className="font-mono text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/60">
+              {route.lastFlightNumber}
             </span>
+          )}
 
-            <span className="text-slate-300">•</span>
+          {/* Passengers */}
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
+            <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span>
+              {route.passengers || 1}{" "}
+              {(route.passengers || 1) === 1 ? t.routes.adult : t.routes.adults}
+            </span>
+          </span>
+        </div>
 
-            {/* Airline */}
-            <AirlineBadge airline={route.lastAirline} size="sm" />
+        {/* Center: Price & Target in pure single row */}
+        <div className="flex items-baseline gap-2.5 flex-wrap shrink-0">
+          {/* Current Price (Hero) */}
+          <span
+            className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums ${
+              hasPrice
+                ? isBelowLimit
+                  ? "text-emerald-600"
+                  : "text-slate-900"
+                : "text-slate-400"
+            }`}
+          >
+            {hasPrice ? formatCurrency(currentPrice) : "—"}
+          </span>
 
-            {route.lastFlightNumber && (
-              <>
-                <span className="text-slate-300">•</span>
-                <span className="font-mono text-[11px] font-semibold text-slate-500">
-                  {route.lastFlightNumber}
-                </span>
-              </>
-            )}
-
-            <span className="text-slate-300">•</span>
-
-            {/* Passengers */}
-            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500">
-              <Users className="w-3 h-3 text-slate-400 shrink-0" />
-              <span>
-                {route.passengers || 1}{" "}
-                {(route.passengers || 1) === 1 ? t.routes.adult : t.routes.adults}
+          {/* Target Price Reference & USD estimate */}
+          <div className="text-xs text-slate-500 font-medium flex items-center gap-1">
+            <span>{t.common.target}:</span>
+            <strong className="text-slate-700 font-bold tabular-nums">{formatCurrency(target)}</strong>
+            {locale === "en" && hasPrice && (
+              <span className="text-slate-400 font-normal ml-1">
+                ({formatUsdEstimate(currentPrice)})
               </span>
-            </span>
-
-            {/* Paused status badge (if inside group) */}
-            {isInsideGroup && !route.isActive && (
-              <>
-                <span className="text-slate-300">•</span>
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
-                  {t.common.paused}
-                </span>
-              </>
             )}
           </div>
         </div>
 
-        {/* Right Side: Clean Price Block + CTAs & Time */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between lg:justify-end gap-5 shrink-0">
-          {/* Price Intelligence Block (Clean, without gray container outline) */}
-          <div className="space-y-1">
-            <div className="flex items-baseline gap-2.5 flex-wrap">
-              {/* Current Price (Hero) */}
-              <span
-                className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums ${
-                  hasPrice
-                    ? isBelowLimit
-                      ? "text-emerald-600"
-                      : "text-slate-900"
-                    : "text-slate-400"
-                }`}
-              >
-                {hasPrice ? formatCurrency(currentPrice) : "—"}
-              </span>
-
-              {/* Target Price Reference & USD estimate */}
-              <div className="text-xs text-slate-500 font-medium flex items-center gap-1">
-                <span>{t.common.target}:</span>
-                <strong className="text-slate-700 font-bold tabular-nums">{formatCurrency(target)}</strong>
-                {locale === "en" && hasPrice && (
-                  <span className="text-slate-400 font-normal ml-1">
-                    ({formatUsdEstimate(currentPrice)})
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Clean Semantic Status Badge (No parentheses, clean delta) */}
-            <div>
-              {!hasPrice ? (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                  <Clock className="w-3 h-3" />
-                  <span>{t.dashboard.table.pendingScan}</span>
-                </span>
-              ) : isBelowLimit ? (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                  <span>
-                    -{formatCurrency(diff)} {t.dashboard.table.targetMet.toLowerCase()}
-                  </span>
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200/80">
-                  <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
-                  <span>
-                    +{formatCurrency(currentPrice - target)} {t.dashboard.table.aboveTargetDiff}
-                  </span>
-                </span>
-              )}
-            </div>
+        {/* Right Side: Last Checked Time + Unified Blue CTAs */}
+        <div className="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap">
+          {/* Last Checked Time */}
+          <div className="text-xs text-slate-400 font-medium flex items-center gap-1 whitespace-nowrap">
+            <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+            <span>
+              {route.lastSearchedAt ? formatRelativeTime(route.lastSearchedAt) : t.dashboard.table.pendingScan}
+            </span>
           </div>
 
-          {/* Action CTAs & Time Group */}
-          <div className="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap">
-            {/* Last Checked Time (Placed right next to actions) */}
-            <div className="text-xs text-slate-400 font-medium flex items-center gap-1 whitespace-nowrap">
-              <Clock className="w-3 h-3 text-slate-400 shrink-0" />
-              <span>
-                {route.lastSearchedAt ? formatRelativeTime(route.lastSearchedAt) : t.dashboard.table.pendingScan}
-              </span>
-            </div>
+          {/* Action Buttons */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Primary Action: View Flight (Solid Blue & Contrast) */}
+            <Tooltip content={t.routes.cardViewFlightTooltip}>
+              <a
+                href={flightUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 active:bg-sky-800 border border-transparent transition-all shadow-xs hover:shadow-md cursor-pointer whitespace-nowrap shrink-0"
+                aria-label={t.routes.cardViewFlightTooltip}
+              >
+                <span>{t.common.viewFlight}</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </Tooltip>
 
-            {/* Action Buttons */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              {/* Primary Action: View Flight (Solid Blue & Contrast) */}
-              <Tooltip content={t.routes.cardViewFlightTooltip}>
-                <a
-                  href={flightUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 active:bg-sky-800 transition-all shadow-xs hover:shadow-md cursor-pointer whitespace-nowrap"
-                  aria-label={t.routes.cardViewFlightTooltip}
-                >
-                  <span>{t.common.viewFlight}</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              </Tooltip>
+            {/* Secondary: Refresh / Scan */}
+            <Tooltip content={t.routes.cardSearchTooltip}>
+              <button
+                onClick={handleSearchNow}
+                disabled={isSearching || !route.isActive}
+                className="inline-flex items-center justify-center h-9 w-9 rounded-xl text-sky-600 bg-sky-50 hover:bg-sky-100 hover:text-sky-700 border border-sky-100 transition-all cursor-pointer disabled:opacity-40 shrink-0"
+                aria-label={t.routes.cardSearchTooltip}
+              >
+                <RefreshCw className={`w-4 h-4 ${isSearching ? "animate-spin text-sky-600" : ""}`} />
+              </button>
+            </Tooltip>
 
-              {/* Secondary: Refresh / Scan */}
-              <Tooltip content={t.routes.cardSearchTooltip}>
+            {/* Secondary: Price History */}
+            <Tooltip content={t.routes.cardHistoryTooltip}>
+              <button
+                onClick={() => onViewHistory(route)}
+                className="inline-flex items-center justify-center h-9 w-9 rounded-xl text-sky-600 bg-sky-50 hover:bg-sky-100 hover:text-sky-700 border border-sky-100 transition-all cursor-pointer shrink-0"
+                aria-label={t.routes.cardHistoryTooltip}
+              >
+                <BarChart2 className="w-4 h-4 text-sky-600" />
+              </button>
+            </Tooltip>
+
+            {/* More Options Dropdown */}
+            <div className="relative flex items-center shrink-0" ref={menuRef}>
+              <Tooltip content={locale === "en" ? "More options" : "Mais opções"}>
                 <button
-                  onClick={handleSearchNow}
-                  disabled={isSearching || !route.isActive}
-                  className="inline-flex items-center justify-center p-2 rounded-xl text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 transition-all cursor-pointer disabled:opacity-40"
-                  aria-label={t.routes.cardSearchTooltip}
+                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                  className="inline-flex items-center justify-center h-9 w-9 rounded-xl text-sky-600 bg-sky-50 hover:bg-sky-100 hover:text-sky-700 border border-sky-100 transition-all cursor-pointer shrink-0"
+                  aria-label="More options"
                 >
-                  <RefreshCw className={`w-4 h-4 ${isSearching ? "animate-spin text-sky-600" : ""}`} />
+                  <MoreHorizontal className="w-4 h-4" />
                 </button>
               </Tooltip>
 
-              {/* Secondary: Price History */}
-              <Tooltip content={t.routes.cardHistoryTooltip}>
-                <button
-                  onClick={() => onViewHistory(route)}
-                  className="inline-flex items-center justify-center p-2 rounded-xl text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 transition-all cursor-pointer"
-                  aria-label={t.routes.cardHistoryTooltip}
-                >
-                  <BarChart2 className="w-4 h-4 text-indigo-600" />
-                </button>
-              </Tooltip>
-
-              {/* More Options Dropdown */}
-              <div className="relative" ref={menuRef}>
-                <Tooltip content={locale === "en" ? "More options" : "Mais opções"}>
+              {isMenuOpen && (
+                <div className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 py-1.5 text-xs animate-fadeIn">
                   <button
-                    onClick={() => setIsMenuOpen(!isMenuOpen)}
-                    className="p-2 rounded-xl text-slate-500 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 transition-all cursor-pointer"
-                    aria-label="More options"
+                    onClick={handleBackfillHistory}
+                    disabled={isBackfilling}
+                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium disabled:opacity-40 cursor-pointer"
                   >
-                    <MoreHorizontal className="w-4 h-4" />
+                    <History className={`w-3.5 h-3.5 text-sky-600 ${isBackfilling ? "animate-spin" : ""}`} />
+                    <span>{isBackfilling ? t.history.importing : t.history.import30d}</span>
                   </button>
-                </Tooltip>
 
-                {isMenuOpen && (
-                  <div className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-slate-200 rounded-2xl shadow-xl z-20 py-1.5 text-xs animate-fadeIn">
-                    <button
-                      onClick={handleBackfillHistory}
-                      disabled={isBackfilling}
-                      className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium disabled:opacity-40 cursor-pointer"
-                    >
-                      <History className={`w-3.5 h-3.5 text-indigo-600 ${isBackfilling ? "animate-spin" : ""}`} />
-                      <span>{isBackfilling ? t.history.importing : t.history.import30d}</span>
-                    </button>
+                  <button
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      onToggleActive(route.id, route.isActive);
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium cursor-pointer"
+                  >
+                    {route.isActive ? (
+                      <>
+                        <Pause className="w-3.5 h-3.5 text-amber-600" />
+                        <span>{locale === "en" ? "Pause monitoring" : "Pausar monitoramento"}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>{locale === "en" ? "Resume monitoring" : "Retomar monitoramento"}</span>
+                      </>
+                    )}
+                  </button>
 
-                    <button
-                      onClick={() => {
-                        setIsMenuOpen(false);
-                        onToggleActive(route.id, route.isActive);
-                      }}
-                      className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium cursor-pointer"
-                    >
-                      {route.isActive ? (
-                        <>
-                          <Pause className="w-3.5 h-3.5 text-amber-600" />
-                          <span>{locale === "en" ? "Pause monitoring" : "Pausar monitoramento"}</span>
-                        </>
-                      ) : (
-                        <>
-                          <Play className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>{locale === "en" ? "Resume monitoring" : "Retomar monitoramento"}</span>
-                        </>
-                      )}
-                    </button>
+                  <button
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      onEdit(route);
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium cursor-pointer"
+                  >
+                    <Edit2 className="w-3.5 h-3.5 text-slate-500" />
+                    <span>{t.modal.editRouteTitle}</span>
+                  </button>
 
-                    <button
-                      onClick={() => {
-                        setIsMenuOpen(false);
-                        onEdit(route);
-                      }}
-                      className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium cursor-pointer"
-                    >
-                      <Edit2 className="w-3.5 h-3.5 text-slate-500" />
-                      <span>{t.modal.editRouteTitle}</span>
-                    </button>
+                  <div className="my-1 border-t border-slate-100" />
 
-                    <div className="my-1 border-t border-slate-100" />
-
-                    <button
-                      onClick={() => {
-                        setIsMenuOpen(false);
-                        onDelete(route.id);
-                      }}
-                      className="w-full px-3.5 py-2 text-left text-rose-600 hover:bg-rose-50 flex items-center gap-2 font-semibold cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>{t.modal.deleteButton}</span>
-                    </button>
-                  </div>
-                )}
-              </div>
+                  <button
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      onDelete(route.id);
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-rose-600 hover:bg-rose-50 flex items-center gap-2 font-semibold cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>{t.modal.deleteButton}</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

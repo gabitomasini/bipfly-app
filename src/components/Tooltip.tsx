@@ -46,7 +46,7 @@ export default function Tooltip({
 
   return (
     <div
-      className={`relative inline-flex ${className}`}
+      className={`relative inline-flex items-center justify-center ${className}`}
       onMouseEnter={showTooltip}
       onMouseLeave={hideTooltip}
       onFocus={showTooltip}
