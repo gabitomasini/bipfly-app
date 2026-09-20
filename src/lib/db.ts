@@ -623,13 +623,19 @@ export function listRoutes(
     userId = filterOrActiveOnly.userId;
   }
 
+  // Subconsulta estrita para correspondência de histórico de cotações:
+  // Exige exatamente mesma origem, mesmo destino, mesma data de ida, mesmo tipo de viagem (one_way vs round_trip) e mesma data de retorno.
   const historySubquery = `
     FROM flight_history 
-    WHERE (route_id = r.id OR (origin = r.origin AND destination = r.destination AND flight_date = r.flight_date))
-      AND origin = r.origin 
+    WHERE origin = r.origin 
       AND destination = r.destination 
       AND flight_date = r.flight_date
-      AND ((r.return_date IS NULL AND (return_date IS NULL OR return_date = '')) OR return_date = r.return_date)
+      AND COALESCE(trip_type, 'one_way') = COALESCE(r.trip_type, 'one_way')
+      AND (
+        (COALESCE(r.trip_type, 'one_way') = 'round_trip' AND return_date = r.return_date AND return_date IS NOT NULL AND return_date != '')
+        OR
+        (COALESCE(r.trip_type, 'one_way') = 'one_way' AND (return_date IS NULL OR return_date = ''))
+      )
   `;
 
   const conditions: string[] = [];
@@ -674,11 +680,15 @@ export function findRouteById(id: number, userId?: number): MonitoredRoute | nul
   const db = getDatabase();
   const historySubquery = `
     FROM flight_history 
-    WHERE (route_id = r.id OR (origin = r.origin AND destination = r.destination AND flight_date = r.flight_date))
-      AND origin = r.origin 
+    WHERE origin = r.origin 
       AND destination = r.destination 
       AND flight_date = r.flight_date
-      AND ((r.return_date IS NULL AND (return_date IS NULL OR return_date = '')) OR return_date = r.return_date)
+      AND COALESCE(trip_type, 'one_way') = COALESCE(r.trip_type, 'one_way')
+      AND (
+        (COALESCE(r.trip_type, 'one_way') = 'round_trip' AND return_date = r.return_date AND return_date IS NOT NULL AND return_date != '')
+        OR
+        (COALESCE(r.trip_type, 'one_way') = 'one_way' AND (return_date IS NULL OR return_date = ''))
+      )
   `;
 
   const conditions = ["r.id = ?"];
@@ -1049,9 +1059,9 @@ export function bulkInsertHistoricalFlightPrices(
 
   const insertHistoryStmt = db.prepare(`
     INSERT INTO flight_history (
-      searched_at, origin, destination, flight_date, return_date, trip_type, lowest_price, currency,
+      searched_at, origin, destination, flight_date, return_date, trip_type, passengers, children, infants_in_lap, lowest_price, currency,
       route_id, airline, flight_number, departure_time, arrival_time, stops, duration_minutes, booking_link
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertPriceStmt = db.prepare(`
@@ -1081,6 +1091,9 @@ export function bulkInsertHistoricalFlightPrices(
         route.flightDate,
         route.returnDate || null,
         route.tripType || "one_way",
+        route.passengers || 1,
+        route.children || 0,
+        route.infantsInLap || 0,
         pt.price,
         pt.currency || "BRL",
         route.id,
@@ -1115,11 +1128,15 @@ export function getHistoryByRoute(routeId: number, limit = 50): FlightHistoryEnt
   const stmt = db.prepare(`
     SELECT h.* FROM flight_history h
     JOIN monitored_routes r ON r.id = ?
-    WHERE (h.route_id = r.id OR (h.origin = r.origin AND h.destination = r.destination AND h.flight_date = r.flight_date))
-      AND h.origin = r.origin 
+    WHERE h.origin = r.origin 
       AND h.destination = r.destination 
       AND h.flight_date = r.flight_date
-      AND ((r.return_date IS NULL AND (h.return_date IS NULL OR h.return_date = '')) OR h.return_date = r.return_date)
+      AND COALESCE(h.trip_type, 'one_way') = COALESCE(r.trip_type, 'one_way')
+      AND (
+        (COALESCE(r.trip_type, 'one_way') = 'round_trip' AND h.return_date = r.return_date AND h.return_date IS NOT NULL AND h.return_date != '')
+        OR
+        (COALESCE(r.trip_type, 'one_way') = 'one_way' AND (h.return_date IS NULL OR h.return_date = ''))
+      )
     ORDER BY h.searched_at DESC, h.id DESC 
     LIMIT ?
   `);

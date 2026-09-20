@@ -40,16 +40,25 @@ Este código é válido por 15 minutos. Se você não solicitou este código, ig
 
   // Se houver chave do Resend configurada
   const resendApiKey = process.env.RESEND_API_KEY;
+  console.log(`[EMAIL OTP] Verificando chave Resend... Presente? ${Boolean(resendApiKey)} (Tamanho: ${resendApiKey?.length || 0})`);
+  if (!resendApiKey) {
+    const matchingKeys = Object.keys(process.env).filter(k => k.toLowerCase().includes('resend') || k.toLowerCase().includes('email'));
+    console.log(`[EMAIL OTP] ⚠️ RESEND_API_KEY não foi encontrada. Variáveis detectadas no process.env:`, matchingKeys);
+  }
+  
   if (resendApiKey) {
     try {
+      const fromAddress = process.env.EMAIL_FROM || "Radar de Passagens <onboarding@resend.dev>";
+      console.log(`[EMAIL OTP] 🚀 Enviando via Resend para ${email} (De: ${fromAddress})...`);
+
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${resendApiKey}`,
+          Authorization: `Bearer ${resendApiKey.trim()}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: process.env.EMAIL_FROM || "Radar de Passagens <alertas@resend.dev>",
+          from: fromAddress,
           to: [email],
           subject,
           text: plainText,
@@ -67,14 +76,17 @@ Este código é válido por 15 minutos. Se você não solicitou este código, ig
         }),
       });
 
+      const data = await res.json().catch(() => null);
       if (res.ok) {
+        console.log(`[EMAIL OTP] ✅ Resend entregou com sucesso! Email ID: ${data?.id}`);
         logger.info("NOTIFICATION", `E-mail OTP enviado com sucesso para ${email}`);
         return true;
       } else {
-        const errorText = await res.text();
-        logger.error("NOTIFICATION", `Falha ao enviar e-mail OTP via Resend (${res.status}): ${errorText}`);
+        console.error(`[EMAIL OTP] ❌ Erro Resend HTTP ${res.status}:`, data);
+        logger.error("NOTIFICATION", `Falha ao enviar e-mail OTP via Resend (${res.status}): ${JSON.stringify(data)}`);
       }
     } catch (err: any) {
+      console.error(`[EMAIL OTP] ❌ Exceção ao chamar Resend: ${err.message}`);
       logger.error("NOTIFICATION", `Erro ao conectar com API de e-mail: ${err.message}`);
     }
   }
@@ -141,7 +153,7 @@ Você pode acompanhar o histórico de preços a qualquer momento acessando o Rad
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: process.env.EMAIL_FROM || "Radar de Passagens <alertas@resend.dev>",
+          from: process.env.EMAIL_FROM || "Radar de Passagens <onboarding@resend.dev>",
           to: [email],
           subject,
           text: plainText,

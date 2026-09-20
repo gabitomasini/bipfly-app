@@ -50,65 +50,27 @@ export function formatDuration(minutes?: number | null): string {
   return `${h}h ${m}m`;
 }
 
-export const AIRPORT_NAMES: Record<string, string> = {
-  SAO: "São Paulo (All - GRU/CGH/VCP)",
-  GRU: "São Paulo (Guarulhos)",
-  CGH: "São Paulo (Congonhas)",
-  VCP: "Campinas (Viracopos)",
-  RIO: "Rio de Janeiro (All - GIG/SDU)",
-  GIG: "Rio de Janeiro (Galeão)",
-  SDU: "Rio de Janeiro (Santos Dumont)",
-  BHZ: "Belo Horizonte (All)",
-  CNF: "Belo Horizonte (Confins)",
-  BSB: "Brasília",
-  SSA: "Salvador",
-  REC: "Recife",
-  FOR: "Fortaleza",
-  POA: "Porto Alegre",
-  CWB: "Curitiba",
-  FLN: "Florianópolis",
-  MAO: "Manaus",
-  BEL: "Belém",
-  MIA: "Miami",
-  MCO: "Orlando",
-  NYC: "New York (All - JFK/EWR/LGA)",
-  JFK: "New York (JFK)",
-  EWR: "New York (Newark)",
-  LGA: "New York (LaGuardia)",
-  LIS: "Lisbon",
-  OPO: "Porto",
-  MAD: "Madrid",
-  BCN: "Barcelona",
-  PAR: "Paris (All - CDG/ORY)",
-  CDG: "Paris (Charles de Gaulle)",
-  ORY: "Paris (Orly)",
-  ROM: "Rome (All - FCO/CIA)",
-  FCO: "Rome (Fiumicino)",
-  MIL: "Milan (All - MXP/LIN/BGY)",
-  MXP: "Milan (Malpensa)",
-  LON: "London (All - LHR/LGW/STN)",
-  LHR: "London (Heathrow)",
-  LGW: "London (Gatwick)",
-  AMS: "Amsterdam",
-  FRA: "Frankfurt",
-  BUE: "Buenos Aires (All - EZE/AEP)",
-  EZE: "Buenos Aires (Ezeiza)",
-  AEP: "Buenos Aires (Aeroparque)",
-  SCL: "Santiago",
-  TYO: "Tokyo (All - HND/NRT)",
-  HND: "Tokyo (Haneda)",
-  NRT: "Tokyo (Narita)",
-};
+import { getAirportByIata } from "./airports-data";
 
 export function getAirportName(iata: string): string {
   const code = (iata || "").toUpperCase().trim();
-  return AIRPORT_NAMES[code] || code;
+  const airport = getAirportByIata(code);
+  if (airport) {
+    if (airport.isMetropolitan) {
+      return `${airport.city} (${airport.name})`;
+    }
+    return airport.city !== airport.name ? `${airport.city} (${airport.name})` : airport.name;
+  }
+  return code;
 }
 
 export function getAirportCity(iata: string): string {
-  const full = getAirportName(iata);
-  const city = full.split("(")[0].trim();
-  return city || (iata || "").toUpperCase().trim();
+  const code = (iata || "").toUpperCase().trim();
+  const airport = getAirportByIata(code);
+  if (airport) {
+    return airport.city;
+  }
+  return code;
 }
 
 export function getGoogleFlightsUrl(

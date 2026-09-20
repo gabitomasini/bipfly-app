@@ -327,7 +327,7 @@ export default function RouteModal({
           </div>
 
           {/* 2. Origin and Destination */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 relative z-20">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 relative z-40">
             <AirportCombobox
               label={t.modal.originLabel}
               value={origin}
@@ -388,7 +388,7 @@ export default function RouteModal({
           </div>
 
           {/* 4. Passageiros (Adultos, Crianças, Bebês de Colo) - Steppers Modernos */}
-          <div className="space-y-2 p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200">
+          <div className="space-y-2 p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200 relative z-20">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-indigo-600" />
@@ -496,7 +496,7 @@ export default function RouteModal({
           </div>
 
           {/* 5. Flight Preference: Compact Segmented Control */}
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 relative z-10">
             <label className="block text-xs font-bold text-slate-700">
               {t.modal.flightPreferenceLabel}
             </label>
@@ -546,8 +546,8 @@ export default function RouteModal({
             )}
           </div>
 
-          {/* 5. Target Price (R$) per traveler with Group Estimate */}
-          <div className="space-y-1.5">
+          {/* 6. Target Price (R$) per traveler with Group Estimate */}
+          <div className="space-y-1.5 relative z-0">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
                 <DollarSign className="w-3.5 h-3.5 text-emerald-600" />

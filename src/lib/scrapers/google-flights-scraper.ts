@@ -341,16 +341,27 @@ export async function scrapeGoogleFlights(
 export async function scrapeGoogleFlightsPriceHistory(
   origin: string,
   destination: string,
-  flightDate: string
+  flightDate: string,
+  returnDate?: string | null,
+  tripType?: "one_way" | "round_trip",
+  passengers = 1,
+  children = 0,
+  infantsInLap = 0
 ): Promise<{ date: string; timestampMs: number; price: number; currency: string }[]> {
   const normOrigin = origin.trim().toUpperCase();
   const normDestination = destination.trim().toUpperCase();
-  const searchUrl = `https://www.google.com/travel/flights?q=Flights%20to%20${normDestination}%20from%20${normOrigin}%20on%20${flightDate}%20oneway&curr=BRL&hl=pt-BR`;
+  const isRoundTrip = tripType === "round_trip" || (Boolean(returnDate) && tripType !== "one_way");
+  const totalPax = (passengers || 1) + (children || 0) + (infantsInLap || 0);
+  const paxParam = totalPax > 1 ? `&passengers=${totalPax}` : "";
+
+  const searchUrl = isRoundTrip && returnDate
+    ? `https://www.google.com/travel/flights?q=Flights%20to%20${normDestination}%20from%20${normOrigin}%20on%20${flightDate}%20through%20${returnDate}&curr=BRL&hl=pt-BR${paxParam}`
+    : `https://www.google.com/travel/flights?q=Flights%20to%20${normDestination}%20from%20${normOrigin}%20on%20${flightDate}%20oneway&curr=BRL&hl=pt-BR${paxParam}`;
 
   logger.info(
     "SCRAPER",
-    `📈 [Histórico Retroativo] Consultando série temporal no Google Flights para ${normOrigin} → ${normDestination} (${flightDate})`,
-    { url: searchUrl, origin: normOrigin, destination: normDestination, flightDate }
+    `📈 [Histórico Retroativo] Consultando série temporal no Google Flights (${isRoundTrip ? "Ida e Volta" : "Somente Ida"}) para ${normOrigin} → ${normDestination} (${flightDate}${returnDate ? ` até ${returnDate}` : ""})`,
+    { url: searchUrl, origin: normOrigin, destination: normDestination, flightDate, returnDate: returnDate || null, tripType: isRoundTrip ? "round_trip" : "one_way", totalPax }
   );
 
   let browser;
@@ -414,17 +425,18 @@ export async function scrapeGoogleFlightsPriceHistory(
       try {
         const arrayJson = `[${match[1]}]`;
         const rawPoints: [number, number][] = JSON.parse(arrayJson);
-        for (const [ts, price] of rawPoints) {
-          const d = new Date(ts);
-          if (!isNaN(d.getTime()) && price >= 50 && price <= 300000) {
-            points.push({
-              date: d.toISOString().split("T")[0],
-              timestampMs: ts,
-              price: Number(price),
-              currency: "BRL",
-            });
+          for (const [ts, price] of rawPoints) {
+            const d = new Date(ts);
+            if (!isNaN(d.getTime()) && price >= 50 && price <= 300000) {
+              const unitPrice = totalPax > 1 ? Math.round((Number(price) / totalPax) * 100) / 100 : Number(price);
+              points.push({
+                date: d.toISOString().split("T")[0],
+                timestampMs: ts,
+                price: unitPrice,
+                currency: "BRL",
+              });
+            }
           }
-        }
       } catch {}
     }
 

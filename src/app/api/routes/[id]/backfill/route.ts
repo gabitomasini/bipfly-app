@@ -31,7 +31,12 @@ export async function POST(
     const points = await scrapeGoogleFlightsPriceHistory(
       route.origin,
       route.destination,
-      route.flightDate
+      route.flightDate,
+      route.returnDate,
+      route.tripType,
+      route.passengers || 1,
+      route.children || 0,
+      route.infantsInLap || 0
     );
 
     if (points.length === 0) {

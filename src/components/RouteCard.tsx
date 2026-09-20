@@ -216,7 +216,7 @@ export default function RouteCard({
 
   return (
     <div
-      className={`relative p-4 sm:px-6 sm:py-5 rounded-2xl border transition-all hover:shadow-md ${
+      className={`relative p-3.5 sm:px-5 sm:py-4 rounded-2xl border transition-all hover:shadow-md ${
         isMenuOpen ? "z-30" : "z-0"
       } ${
         !route.isActive
@@ -226,11 +226,11 @@ export default function RouteCard({
           : "border-slate-200/90 bg-white shadow-2xs"
       }`}
     >
-      {/* UMA ÚNICA LINHA HORIZONTAL */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 sm:gap-4">
+      {/* LINHA RESPONSIVA FLEXÍVEL */}
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3.5 sm:gap-4">
         {/* Bloco Esquerdo (Contexto): GRU → CWB (se simples) • Data • LATAM • 1 Adult */}
         <div
-          className={`flex items-center gap-3 text-xs flex-wrap shrink-0 ${
+          className={`flex items-center gap-2.5 sm:gap-3 text-xs flex-wrap min-w-0 flex-1 ${
             !route.isActive ? "opacity-75" : "text-slate-600"
           }`}
         >
@@ -293,7 +293,7 @@ export default function RouteCard({
         </div>
 
         {/* Bloco Direito: Preço alinhado à direita + Hint de alerta + Ações integradas */}
-        <div className="flex items-center gap-3 sm:gap-4 shrink-0 justify-between sm:justify-end">
+        <div className="flex items-center gap-3 sm:gap-4 flex-wrap sm:flex-nowrap justify-between xl:justify-end shrink-0 max-w-full">
           {/* Preço Alinhado à Direita com Hint de Alerta de Preço */}
           <div className="flex items-center gap-2 justify-end text-right shrink-0">
             <div className={`flex flex-col items-end ${!route.isActive ? "opacity-75" : ""}`}>

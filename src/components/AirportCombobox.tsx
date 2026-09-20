@@ -75,7 +75,7 @@ export default function AirportCombobox({
   };
 
   return (
-    <div className="relative space-y-1.5" ref={containerRef}>
+    <div className={`relative space-y-1.5 ${isOpen ? "z-50" : "z-10"}`} ref={containerRef}>
       <label className="block text-xs font-bold text-slate-700">
         {label}
       </label>
@@ -162,7 +162,7 @@ export default function AirportCombobox({
 
       {/* Menu Suspenso de Sugestões */}
       {isOpen && (
-        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden animate-fadeIn">
+        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-fadeIn">
           <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 text-xs">
             {filteredAirports.length === 0 ? (
               <div className="p-4 text-center">

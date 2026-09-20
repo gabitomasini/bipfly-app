@@ -18,13 +18,14 @@ export async function POST(request: Request) {
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // 1. Rate Limiting: Máximo de 3 envios a cada 15 minutos por e-mail
+    // 1. Rate Limiting: relaxado para testes locais
+    const isDev = process.env.NODE_ENV !== "production";
     const recentAttempts = countRecentLoginCodesByEmail(cleanEmail, 15);
-    if (recentAttempts >= 3) {
+    if (!isDev && recentAttempts >= 20) {
       logger.warn("NOTIFICATION", `Rate limit excedido para solicitação de código OTP: ${cleanEmail}`);
       return NextResponse.json(
         {
-          error: "Você atingiu o limite de envios. Por favor, aguarde 15 minutos antes de solicitar um novo código.",
+          error: "Você atingiu o limite de envios. Por favor, aguarde alguns instantes antes de solicitar um novo código.",
         },
         { status: 429 }
       );
