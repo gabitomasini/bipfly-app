@@ -441,4 +441,14 @@ export interface TranslationDictionary {
     loginSuccessToast: string;
     routeCreatedSuccessToast: string;
   };
+  scanning: {
+    activeTitle: string;
+    activeSubtitle: string;
+    scanningRoute: string;
+    allRoutes: string;
+    completed: string;
+    completedDesc: string;
+    elapsed: string;
+    inProgress: string;
+  };
 }

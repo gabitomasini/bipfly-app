@@ -17,6 +17,7 @@ import {
   Calendar,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Clock,
 } from "lucide-react";
 import { MonitoredRoute, FlightOption } from "@/lib/types";
@@ -25,6 +26,7 @@ import AirlineBadge from "@/components/AirlineBadge";
 import Tooltip from "@/components/Tooltip";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { useTranslation } from "@/lib/i18n/context";
+import { useScanning } from "@/context/ScanningContext";
 
 interface RouteCardProps {
   route: MonitoredRoute;
@@ -48,7 +50,9 @@ export default function RouteCard({
   isInsideGroup = false,
 }: RouteCardProps) {
   const { t, formatCurrency, formatUsdEstimate, formatDate, formatDateTime, locale } = useTranslation();
+  const { isScanning, activeRouteId } = useScanning();
   const [isSearching, setIsSearching] = useState(false);
+  const isCardSearching = isSearching || (isScanning && (activeRouteId === route.id || activeRouteId === null));
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isBackfilling, setIsBackfilling] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -297,33 +301,44 @@ export default function RouteCard({
           {/* Preço Alinhado à Direita com Hint de Alerta de Preço */}
           <div className="flex items-center gap-2 justify-end text-right shrink-0">
             <div className={`flex flex-col items-end ${!route.isActive ? "opacity-75" : ""}`}>
-              <div className="flex items-baseline gap-1.5">
-                <span
-                  className={`text-xl sm:text-2xl font-black tracking-tight tabular-nums leading-none ${
-                    !route.isActive
-                      ? "text-slate-400"
-                      : hasPrice
-                      ? isBelowLimit
+              {hasPrice ? (
+                <div className="flex items-baseline gap-1.5">
+                  <span
+                    className={`text-xl sm:text-2xl font-black tracking-tight tabular-nums leading-none ${
+                      !route.isActive
+                        ? "text-slate-400"
+                        : isBelowLimit
                         ? "text-emerald-600"
                         : "text-slate-900"
-                      : "text-slate-400"
-                  }`}
-                >
-                  {hasPrice ? formatCurrency(currentPrice) : "—"}
-                </span>
+                    }`}
+                  >
+                    {formatCurrency(currentPrice)}
+                  </span>
 
-                {hasPrice && (
                   <span className="text-[11px] font-bold text-slate-500">
                     {t.routes.perPersonSuffix || "/ pess."}
                   </span>
-                )}
 
-                {locale === "en" && hasPrice && (
-                  <span className="text-xs text-slate-400 font-normal">
-                    ({formatUsdEstimate(currentPrice, "~")})
+                  {locale === "en" && (
+                    <span className="text-xs text-slate-400 font-normal">
+                      ({formatUsdEstimate(currentPrice, "~")})
+                    </span>
+                  )}
+                </div>
+              ) : route.lastError ? (
+                <div className="flex flex-col items-end">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200/90 shadow-2xs">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>{locale === "en" ? "No flights available" : "Sem vôos no trecho"}</span>
                   </span>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-xl sm:text-2xl font-black tracking-tight tabular-nums leading-none text-slate-400">
+                    —
+                  </span>
+                </div>
+              )}
 
               {totalPax > 1 && hasPrice && (
                 <span className="text-[10px] text-slate-400 font-semibold mt-0.5">
@@ -348,10 +363,17 @@ export default function RouteCard({
                       </span>
                     </div>
                   ) : !hasPrice ? (
-                    <div className="flex items-center gap-1.5 text-[11px]">
-                      <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                      <span>{t.dashboard.table.pendingScan}</span>
-                    </div>
+                    route.lastError ? (
+                      <div className="flex items-start gap-1.5 text-[11px] max-w-xs text-left">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                        <span>{route.lastError}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-[11px]">
+                        <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>{t.dashboard.table.pendingScan}</span>
+                      </div>
+                    )
                   ) : isBelowLimit ? (
                     <div className="flex items-center gap-1.5 text-[11px]">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
@@ -378,7 +400,9 @@ export default function RouteCard({
                     !route.isActive
                       ? "bg-amber-50 text-amber-600 border border-amber-200"
                       : !hasPrice
-                      ? "bg-amber-50 text-amber-600 border border-amber-200"
+                      ? route.lastError
+                        ? "bg-amber-100 text-amber-800 border border-amber-300"
+                        : "bg-amber-50 text-amber-600 border border-amber-200"
                       : isBelowLimit
                       ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
                       : "bg-rose-50 text-rose-600 border border-rose-200/80"
@@ -388,7 +412,11 @@ export default function RouteCard({
                   {!route.isActive ? (
                     <Pause className="w-3 h-3 text-amber-600" />
                   ) : !hasPrice ? (
-                    <Clock className="w-3 h-3" />
+                    route.lastError ? (
+                      <AlertTriangle className="w-3 h-3 text-amber-700" />
+                    ) : (
+                      <Clock className="w-3 h-3" />
+                    )
                   ) : isBelowLimit ? (
                     <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                   ) : (
@@ -423,11 +451,11 @@ export default function RouteCard({
             <Tooltip content={t.routes.cardSearchTooltip}>
               <button
                 onClick={handleSearchClick}
-                disabled={isSearching}
+                disabled={isCardSearching}
                 className="inline-flex items-center justify-center h-9 w-9 rounded-xl text-sky-600 bg-sky-50 hover:bg-sky-100 hover:text-sky-700 border border-sky-100 transition-all cursor-pointer disabled:opacity-40 shrink-0"
                 aria-label={t.routes.cardSearchTooltip}
               >
-                <RefreshCw className={`w-4 h-4 ${isSearching ? "animate-spin text-sky-600" : ""}`} />
+                <RefreshCw className={`w-4 h-4 ${isCardSearching ? "animate-spin text-sky-600" : ""}`} />
               </button>
             </Tooltip>
 
@@ -520,6 +548,21 @@ export default function RouteCard({
         <div className="mt-2.5 px-3.5 py-2 rounded-xl bg-sky-50 border border-sky-200/80 text-xs text-sky-900 font-semibold flex items-center gap-2 animate-fadeIn">
           <Sparkles className="w-3.5 h-3.5 text-sky-600 shrink-0" />
           <span>{feedback}</span>
+        </div>
+      )}
+
+      {/* Warning Notice for Routes with No Flights Available */}
+      {!hasPrice && route.lastError && (
+        <div className="mt-2.5 px-3.5 py-2.5 rounded-xl bg-amber-50/90 border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5 animate-fadeIn">
+          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-0.5">
+            <p className="font-bold text-amber-900 leading-tight">
+              {locale === "en" ? "Flight Route Notice:" : "Aviso sobre a rota:"}
+            </p>
+            <p className="text-[11px] text-amber-800 font-medium leading-relaxed">
+              {route.lastError}
+            </p>
+          </div>
         </div>
       )}
 

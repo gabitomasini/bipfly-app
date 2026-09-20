@@ -17,6 +17,7 @@ import { MonitoredRoute, FlightOption } from "@/lib/types";
 import { getAirportName } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n/context";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { useScanning } from "@/context/ScanningContext";
 import {
   Plus,
   Layers,
@@ -31,6 +32,7 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
+  AlertTriangle,
   Clock,
   LogIn,
 } from "lucide-react";
@@ -83,9 +85,13 @@ function RotasContent() {
     }
   }, [addToast, t.toasts.connError]);
 
+  const { registerRefreshCallback } = useScanning();
+
   useEffect(() => {
     fetchRoutes();
-  }, [fetchRoutes]);
+    const unregister = registerRefreshCallback(fetchRoutes);
+    return () => unregister();
+  }, [fetchRoutes, registerRefreshCallback]);
 
   const handleToggleActive = async (id: number, currentActive: boolean) => {
     try {
@@ -351,7 +357,7 @@ function RotasContent() {
     <div className="min-h-screen pb-24 bg-slate-50/70">
       <Navbar onSearchTriggered={fetchRoutes} />
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -737,10 +743,17 @@ function RotasContent() {
                       </div>
                     ) : (
                       <div className="flex flex-col items-end gap-1 shrink-0 text-right">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                          <Clock className="w-3 h-3" />
-                          <span>{t.dashboard.table.pendingScan}</span>
-                        </span>
+                        {group.routes.some((r) => r.lastError) ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                            <AlertTriangle className="w-3 h-3 text-amber-600" />
+                            <span>{locale === "en" ? "No flights found" : "Sem vôos no trecho"}</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                            <Clock className="w-3 h-3" />
+                            <span>{t.dashboard.table.pendingScan}</span>
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -844,7 +857,7 @@ export default function RotasPage() {
       fallback={
         <div className="min-h-screen pb-24 bg-slate-50/60">
           <Navbar />
-          <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-6">
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6">
             <SkeletonLoader variant="card" count={4} />
           </main>
         </div>

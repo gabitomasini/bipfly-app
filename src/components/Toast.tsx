@@ -103,12 +103,12 @@ function ToastItem({
 
   return (
     <div
-      className={`flex items-start gap-2.5 px-4 py-3 rounded-xl border shadow-lg max-w-sm transition-all duration-300 ${
+      className={`flex items-start gap-2.5 px-4 py-3 rounded-2xl border shadow-xl w-full transition-all duration-300 backdrop-blur-md ${
         config.bg
       } ${config.border} ${config.text} ${
         isExiting
-          ? "opacity-0 translate-x-4 scale-95"
-          : "opacity-100 translate-x-0 scale-100 animate-fadeIn"
+          ? "opacity-0 -translate-y-3 scale-95"
+          : "opacity-100 translate-y-0 scale-100 animate-fadeIn"
       }`}
       role="alert"
       aria-live="polite"
@@ -121,7 +121,7 @@ function ToastItem({
       </span>
       <button
         onClick={handleClose}
-        className="shrink-0 p-0.5 rounded hover:bg-black/5 transition-colors cursor-pointer"
+        className="shrink-0 p-1 rounded-lg hover:bg-black/5 transition-colors cursor-pointer"
         aria-label="Fechar notificação"
       >
         <X className="w-3.5 h-3.5 opacity-60" />
@@ -152,7 +152,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const toastContainer =
     mounted && portalRef.current
       ? createPortal(
-          <div className="fixed bottom-6 right-6 z-[60] flex flex-col gap-2.5 pointer-events-auto">
+          <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-2.5 pointer-events-auto w-full max-w-md px-4">
             {toasts.map((toast) => (
               <ToastItem
                 key={toast.id}

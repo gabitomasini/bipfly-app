@@ -5,7 +5,9 @@ import BottomNav from "@/components/BottomNav";
 import { ToastProvider } from "@/components/Toast";
 import { LanguageProvider } from "@/lib/i18n/context";
 import { AuthProvider } from "@/lib/auth/AuthContext";
+import { ScanningProvider } from "@/context/ScanningContext";
 import AuthModal from "@/components/auth/AuthModal";
+import ScanningIndicator from "@/components/ScanningIndicator";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -32,9 +34,12 @@ export default function RootLayout({
         <LanguageProvider>
           <AuthProvider>
             <ToastProvider>
-              {children}
-              <AuthModal />
-              <BottomNav />
+              <ScanningProvider>
+                {children}
+                <AuthModal />
+                <ScanningIndicator />
+                <BottomNav />
+              </ScanningProvider>
             </ToastProvider>
           </AuthProvider>
         </LanguageProvider>

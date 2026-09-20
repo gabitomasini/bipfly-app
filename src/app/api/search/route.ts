@@ -10,7 +10,11 @@ export async function POST(request: Request) {
 
     if (routeId) {
       const result = await scanRoute(Number(routeId));
-      return NextResponse.json({ success: result.success, data: result });
+      return NextResponse.json({
+        success: result.success,
+        data: result,
+        error: result.error || (result.success ? undefined : "Nenhum voo encontrado"),
+      });
     } else {
       const result = await scanAllActiveRoutes();
       return NextResponse.json({ success: true, data: result });

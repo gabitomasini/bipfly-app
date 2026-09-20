@@ -307,16 +307,8 @@ export async function scrapeGoogleFlights(
     uniqueOptions.sort((a, b) => a.price - b.price);
 
     if (uniqueOptions.length === 0) {
-      const isSpecificSao = ["GRU", "CGH", "VCP"].includes(normOrigin);
-      const isSpecificRio = ["GIG", "SDU"].includes(normOrigin);
-      const tip = isSpecificSao
-        ? " (Dica: tente usar 'SAO' para buscar voos de todos os aeroportos de São Paulo, como CGH ou VCP)"
-        : isSpecificRio
-        ? " (Dica: tente usar 'RIO' para buscar voos de todos os aeroportos do Rio de Janeiro, como GIG ou SDU)"
-        : "";
-
       throw new ScraperError(
-        `Nenhum voo comercial disponível no Google Flights para ${normOrigin} → ${normDestination} nesta data${tip}.`
+        `Nenhum voo encontrado para ${normOrigin} → ${normDestination} nesta data.`
       );
     }
 
@@ -335,7 +327,10 @@ export async function scrapeGoogleFlights(
     return finalTop;
   } catch (err: any) {
     logger.error("SCRAPER", `Falha no Scraper para ${normOrigin}→${normDestination}: ${err.message}`, { error: err.stack });
-    throw new ScraperError(`Falha no Web Scraper do Google Flights: ${err.message}`);
+    if (err instanceof ScraperError) {
+      throw err;
+    }
+    throw new ScraperError(err.message || "Erro ao consultar voos no Google Flights.");
   } finally {
     if (browser) {
       await browser.close().catch(() => {});

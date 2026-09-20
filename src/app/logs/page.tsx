@@ -7,6 +7,7 @@ import Tooltip from "@/components/Tooltip";
 import { AppLog, LogCategory, LogLevel, LogStats } from "@/lib/types";
 import { formatDateTimeLocale, formatRelativeTimeLocale } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
+import { useScanning } from "@/context/ScanningContext";
 import {
   Terminal,
   RefreshCw,
@@ -34,6 +35,7 @@ import {
 
 export default function LogsPage() {
   const { t, locale } = useTranslation();
+  const { isScanning, scanAllRoutes } = useScanning();
   const [logs, setLogs] = useState<AppLog[]>([]);
   const [stats, setStats] = useState<LogStats>({
     total: 0,
@@ -277,10 +279,10 @@ export default function LogsPage() {
   };
 
   return (
-    <div className="min-h-screen pb-16 bg-slate-50">
+    <div className="min-h-screen pb-24 bg-slate-50/70">
       <Navbar onSearchTriggered={() => fetchInitialLogs()} />
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6">
         {/* Header Principal & Indicador de Stream */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
@@ -319,11 +321,11 @@ export default function LogsPage() {
             <Tooltip content={t.logs.runNowTooltip}>
               <button
                 onClick={handleTriggerSearchNow}
-                disabled={isSearchingNow}
+                disabled={isScanning}
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
               >
-                <Zap className={`w-3.5 h-3.5 ${isSearchingNow ? "animate-spin text-white" : "text-amber-300"}`} />
-                <span>{isSearchingNow ? t.logs.running : t.logs.runNow}</span>
+                <Zap className={`w-3.5 h-3.5 ${isScanning ? "animate-spin text-white" : "text-amber-300"}`} />
+                <span>{isScanning ? t.logs.running : t.logs.runNow}</span>
               </button>
             </Tooltip>
 

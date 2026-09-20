@@ -1,4 +1,4 @@
-import { findRouteById, listRoutes, recordFlightHistory, getAppSettings } from "./db";
+import { findRouteById, listRoutes, recordFlightHistory, getAppSettings, updateRouteScanStatus } from "./db";
 import { fetchSerpApiFlights } from "./flight-tracker";
 import { scrapeGoogleFlights } from "./scrapers/google-flights-scraper";
 import { sendNtfyNotification } from "./notifier";
@@ -128,8 +128,11 @@ export async function scanRoute(routeId: number): Promise<ScanResult> {
   }
 
   if (options.length === 0) {
-    const errorMsg = lastError || "Nenhum voo encontrado para esta rota na data selecionada.";
+    const errorMsg = lastError
+      ? lastError.replace(/^Falha no Web Scraper do Google Flights:\s*/i, "")
+      : `Nenhum voo encontrado para ${route.origin} → ${route.destination} nesta data.`;
     logger.warn("SCANNER", `Nenhum voo obtido para ${route.origin}→${route.destination}: ${errorMsg}`, undefined, route.id);
+    updateRouteScanStatus(route.id, searchedAt, errorMsg);
     return {
       success: false,
       routeId: route.id,
@@ -239,6 +242,8 @@ export async function scanRoute(routeId: number): Promise<ScanResult> {
     stopCount: bestWithStops ? (bestWithStops.stops ?? 1) : null,
     searchedAt,
   });
+
+  updateRouteScanStatus(route.id, searchedAt, null);
 
   logger.success(
     "SCANNER",

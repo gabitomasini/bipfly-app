@@ -19,6 +19,7 @@ export default function LanguageSwitcher({
     return (
       <Tooltip
         content={locale === "en" ? "Switch to Portuguese (BR)" : "Mudar para Inglês (US)"}
+        position="bottom"
       >
         <button
           type="button"

@@ -18,6 +18,7 @@ import Tooltip from "@/components/Tooltip";
 import { useToast } from "@/components/Toast";
 import { useTranslation } from "@/lib/i18n/context";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { useScanning } from "@/context/ScanningContext";
 import {
   Plus,
   ArrowRight,
@@ -31,6 +32,7 @@ import {
   Trash2,
   RefreshCw,
   Clock,
+  AlertTriangle,
   MoreHorizontal,
   LogIn,
 } from "lucide-react";
@@ -39,6 +41,7 @@ export default function DashboardPage() {
   const { addToast } = useToast();
   const { t, formatCurrency, formatUsdEstimate, formatDate, locale } = useTranslation();
   const { user, openAuthModal } = useAuth();
+  const { isScanning, activeRouteId, scanSingleRoute, registerRefreshCallback } = useScanning();
   const [routes, setRoutes] = useState<MonitoredRoute[]>([]);
   const [schedulerStatus, setSchedulerStatus] = useState<SchedulerStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -94,38 +97,16 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [fetchDashboardData]);
+    const unregister = registerRefreshCallback(fetchDashboardData);
+    return () => unregister();
+  }, [fetchDashboardData, registerRefreshCallback]);
 
   // Single route instant search
   const handleSingleRouteSearch = async (route: MonitoredRoute) => {
-    if (searchingRouteId === route.id) return;
     setSearchingRouteId(route.id);
-    addToast(
-      locale === "en"
-        ? `Searching fares for ${route.origin} → ${route.destination}...`
-        : `Buscando cotação para ${route.origin} → ${route.destination}...`,
-      "info"
-    );
     try {
-      const res = await fetch("/api/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ routeId: route.id }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        addToast(
-          locale === "en"
-            ? `Price updated for ${route.origin} → ${route.destination}!`
-            : `Cotação atualizada para ${route.origin} → ${route.destination}!`,
-          "success"
-        );
-        fetchDashboardData();
-      } else {
-        addToast(json.error || t.toasts.searchFailed, "error");
-      }
-    } catch {
-      addToast(t.toasts.connError, "error");
+      await scanSingleRoute(route.id, `${route.origin} → ${route.destination}`);
+      fetchDashboardData();
     } finally {
       setSearchingRouteId(null);
     }
@@ -241,7 +222,7 @@ export default function DashboardPage() {
     <div className="min-h-screen pb-24 bg-slate-50/70">
       <Navbar onSearchTriggered={fetchDashboardData} />
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6">
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -456,7 +437,9 @@ export default function DashboardPage() {
                           route.infantsInLap || 0
                         );
 
-                      const isSearchingThis = searchingRouteId === route.id;
+                      const isSearchingThis =
+                        searchingRouteId === route.id ||
+                        (isScanning && (activeRouteId === route.id || activeRouteId === null));
 
                       return (
                         <tr
@@ -549,10 +532,19 @@ export default function DashboardPage() {
                           {/* Coluna 3: STATUS */}
                           <td className="py-3.5 px-3 sm:px-4 text-center whitespace-nowrap align-middle">
                             {!hasPrice ? (
-                              <span className="inline-flex items-center justify-center gap-1.5 w-[135px] py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs">
-                                <Clock className="w-3.5 h-3.5 shrink-0" />
-                                <span className="truncate">{t.dashboard.table.pendingScan}</span>
-                              </span>
+                              route.lastError ? (
+                                <Tooltip content={route.lastError}>
+                                  <span className="inline-flex items-center justify-center gap-1.5 w-[135px] py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs cursor-help">
+                                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                    <span className="truncate">{locale === "en" ? "No flights" : "Sem vôos"}</span>
+                                  </span>
+                                </Tooltip>
+                              ) : (
+                                <span className="inline-flex items-center justify-center gap-1.5 w-[135px] py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs">
+                                  <Clock className="w-3.5 h-3.5 shrink-0" />
+                                  <span className="truncate">{t.dashboard.table.pendingScan}</span>
+                                </span>
+                              )
                             ) : isBelow ? (
                               <span className="inline-flex items-center justify-center gap-1.5 w-[135px] py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs">
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -679,7 +671,9 @@ export default function DashboardPage() {
                       route.infantsInLap || 0
                     );
 
-                  const isSearchingThis = searchingRouteId === route.id;
+                  const isSearchingThis =
+                    searchingRouteId === route.id ||
+                    (isScanning && (activeRouteId === route.id || activeRouteId === null));
 
                   return (
                     <div
@@ -723,9 +717,16 @@ export default function DashboardPage() {
                               {t.dashboard.table.paused}
                             </span>
                           ) : !hasPrice ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700">
-                              {t.dashboard.table.pendingScan}
-                            </span>
+                            route.lastError ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                <AlertTriangle className="w-3 h-3 text-amber-700 shrink-0" />
+                                <span>{locale === "en" ? "No flights" : "Sem vôos"}</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700">
+                                {t.dashboard.table.pendingScan}
+                              </span>
+                            )
                           ) : isBelow ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
                               <CheckCircle2 className="w-3 h-3 text-emerald-600" />

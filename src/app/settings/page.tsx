@@ -251,10 +251,10 @@ export default function ConfiguracoesPage() {
   const activeProvider = settings.searchProvider;
 
   return (
-    <div className="min-h-screen pb-16 bg-slate-50">
+    <div className="min-h-screen pb-24 bg-slate-50/70">
       <Navbar />
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-8">
         {/* Header */}
         <div>
           <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2.5">

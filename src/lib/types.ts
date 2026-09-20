@@ -53,6 +53,7 @@ export interface MonitoredRoute {
   lastFlightNumber?: string | null;
   lastStops?: number | null;
   lastBookingLink?: string | null;
+  lastError?: string | null;
   latestDirectPrice?: number | null;
   latestDirectAirline?: string | null;
   latestStopPrice?: number | null;

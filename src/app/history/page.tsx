@@ -376,7 +376,7 @@ function HistoricoContent() {
     <div className="min-h-screen pb-24 bg-slate-50/70">
       <Navbar />
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6">
         {/* Header com Dropdown de Seleção de Rotas */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -1208,7 +1208,7 @@ export default function HistoricoPage() {
       fallback={
         <div className="min-h-screen pb-20 bg-slate-50/60">
           <Navbar />
-          <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-6">
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6">
             <div className="p-8 bg-white rounded-2xl border border-slate-200 text-center text-xs text-slate-500">
               Loading...
             </div>

@@ -441,4 +441,14 @@ export const en: TranslationDictionary = {
     loginSuccessToast: "Signed in successfully!",
     routeCreatedSuccessToast: "🎉 Monitoring activated! Route saved successfully.",
   },
+  scanning: {
+    activeTitle: "Searching Flight Prices",
+    activeSubtitle: "Checking real-time airfares across flight engines...",
+    scanningRoute: "Searching fares for",
+    allRoutes: "all active routes",
+    completed: "Search Completed",
+    completedDesc: "Flight price quotes updated successfully.",
+    elapsed: "Elapsed time",
+    inProgress: "In progress",
+  },
 };

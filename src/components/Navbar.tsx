@@ -9,6 +9,7 @@ import Tooltip from "@/components/Tooltip";
 import { useToast } from "@/components/Toast";
 import { useTranslation } from "@/lib/i18n/context";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { useScanning } from "@/context/ScanningContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 interface NavbarProps {
@@ -20,9 +21,9 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
   const { addToast } = useToast();
   const { t } = useTranslation();
   const { user, logout, openAuthModal } = useAuth();
+  const { isScanning, scanAllRoutes } = useScanning();
   const [schedulerStatus, setSchedulerStatus] = useState<SchedulerStatus | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
-  const [isSearching, setIsSearching] = useState(false);
 
   const fetchStatusAndSettings = async () => {
     try {
@@ -44,31 +45,11 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
   }, []);
 
   const handleRunAllNow = async () => {
-    setIsSearching(true);
-    addToast(`${t.toasts.searchStarted} ${t.toasts.searchStartedDesc}`, "info");
-
-    try {
-      const res = await fetch("/api/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const data = await res.json();
-      if (data.success) {
-        addToast(
-          `${t.toasts.searchStarted} ${t.toasts.searchStartedDesc}`,
-          "success"
-        );
-        onSearchTriggered?.();
-      } else {
-        addToast(data.error || t.toasts.searchFailed, "error");
-      }
-    } catch {
-      addToast(t.toasts.connError, "error");
-    } finally {
-      setIsSearching(false);
-      fetchStatusAndSettings();
+    const success = await scanAllRoutes();
+    if (success) {
+      onSearchTriggered?.();
     }
+    fetchStatusAndSettings();
   };
 
   const navLinks = [
@@ -143,7 +124,7 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
                 <span className="hidden sm:inline max-w-[120px] truncate text-slate-800 font-semibold" title={user.email}>
                   {user.name || user.email.split("@")[0]}
                 </span>
-                <Tooltip content={t.auth.logoutTooltip}>
+                <Tooltip content={t.auth.logoutTooltip} position="bottom">
                   <button
                     onClick={() => logout()}
                     className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
@@ -166,26 +147,26 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
 
             <LanguageSwitcher />
 
-            <Tooltip content={t.nav.scanAllTooltip}>
+            <Tooltip content={t.nav.scanAllTooltip} position="bottom">
               <button
                 onClick={handleRunAllNow}
-                disabled={isSearching}
+                disabled={isScanning}
                 className={`group relative flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm active:translate-y-0 ${
-                  isSearching
+                  isScanning
                     ? "bg-violet-50 border border-violet-200 text-violet-700"
                     : "bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 hover:from-violet-500 hover:via-purple-500 hover:to-fuchsia-500 text-white shadow-violet-500/25 hover:shadow-md hover:shadow-violet-500/35 hover:-translate-y-0.5"
                 } disabled:opacity-75 disabled:hover:translate-y-0`}
               >
-                {isSearching ? (
+                {isScanning ? (
                   <RefreshCw className="w-3.5 h-3.5 animate-spin text-violet-600 shrink-0" />
                 ) : (
                   <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300 shrink-0 group-hover:scale-110 group-hover:rotate-6 transition-transform" />
                 )}
                 <span className="hidden sm:inline">
-                  {isSearching ? t.nav.scanning : t.nav.scanAll}
+                  {isScanning ? t.nav.scanning : t.nav.scanAll}
                 </span>
                 <span className="sm:hidden">
-                  {isSearching ? "..." : t.nav.scanAll}
+                  {isScanning ? "..." : t.nav.scanAll}
                 </span>
               </button>
             </Tooltip>

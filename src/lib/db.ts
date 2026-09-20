@@ -92,11 +92,20 @@ function initSchema(db: Database.Database) {
       interval_hours  INTEGER DEFAULT 12,
       only_direct     INTEGER NOT NULL DEFAULT 0,
       is_active       INTEGER NOT NULL DEFAULT 1,
+      last_error      TEXT,
+      last_searched_at TEXT,
       created_at      TEXT    NOT NULL,
       updated_at      TEXT    NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_monitored_routes_active ON monitored_routes(is_active);
   `);
+
+  try {
+    db.exec("ALTER TABLE monitored_routes ADD COLUMN last_error TEXT;");
+  } catch {}
+  try {
+    db.exec("ALTER TABLE monitored_routes ADD COLUMN last_searched_at TEXT;");
+  } catch {}
 
   // 6. Tabela de histórico de buscas de voos (flight_history)
   db.exec(`
@@ -942,6 +951,7 @@ function mapRouteRow(row: any): MonitoredRoute {
     latestPrice: row.latest_price ?? null,
     lowestHistoricalPrice: row.lowest_historical_price ?? null,
     lastSearchedAt: row.last_searched_at ?? null,
+    lastError: row.last_error ?? null,
     lastAirline: row.last_airline ?? null,
     lastFlightNumber: row.last_flight_number ?? null,
     lastStops: row.last_stops ?? null,
@@ -953,6 +963,16 @@ function mapRouteRow(row: any): MonitoredRoute {
     latestStopCount: row.latest_stop_count ?? null,
     totalSearches: row.total_searches ?? 0,
   };
+}
+
+export function updateRouteScanStatus(routeId: number, lastSearchedAt: string, lastError: string | null): void {
+  const db = getDatabase();
+  db.prepare("UPDATE monitored_routes SET last_searched_at = ?, last_error = ?, updated_at = ? WHERE id = ?").run(
+    lastSearchedAt,
+    lastError,
+    new Date().toISOString(),
+    routeId
+  );
 }
 
 // ==========================================

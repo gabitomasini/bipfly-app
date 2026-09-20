@@ -441,4 +441,14 @@ export const pt: TranslationDictionary = {
     loginSuccessToast: "Acesso realizado com sucesso!",
     routeCreatedSuccessToast: "🎉 Monitoramento ativado! Rota salva com sucesso.",
   },
+  scanning: {
+    activeTitle: "Buscando Cotações de Voos",
+    activeSubtitle: "Consultando tarifas em tempo real nos buscadores...",
+    scanningRoute: "Buscando tarifas para",
+    allRoutes: "todas as rotas ativas",
+    completed: "Busca Concluída",
+    completedDesc: "Cotações de preços atualizadas com sucesso.",
+    elapsed: "Tempo decorrido",
+    inProgress: "Em andamento",
+  },
 };
