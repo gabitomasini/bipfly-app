@@ -8,7 +8,9 @@ import CustomSelect from "./CustomSelect";
 import CustomDatePicker from "./CustomDatePicker";
 import { useModalBehavior } from "@/hooks/useModalBehavior";
 import { useTranslation } from "@/lib/i18n/context";
+import { useAuth } from "@/lib/auth/AuthContext";
 import { BRL_TO_USD_RATE } from "@/lib/i18n/formatters";
+import { formatCurrency } from "@/lib/utils";
 
 interface RouteModalProps {
   isOpen: boolean;
@@ -24,6 +26,7 @@ export default function RouteModal({
   onSuccess,
 }: RouteModalProps) {
   const { t, locale } = useTranslation();
+  const { user, openAuthModal } = useAuth();
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [tripType, setTripType] = useState<"one_way" | "round_trip">("round_trip");
@@ -188,6 +191,20 @@ export default function RouteModal({
         isActive: routeToEdit ? routeToEdit.isActive !== false : true,
       };
 
+      // Se for criação e o usuário não estiver autenticado, abre o modal de progressive profiling
+      if (!routeToEdit && !user) {
+        setLoading(false);
+        onClose();
+        openAuthModal({
+          mode: "progressive",
+          routeDataToSave: payload,
+          onSuccess: () => {
+            onSuccess();
+          },
+        });
+        return;
+      }
+
       if (routeToEdit) {
         const res = await fetch(`/api/routes/${routeToEdit.id}`, {
           method: "PATCH",
@@ -203,7 +220,21 @@ export default function RouteModal({
           body: JSON.stringify(payload),
         });
         const json = await res.json();
-        if (!json.success) throw new Error(json.error || "Failed to create route.");
+        if (!json.success) {
+          if (json.requiresAuth) {
+            setLoading(false);
+            onClose();
+            openAuthModal({
+              mode: "progressive",
+              routeDataToSave: payload,
+              onSuccess: () => {
+                onSuccess();
+              },
+            });
+            return;
+          }
+          throw new Error(json.error || "Failed to create route.");
+        }
       }
 
       onSuccess();
@@ -515,16 +546,22 @@ export default function RouteModal({
             )}
           </div>
 
-          {/* 5. Target Price (R$) with Inline USD Note */}
+          {/* 5. Target Price (R$) per traveler with Group Estimate */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
-              <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
-              <span>
-                {locale === "en"
-                  ? `Target Price (R$)${tripType === "round_trip" ? " - Total Round Trip" : ""}`
-                  : `Preço Alvo (R$)${tripType === "round_trip" ? " - Viagem Completa" : ""}`}
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                <span>
+                  {locale === "en"
+                    ? `Target Price per traveler (R$)`
+                    : `Preço Alvo por pessoa (R$)`}
+                </span>
+              </label>
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/70">
+                {locale === "en" ? "per person" : "por pessoa"}
               </span>
-            </label>
+            </div>
+
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
                 R$
@@ -535,23 +572,41 @@ export default function RouteModal({
                 min={1}
                 value={targetPrice}
                 onChange={(e) => setTargetPrice(e.target.value)}
-                placeholder="2500.00"
+                placeholder={locale === "en" ? "1200.00" : "1200.00"}
                 required
                 className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm font-black focus:outline-none focus:border-sky-500 focus:bg-white transition-colors font-mono"
               />
             </div>
 
             {numericInputPrice > 0 ? (
-              <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1 font-medium">
-                <span>≈ ${usdEstimate} USD</span>
-                <span className="text-slate-400 font-normal">
-                  ({locale === "en" ? `current rate: ${usdRateFormatted}` : `cotação atual: ${usdRateFormatted}`})
-                </span>
-              </p>
+              <div className="space-y-1.5 mt-1.5">
+                <p className="text-[11px] text-slate-500 flex items-center gap-1 font-medium">
+                  <span>≈ ${usdEstimate} USD {locale === "en" ? "/ person" : "/ pessoa"}</span>
+                  <span className="text-slate-400 font-normal">
+                    ({locale === "en" ? `rate: ${usdRateFormatted}` : `cotação: ${usdRateFormatted}`})
+                  </span>
+                </p>
+
+                {totalPassengers > 1 && (
+                  <div className="p-2.5 rounded-xl bg-slate-100/90 border border-slate-200/80 text-[11px] text-slate-700 flex items-center justify-between animate-fadeIn">
+                    <span className="font-medium text-slate-600 flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-slate-500" />
+                      <span>
+                        {locale === "en"
+                          ? `Estimated total for ${totalPassengers} travelers:`
+                          : `Total estimado para ${totalPassengers} passageiros:`}
+                      </span>
+                    </span>
+                    <span className="font-black text-slate-900 font-mono text-xs">
+                      {formatCurrency(numericInputPrice * totalPassengers)}
+                    </span>
+                  </div>
+                )}
+              </div>
             ) : (
               <p className="text-[11px] text-slate-400 mt-1 font-medium">
                 {locale === "en"
-                  ? "Alerts will trigger when price drops to or below this value."
+                  ? "Alerts will trigger when price per traveler drops to or below this value."
                   : t.modal.targetPriceDesc}
               </p>
             )}

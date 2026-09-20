@@ -16,6 +16,7 @@ import { useToast } from "@/components/Toast";
 import { MonitoredRoute, FlightOption } from "@/lib/types";
 import { getAirportName } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n/context";
+import { useAuth } from "@/lib/auth/AuthContext";
 import {
   Plus,
   Layers,
@@ -31,6 +32,7 @@ import {
   ChevronUp,
   AlertCircle,
   Clock,
+  LogIn,
 } from "lucide-react";
 
 type SortOption = "date_asc" | "date_desc" | "price_asc" | "price_desc" | "discount_desc" | "route";
@@ -39,6 +41,7 @@ function RotasContent() {
   const searchParams = useSearchParams();
   const { addToast } = useToast();
   const { t, formatCurrency, formatUsdEstimate, formatDate, locale } = useTranslation();
+  const { user, openAuthModal } = useAuth();
   const [routes, setRoutes] = useState<MonitoredRoute[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -575,30 +578,48 @@ function RotasContent() {
         {loading ? (
           <SkeletonLoader variant="card" count={4} />
         ) : filteredRoutes.length === 0 ? (
-          <div className="bg-white p-12 text-center rounded-2xl border border-dashed border-slate-300">
-            <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center mx-auto mb-3">
-              <Plane className="w-6 h-6" />
+          <div className="bg-white p-8 sm:p-12 text-center rounded-2xl border border-dashed border-slate-300 shadow-2xs">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-sky-50 to-indigo-50 text-sky-600 flex items-center justify-center mx-auto mb-4 border border-sky-100">
+              <Plane className="w-7 h-7 -rotate-45" />
             </div>
-            <h3 className="text-sm font-bold text-slate-900 mb-1">
-              {routes.length === 0 ? t.routes.emptyTitle : t.common.noResults}
-            </h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto mb-4 font-medium">
+            <h3 className="text-base font-bold text-slate-900 mb-1.5">
               {routes.length === 0
-                ? t.routes.emptyDescription
+                ? !user
+                  ? "Monitore seus voos favoritos"
+                  : t.routes.emptyTitle
+                : t.common.noResults}
+            </h3>
+            <p className="text-xs text-slate-600 max-w-md mx-auto mb-6 font-medium leading-relaxed">
+              {routes.length === 0
+                ? !user
+                  ? "Adicione rotas para acompanhar tarifas aéreas em tempo real e receber alertas de preços no seu e-mail."
+                  : t.routes.emptyDescription
                 : locale === "en"
                 ? "Try adjusting your search filters or add a new route."
                 : "Tente alterar os termos de busca ou redefinir os filtros aplicados."}
             </p>
             {routes.length === 0 ? (
-              <button
-                onClick={() => {
-                  setEditingRoute(null);
-                  setIsRouteModalOpen(true);
-                }}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white transition-colors cursor-pointer"
-              >
-                {t.routes.addRoute}
-              </button>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button
+                  onClick={() => {
+                    setEditingRoute(null);
+                    setIsRouteModalOpen(true);
+                  }}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white shadow-md shadow-sky-600/20 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>{t.routes.addRoute}</span>
+                </button>
+                {!user && (
+                  <button
+                    onClick={() => openAuthModal({ mode: "login" })}
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <LogIn className="w-3.5 h-3.5 text-sky-600" />
+                    <span>{t.auth.loginPromptButton}</span>
+                  </button>
+                )}
+              </div>
             ) : (
               <button
                 onClick={clearFilters}

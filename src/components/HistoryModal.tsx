@@ -135,7 +135,8 @@ export default function HistoryModal({ isOpen, route, onClose }: HistoryModalPro
               </div>
               <p className="text-xs text-slate-500 font-medium mt-0.5">
                 {getAirportName(route.origin)} {locale === "en" ? "to" : "para"} {getAirportName(route.destination)} • {t.history.targetLabel}{" "}
-                <strong className="text-slate-800 font-bold">{formatCurrencyLocale(route.targetPrice, "BRL", locale)}</strong>
+                <strong className="text-slate-800 font-bold">{formatCurrencyLocale(route.targetPrice, "BRL", locale)}</strong>{" "}
+                <span className="text-[11px] font-semibold text-slate-500">{t.routes?.perPersonSuffix || "/ pess."}</span>
                 {locale === "en" && (
                   <span className="text-slate-400 font-normal ml-1">
                     ({formatUsdEstimate(route.targetPrice)})

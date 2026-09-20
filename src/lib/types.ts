@@ -1,5 +1,33 @@
+export interface User {
+  id: number;
+  name?: string | null;
+  email: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LoginCode {
+  id: number;
+  userId: number;
+  code: string;
+  expiresAt: string;
+  usedAt?: string | null;
+  ipAddress?: string | null;
+  createdAt: string;
+}
+
+export interface UserSession {
+  id: number;
+  userId: number;
+  sessionToken: string;
+  expiresAt: string;
+  createdAt: string;
+  lastSeenAt: string;
+}
+
 export interface MonitoredRoute {
   id: number;
+  userId: number;
   origin: string;
   destination: string;
   flightDate: string;
@@ -14,6 +42,9 @@ export interface MonitoredRoute {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  // User info (optional joined fields)
+  userName?: string | null;
+  userEmail?: string | null;
   // Computed / aggregated fields
   latestPrice?: number | null;
   lowestHistoricalPrice?: number | null;

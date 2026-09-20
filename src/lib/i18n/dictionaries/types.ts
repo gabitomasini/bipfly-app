@@ -44,6 +44,8 @@ export interface TranslationDictionary {
     days30: string;
     allTime: string;
     mode: string;
+    perPerson: string;
+    perPersonShort: string;
   };
   nav: {
     brand: string;
@@ -151,6 +153,8 @@ export interface TranslationDictionary {
     roundTrip: string;
     days: string;
     day: string;
+    perPersonSuffix: string;
+    totalGroupLabel: string;
   };
   modal: {
     newRouteTitle: string;
@@ -168,6 +172,7 @@ export interface TranslationDictionary {
     targetPriceLabel: string;
     targetPriceDesc: string;
     targetPricePlaceholder: string;
+    targetPriceEstimate: string;
     passengersLabel: string;
     adultsTitle: string;
     adultsSubtitle: string;
@@ -200,6 +205,7 @@ export interface TranslationDictionary {
     allOptions: string;
     directOptions: string;
     stopsOptions: string;
+    groupTotal: string;
   };
   history: {
     title: string;
@@ -208,6 +214,7 @@ export interface TranslationDictionary {
     allTimeLow: string;
     avgPrice: string;
     analyzedRoutes: string;
+    perPersonNote: string;
     activeLabel: string;
     quotesLabel: string;
     noRoutes: string;
@@ -395,5 +402,43 @@ export interface TranslationDictionary {
     settingsSaved: string;
     testAlertSent: string;
     connError: string;
+  };
+  auth: {
+    login: string;
+    logout: string;
+    alreadyMonitor: string;
+    accessWithEmail: string;
+    loginPromptButton: string;
+    logoutTooltip: string;
+    emptyStateAnonymousTitle: string;
+    emptyStateAnonymousDesc: string;
+    modalProgressiveTitle: string;
+    modalProgressiveSubtitle: string;
+    modalLoginTitle: string;
+    modalLoginSubtitle: string;
+    modalOtpTitle: string;
+    modalOtpSubtitle: string;
+    nameLabel: string;
+    nameOptional: string;
+    namePlaceholder: string;
+    emailAlertsLabel: string;
+    emailRegisteredLabel: string;
+    emailPlaceholder: string;
+    emailAlertsHint: string;
+    emailOtpHint: string;
+    activateButton: string;
+    activatingButton: string;
+    sendOtpButton: string;
+    sendingOtpButton: string;
+    verifyButton: string;
+    verifyingButton: string;
+    changeEmail: string;
+    resendCode: string;
+    resendIn: string;
+    errorEmailInvalid: string;
+    errorOtpLength: string;
+    otpSentToast: string;
+    loginSuccessToast: string;
+    routeCreatedSuccessToast: string;
   };
 }

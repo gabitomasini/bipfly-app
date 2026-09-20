@@ -6,6 +6,9 @@ export async function sendNtfyNotification(params: {
   price: number;
   targetPrice: number;
   currency?: string;
+  passengers?: number;
+  children?: number;
+  infantsInLap?: number;
   airline?: string | null;
   flightNumber?: string | null;
   departureTime?: string | null;
@@ -20,6 +23,8 @@ export async function sendNtfyNotification(params: {
     return false;
   }
 
+  const totalPax = (params.passengers || 1) + (params.children || 0) + (params.infantsInLap || 0);
+
   const formattedPrice = new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency,
@@ -30,13 +35,21 @@ export async function sendNtfyNotification(params: {
     currency,
   }).format(targetPrice);
 
-  const title = `🚨 Passagem em Alerta: ${origin} ✈️ ${destination} por ${formattedPrice}`;
+  const title = `🚨 Passagem em Alerta: ${origin} ✈️ ${destination} por ${formattedPrice}/pess.`;
 
   const lines = [
-    `🎯 Meta configurada: ${formattedTarget}`,
+    `🎯 Meta por pessoa: ${formattedTarget}`,
     `📅 Data do Voo: ${flightDate}`,
-    `💰 Menor Preço Encontrado: ${formattedPrice}`,
+    `💰 Menor Preço Encontrado: ${formattedPrice} / pessoa`,
   ];
+
+  if (totalPax > 1) {
+    const totalGroup = new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency,
+    }).format(price * totalPax);
+    lines.push(`👥 Total para ${totalPax} passageiros: ${totalGroup}`);
+  }
 
   if (params.airline) {
     lines.push(`🏢 Companhia: ${params.airline}${params.flightNumber ? ` (${params.flightNumber})` : ""}`);

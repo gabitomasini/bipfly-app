@@ -59,11 +59,11 @@ See `proposal.md` for background and user journey objectives.
   CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(session_token);
   ```
 - **`monitored_routes` Migration**:
-  - Add `user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`.
+  - Clear existing legacy routes and orphaned route history (`DELETE FROM flight_history WHERE route_id IS NOT NULL; DELETE FROM monitored_routes;`) to start with a clean slate where every route strictly belongs to a registered user.
+  - Add `user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE` (or recreate/migrate `monitored_routes` with `user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE`).
   - Create index `idx_monitored_routes_user_id ON monitored_routes(user_id)`.
-  - For existing legacy routes without `user_id`, create a default legacy user or keep nullable for migration backwards-compatibility.
 
-*Rationale*: Relational integrity with foreign keys and cascade deletes ensures data consistency while SQLite WAL mode handles concurrency seamlessly.
+*Rationale*: Relational integrity with foreign keys and cascade deletes ensures data consistency while SQLite WAL mode handles concurrency seamlessly. Cleaning legacy unassigned routes ensures there are no ambiguous orphaned routes in the new user-centric system.
 
 ### 2. Session Management & Cookie Strategy
 - Sessions use a 256-bit cryptographically secure random token (`crypto.randomBytes(32).toString('hex')`).
@@ -99,11 +99,11 @@ See `proposal.md` for background and user journey objectives.
   - *Mitigation*: 15-minute OTP window gives ample time; UI includes resend button (with 60-second cooldown timer); local dev mode prints OTP immediately in logs/console.
 - **[Risk] Multiple tabs/concurrent requests**:
   - *Mitigation*: Database transactions (`db.transaction()`) ensure atomic user creation and route attachment.
-- **[Risk] Legacy routes created before authentication**:
-  - *Mitigation*: Schema migration maintains existing routes with nullable `user_id` or auto-assigns to an initial user if desired, without crashing existing background scanners.
+- **[Trade-off] Legacy routes cleanup**:
+  - *Decision*: As agreed, all existing anonymous routes will be cleared on migration to ensure 100% data consistency and avoid orphaned routes without user association.
 
 ## Migration Plan
 
-1. Run idempotent schema updates on `radar_passagens.db` inside `initSchema()` in `src/lib/db.ts`.
-2. Ensure background scanner (`src/lib/scanner.ts`) continues scanning all active routes regardless of user association.
-3. Update API route handlers (`/api/routes`, `/api/auth/*`) to check user sessions.
+1. Run idempotent schema updates on `radar_passagens.db` inside `initSchema()` in `src/lib/db.ts`, deleting legacy unassigned routes and migrating `monitored_routes` to include `user_id`.
+2. Ensure background scanner (`src/lib/scanner.ts`) continues scanning all active routes scoped to users.
+3. Update API route handlers (`/api/routes`, `/api/auth/*`) to check user sessions and scope queries.

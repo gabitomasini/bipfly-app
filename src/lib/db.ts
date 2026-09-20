@@ -1,6 +1,9 @@
 import Database from "better-sqlite3";
 import path from "path";
 import {
+  User,
+  LoginCode,
+  UserSession,
   MonitoredRoute,
   FlightHistoryEntry,
   AppSettings,
@@ -31,7 +34,49 @@ function initSchema(db: Database.Database) {
   // 1. Migração de tabelas legadas (Português -> Inglês) se necessário
   migrateLegacySchema(db);
 
-  // 2. Tabela de rotas monitoradas (monitored_routes)
+  // 2. Tabela de Usuários (users)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      name        TEXT,
+      email       TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      created_at  TEXT NOT NULL,
+      updated_at  TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+  `);
+
+  // 3. Tabela de Códigos OTP de Autenticação (login_codes)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS login_codes (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      code        TEXT NOT NULL,
+      expires_at  TEXT NOT NULL,
+      used_at     TEXT,
+      ip_address  TEXT,
+      created_at  TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_login_codes_lookup ON login_codes(user_id, code);
+    CREATE INDEX IF NOT EXISTS idx_login_codes_user ON login_codes(user_id);
+    CREATE INDEX IF NOT EXISTS idx_login_codes_created ON login_codes(created_at);
+  `);
+
+  // 4. Tabela de Sessões Persistentes (user_sessions)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_sessions (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      session_token  TEXT NOT NULL UNIQUE,
+      expires_at     TEXT NOT NULL,
+      created_at     TEXT NOT NULL,
+      last_seen_at   TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(session_token);
+    CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);
+  `);
+
+  // 5. Tabela de rotas monitoradas (monitored_routes)
   db.exec(`
     CREATE TABLE IF NOT EXISTS monitored_routes (
       id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,7 +98,7 @@ function initSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_monitored_routes_active ON monitored_routes(is_active);
   `);
 
-  // 3. Tabela de histórico de buscas de voos (flight_history)
+  // 6. Tabela de histórico de buscas de voos (flight_history)
   db.exec(`
     CREATE TABLE IF NOT EXISTS flight_history (
       id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -141,6 +186,14 @@ function initSchema(db: Database.Database) {
   try {
     const routeCols = db.prepare("PRAGMA table_info(monitored_routes)").all() as { name: string }[];
     const routeColNames = new Set(routeCols.map((c) => c.name));
+    if (!routeColNames.has("user_id")) {
+      db.exec(`
+        DELETE FROM flight_history WHERE route_id IS NOT NULL;
+        DELETE FROM monitored_routes;
+        ALTER TABLE monitored_routes ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+        CREATE INDEX IF NOT EXISTS idx_monitored_routes_user_id ON monitored_routes(user_id);
+      `);
+    }
     if (!routeColNames.has("only_direct")) {
       db.exec("ALTER TABLE monitored_routes ADD COLUMN only_direct INTEGER NOT NULL DEFAULT 0;");
     }
@@ -330,11 +383,246 @@ function migrateLegacySchema(db: Database.Database) {
 }
 
 // ==========================================
+// User & Authentication Helpers
+// ==========================================
+
+export function findUserByEmail(email: string): User | null {
+  const db = getDatabase();
+  const row = db
+    .prepare("SELECT * FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))")
+    .get(email) as any;
+  if (!row) return null;
+  return mapUserRow(row);
+}
+
+export function findUserById(id: number): User | null {
+  const db = getDatabase();
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(id) as any;
+  if (!row) return null;
+  return mapUserRow(row);
+}
+
+export function createUser(data: { email: string; name?: string | null }): User {
+  const db = getDatabase();
+  const now = new Date().toISOString();
+  const cleanEmail = data.email.trim().toLowerCase();
+  const cleanName = data.name ? data.name.trim() : null;
+
+  const stmt = db.prepare(`
+    INSERT INTO users (email, name, created_at, updated_at)
+    VALUES (?, ?, ?, ?)
+  `);
+
+  const info = stmt.run(cleanEmail, cleanName, now, now);
+  const id = Number(info.lastInsertRowid);
+  return {
+    id,
+    email: cleanEmail,
+    name: cleanName,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+export function getOrCreateUser(email: string, name?: string | null): User {
+  const existing = findUserByEmail(email);
+  if (existing) {
+    if (name && name.trim() && !existing.name) {
+      const db = getDatabase();
+      const now = new Date().toISOString();
+      db.prepare("UPDATE users SET name = ?, updated_at = ? WHERE id = ?").run(name.trim(), now, existing.id);
+      return { ...existing, name: name.trim(), updatedAt: now };
+    }
+    return existing;
+  }
+  return createUser({ email, name });
+}
+
+export function createLoginCode(data: {
+  userId: number;
+  code: string;
+  ipAddress?: string | null;
+  expiresInMinutes?: number;
+}): LoginCode {
+  const db = getDatabase();
+  const now = new Date();
+  const createdAt = now.toISOString();
+  const expiresInMin = data.expiresInMinutes || 15;
+  const expiresAt = new Date(now.getTime() + expiresInMin * 60 * 1000).toISOString();
+
+  const stmt = db.prepare(`
+    INSERT INTO login_codes (user_id, code, expires_at, used_at, ip_address, created_at)
+    VALUES (?, ?, ?, NULL, ?, ?)
+  `);
+
+  const info = stmt.run(data.userId, data.code.trim(), expiresAt, data.ipAddress || null, createdAt);
+  return {
+    id: Number(info.lastInsertRowid),
+    userId: data.userId,
+    code: data.code.trim(),
+    expiresAt,
+    usedAt: null,
+    ipAddress: data.ipAddress || null,
+    createdAt,
+  };
+}
+
+export function findValidLoginCode(userId: number, code: string): LoginCode | null {
+  const db = getDatabase();
+  const row = db
+    .prepare(`
+      SELECT * FROM login_codes 
+      WHERE user_id = ? AND code = ? AND used_at IS NULL AND datetime(expires_at) > datetime('now')
+      ORDER BY created_at DESC LIMIT 1
+    `)
+    .get(userId, code.trim()) as any;
+  if (!row) return null;
+  return mapLoginCodeRow(row);
+}
+
+export function markLoginCodeUsed(id: number): boolean {
+  const db = getDatabase();
+  const now = new Date().toISOString();
+  const res = db.prepare("UPDATE login_codes SET used_at = ? WHERE id = ?").run(now, id);
+  return res.changes > 0;
+}
+
+export function countRecentLoginCodes(userId: number, minutes = 15): number {
+  const db = getDatabase();
+  const res = db
+    .prepare(`
+      SELECT COUNT(*) as count FROM login_codes 
+      WHERE user_id = ? AND datetime(created_at) >= datetime('now', ?)
+    `)
+    .get(userId, `-${minutes} minutes`) as any;
+  return res ? res.count : 0;
+}
+
+export function countRecentLoginCodesByEmail(email: string, minutes = 15): number {
+  const db = getDatabase();
+  const res = db
+    .prepare(`
+      SELECT COUNT(lc.id) as count 
+      FROM login_codes lc
+      JOIN users u ON lc.user_id = u.id
+      WHERE LOWER(TRIM(u.email)) = LOWER(TRIM(?)) AND datetime(lc.created_at) >= datetime('now', ?)
+    `)
+    .get(email, `-${minutes} minutes`) as any;
+  return res ? res.count : 0;
+}
+
+export function createSession(userId: number, sessionToken: string, durationDays = 60): UserSession {
+  const db = getDatabase();
+  const now = new Date();
+  const createdAt = now.toISOString();
+  const expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+
+  const stmt = db.prepare(`
+    INSERT INTO user_sessions (user_id, session_token, expires_at, created_at, last_seen_at)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+
+  const info = stmt.run(userId, sessionToken, expiresAt, createdAt, createdAt);
+  return {
+    id: Number(info.lastInsertRowid),
+    userId,
+    sessionToken,
+    expiresAt,
+    createdAt,
+    lastSeenAt: createdAt,
+  };
+}
+
+export function findSessionByToken(sessionToken: string): { session: UserSession; user: User } | null {
+  const db = getDatabase();
+  const row = db
+    .prepare(`
+      SELECT s.*, u.id as u_id, u.name as u_name, u.email as u_email, u.created_at as u_created_at, u.updated_at as u_updated_at
+      FROM user_sessions s
+      JOIN users u ON s.user_id = u.id
+      WHERE s.session_token = ? AND datetime(s.expires_at) > datetime('now')
+    `)
+    .get(sessionToken) as any;
+
+  if (!row) return null;
+
+  // Atualiza timestamp de last_seen
+  const now = new Date().toISOString();
+  db.prepare("UPDATE user_sessions SET last_seen_at = ? WHERE id = ?").run(now, row.id);
+
+  return {
+    session: {
+      id: row.id,
+      userId: row.user_id,
+      sessionToken: row.session_token,
+      expiresAt: row.expires_at,
+      createdAt: row.created_at,
+      lastSeenAt: now,
+    },
+    user: {
+      id: row.u_id,
+      name: row.u_name ?? null,
+      email: row.u_email,
+      createdAt: row.u_created_at,
+      updatedAt: row.u_updated_at,
+    },
+  };
+}
+
+export function deleteSessionByToken(sessionToken: string): boolean {
+  const db = getDatabase();
+  const res = db.prepare("DELETE FROM user_sessions WHERE session_token = ?").run(sessionToken);
+  return res.changes > 0;
+}
+
+export function deleteUserSessions(userId: number): boolean {
+  const db = getDatabase();
+  const res = db.prepare("DELETE FROM user_sessions WHERE user_id = ?").run(userId);
+  return res.changes > 0;
+}
+
+function mapUserRow(row: any): User {
+  return {
+    id: row.id,
+    name: row.name ?? null,
+    email: row.email,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapLoginCodeRow(row: any): LoginCode {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    code: row.code,
+    expiresAt: row.expires_at,
+    usedAt: row.used_at ?? null,
+    ipAddress: row.ip_address ?? null,
+    createdAt: row.created_at,
+  };
+}
+
+// ==========================================
 // Monitored Routes (CRUD)
 // ==========================================
 
-export function listRoutes(activeOnly = false): MonitoredRoute[] {
+export function listRoutes(
+  filterOrActiveOnly?: boolean | { userId?: number; activeOnly?: boolean },
+  userIdParam?: number
+): MonitoredRoute[] {
   const db = getDatabase();
+  let activeOnly = false;
+  let userId: number | undefined = undefined;
+
+  if (typeof filterOrActiveOnly === "boolean") {
+    activeOnly = filterOrActiveOnly;
+    userId = userIdParam;
+  } else if (filterOrActiveOnly && typeof filterOrActiveOnly === "object") {
+    activeOnly = Boolean(filterOrActiveOnly.activeOnly);
+    userId = filterOrActiveOnly.userId;
+  }
+
   const historySubquery = `
     FROM flight_history 
     WHERE (route_id = r.id OR (origin = r.origin AND destination = r.destination AND flight_date = r.flight_date))
@@ -344,46 +632,45 @@ export function listRoutes(activeOnly = false): MonitoredRoute[] {
       AND ((r.return_date IS NULL AND (return_date IS NULL OR return_date = '')) OR return_date = r.return_date)
   `;
 
-  const query = activeOnly
-    ? `SELECT r.*, 
-        (SELECT lowest_price ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as latest_price,
-        (SELECT MIN(lowest_price) ${historySubquery}) as lowest_historical_price,
-        (SELECT searched_at ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as last_searched_at,
-        (SELECT airline ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as last_airline,
-        (SELECT flight_number ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as last_flight_number,
-        (SELECT stops ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as last_stops,
-        (SELECT booking_link ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as last_booking_link,
-        (SELECT lowest_direct_price ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as latest_direct_price,
-        (SELECT direct_airline ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as latest_direct_airline,
-        (SELECT lowest_stop_price ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as latest_stop_price,
-        (SELECT stop_airline ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as latest_stop_airline,
-        (SELECT stop_count ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as latest_stop_count,
-        (SELECT COUNT(*) ${historySubquery}) as total_searches
-       FROM monitored_routes r
-       WHERE r.is_active = 1
-       ORDER BY r.created_at DESC`
-    : `SELECT r.*, 
-        (SELECT lowest_price ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as latest_price,
-        (SELECT MIN(lowest_price) ${historySubquery}) as lowest_historical_price,
-        (SELECT searched_at ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as last_searched_at,
-        (SELECT airline ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as last_airline,
-        (SELECT flight_number ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as last_flight_number,
-        (SELECT stops ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as last_stops,
-        (SELECT booking_link ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as last_booking_link,
-        (SELECT lowest_direct_price ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as latest_direct_price,
-        (SELECT direct_airline ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as latest_direct_airline,
-        (SELECT lowest_stop_price ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as latest_stop_price,
-        (SELECT stop_airline ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as latest_stop_airline,
-        (SELECT stop_count ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as latest_stop_count,
-        (SELECT COUNT(*) ${historySubquery}) as total_searches
-       FROM monitored_routes r
-       ORDER BY r.created_at DESC`;
+  const conditions: string[] = [];
+  const params: any[] = [];
 
-  const rows = db.prepare(query).all() as any[];
+  if (activeOnly) {
+    conditions.push("r.is_active = 1");
+  }
+  if (userId !== undefined && userId !== null) {
+    conditions.push("r.user_id = ?");
+    params.push(userId);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  const query = `
+    SELECT r.*, u.name as user_name, u.email as user_email,
+      (SELECT lowest_price ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as latest_price,
+      (SELECT MIN(lowest_price) ${historySubquery}) as lowest_historical_price,
+      (SELECT searched_at ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as last_searched_at,
+      (SELECT airline ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as last_airline,
+      (SELECT flight_number ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as last_flight_number,
+      (SELECT stops ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as last_stops,
+      (SELECT booking_link ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as last_booking_link,
+      (SELECT lowest_direct_price ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as latest_direct_price,
+      (SELECT direct_airline ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as latest_direct_airline,
+      (SELECT lowest_stop_price ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as latest_stop_price,
+      (SELECT stop_airline ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as latest_stop_airline,
+      (SELECT stop_count ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as latest_stop_count,
+      (SELECT COUNT(*) ${historySubquery}) as total_searches
+    FROM monitored_routes r
+    LEFT JOIN users u ON r.user_id = u.id
+    ${whereClause}
+    ORDER BY r.created_at DESC
+  `;
+
+  const rows = db.prepare(query).all(...params) as any[];
   return rows.map(mapRouteRow);
 }
 
-export function findRouteById(id: number): MonitoredRoute | null {
+export function findRouteById(id: number, userId?: number): MonitoredRoute | null {
   const db = getDatabase();
   const historySubquery = `
     FROM flight_history 
@@ -394,9 +681,17 @@ export function findRouteById(id: number): MonitoredRoute | null {
       AND ((r.return_date IS NULL AND (return_date IS NULL OR return_date = '')) OR return_date = r.return_date)
   `;
 
+  const conditions = ["r.id = ?"];
+  const params: any[] = [id];
+
+  if (userId !== undefined && userId !== null) {
+    conditions.push("r.user_id = ?");
+    params.push(userId);
+  }
+
   const row = db
     .prepare(
-      `SELECT r.*,
+      `SELECT r.*, u.name as user_name, u.email as user_email,
         (SELECT lowest_price ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as latest_price,
         (SELECT MIN(lowest_price) ${historySubquery}) as lowest_historical_price,
         (SELECT searched_at ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as last_searched_at,
@@ -411,15 +706,17 @@ export function findRouteById(id: number): MonitoredRoute | null {
         (SELECT stop_count ${historySubquery} ORDER BY searched_at DESC, id DESC LIMIT 1) as latest_stop_count,
         (SELECT COUNT(*) ${historySubquery}) as total_searches
        FROM monitored_routes r 
-       WHERE r.id = ?`
+       LEFT JOIN users u ON r.user_id = u.id
+       WHERE ${conditions.join(" AND ")}`
     )
-    .get(id) as any;
+    .get(...params) as any;
 
   if (!row) return null;
   return mapRouteRow(row);
 }
 
 export function createRoute(data: {
+  userId: number;
   origin: string;
   destination: string;
   flightDate: string;
@@ -439,11 +736,12 @@ export function createRoute(data: {
 
   const stmt = db.prepare(`
     INSERT INTO monitored_routes (
-      origin, destination, flight_date, return_date, trip_type, passengers, children, infants_in_lap, target_price, interval_hours, only_direct, is_active, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+      user_id, origin, destination, flight_date, return_date, trip_type, passengers, children, infants_in_lap, target_price, interval_hours, only_direct, is_active, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
   `);
 
   const info = stmt.run(
+    data.userId,
     data.origin.trim().toUpperCase(),
     data.destination.trim().toUpperCase(),
     data.flightDate.trim(),
@@ -477,10 +775,13 @@ export function updateRoute(
     intervalHours: number;
     onlyDirect: boolean;
     isActive: boolean;
-  }>
+  }>,
+  userId?: number
 ): boolean {
   const db = getDatabase();
-  const currentRoute = db.prepare("SELECT * FROM monitored_routes WHERE id = ?").get(id) as any;
+  const checkSql = userId !== undefined ? "SELECT * FROM monitored_routes WHERE id = ? AND user_id = ?" : "SELECT * FROM monitored_routes WHERE id = ?";
+  const checkParams = userId !== undefined ? [id, userId] : [id];
+  const currentRoute = db.prepare(checkSql).get(...checkParams) as any;
   if (!currentRoute) return false;
 
   const fields: string[] = [];
@@ -546,6 +847,9 @@ export function updateRoute(
   fields.push("updated_at = ?");
   values.push(new Date().toISOString());
   values.push(id);
+  if (userId !== undefined) {
+    values.push(userId);
+  }
 
   const tx = db.transaction(() => {
     // Se mudou parâmetros do voo, desvincula o histórico anterior da rota
@@ -575,7 +879,8 @@ export function updateRoute(
       `).run(id, newOrigin, newDest, newDate, newReturnDate, newReturnDate);
     }
 
-    const stmt = db.prepare(`UPDATE monitored_routes SET ${fields.join(", ")} WHERE id = ?`);
+    const where = userId !== undefined ? "WHERE id = ? AND user_id = ?" : "WHERE id = ?";
+    const stmt = db.prepare(`UPDATE monitored_routes SET ${fields.join(", ")} ${where}`);
     const info = stmt.run(...values);
     return info.changes > 0;
   });
@@ -583,14 +888,22 @@ export function updateRoute(
   return tx();
 }
 
-export function deleteRoute(id: number): boolean {
+export function deleteRoute(id: number, userId?: number): boolean {
   const db = getDatabase();
+  const checkSql = userId !== undefined ? "SELECT id FROM monitored_routes WHERE id = ? AND user_id = ?" : "SELECT id FROM monitored_routes WHERE id = ?";
+  const checkParams = userId !== undefined ? [id, userId] : [id];
+  const existing = db.prepare(checkSql).get(...checkParams);
+  if (!existing) return false;
+
   const deleteHistory = db.prepare("DELETE FROM flight_history WHERE route_id = ?");
-  const deleteRouteStmt = db.prepare("DELETE FROM monitored_routes WHERE id = ?");
+  const deleteRouteStmt = userId !== undefined 
+    ? db.prepare("DELETE FROM monitored_routes WHERE id = ? AND user_id = ?")
+    : db.prepare("DELETE FROM monitored_routes WHERE id = ?");
 
   const tx = db.transaction(() => {
     deleteHistory.run(id);
-    return deleteRouteStmt.run(id).changes > 0;
+    const info = userId !== undefined ? deleteRouteStmt.run(id, userId) : deleteRouteStmt.run(id);
+    return info.changes > 0;
   });
 
   return tx();
@@ -599,6 +912,7 @@ export function deleteRoute(id: number): boolean {
 function mapRouteRow(row: any): MonitoredRoute {
   return {
     id: row.id,
+    userId: row.user_id,
     origin: row.origin,
     destination: row.destination,
     flightDate: row.flight_date,
@@ -613,6 +927,8 @@ function mapRouteRow(row: any): MonitoredRoute {
     isActive: Boolean(row.is_active),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    userName: row.user_name ?? null,
+    userEmail: row.user_email ?? null,
     latestPrice: row.latest_price ?? null,
     lowestHistoricalPrice: row.lowest_historical_price ?? null,
     lastSearchedAt: row.last_searched_at ?? null,

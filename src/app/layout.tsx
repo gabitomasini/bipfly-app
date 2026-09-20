@@ -4,6 +4,8 @@ import "./globals.css";
 import BottomNav from "@/components/BottomNav";
 import { ToastProvider } from "@/components/Toast";
 import { LanguageProvider } from "@/lib/i18n/context";
+import { AuthProvider } from "@/lib/auth/AuthContext";
+import AuthModal from "@/components/auth/AuthModal";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -28,10 +30,13 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <LanguageProvider>
-          <ToastProvider>
-            {children}
-            <BottomNav />
-          </ToastProvider>
+          <AuthProvider>
+            <ToastProvider>
+              {children}
+              <AuthModal />
+              <BottomNav />
+            </ToastProvider>
+          </AuthProvider>
         </LanguageProvider>
       </body>
     </html>

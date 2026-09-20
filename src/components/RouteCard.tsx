@@ -212,6 +212,8 @@ export default function RouteCard({
       route.infantsInLap || 0
     );
 
+  const totalPax = (route.passengers || 1) + (route.children || 0) + (route.infantsInLap || 0);
+
   return (
     <div
       className={`relative p-4 sm:px-6 sm:py-5 rounded-2xl border transition-all hover:shadow-md ${
@@ -294,24 +296,39 @@ export default function RouteCard({
         <div className="flex items-center gap-3 sm:gap-4 shrink-0 justify-between sm:justify-end">
           {/* Preço Alinhado à Direita com Hint de Alerta de Preço */}
           <div className="flex items-center gap-2 justify-end text-right shrink-0">
-            <div className={`flex items-baseline gap-1.5 ${!route.isActive ? "opacity-75" : ""}`}>
-              <span
-                className={`text-xl sm:text-2xl font-black tracking-tight tabular-nums leading-none ${
-                  !route.isActive
-                    ? "text-slate-400"
-                    : hasPrice
-                    ? isBelowLimit
-                      ? "text-emerald-600"
-                      : "text-slate-900"
-                    : "text-slate-400"
-                }`}
-              >
-                {hasPrice ? formatCurrency(currentPrice) : "—"}
-              </span>
+            <div className={`flex flex-col items-end ${!route.isActive ? "opacity-75" : ""}`}>
+              <div className="flex items-baseline gap-1.5">
+                <span
+                  className={`text-xl sm:text-2xl font-black tracking-tight tabular-nums leading-none ${
+                    !route.isActive
+                      ? "text-slate-400"
+                      : hasPrice
+                      ? isBelowLimit
+                        ? "text-emerald-600"
+                        : "text-slate-900"
+                      : "text-slate-400"
+                  }`}
+                >
+                  {hasPrice ? formatCurrency(currentPrice) : "—"}
+                </span>
 
-              {locale === "en" && hasPrice && (
-                <span className="text-xs text-slate-400 font-normal">
-                  ({formatUsdEstimate(currentPrice, "~")})
+                {hasPrice && (
+                  <span className="text-[11px] font-bold text-slate-500">
+                    {t.routes.perPersonSuffix || "/ pess."}
+                  </span>
+                )}
+
+                {locale === "en" && hasPrice && (
+                  <span className="text-xs text-slate-400 font-normal">
+                    ({formatUsdEstimate(currentPrice, "~")})
+                  </span>
+                )}
+              </div>
+
+              {totalPax > 1 && hasPrice && (
+                <span className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                  {locale === "en" ? "Total: " : "Total: "}
+                  {formatCurrency(currentPrice * totalPax)}
                 </span>
               )}
             </div>
@@ -339,16 +356,18 @@ export default function RouteCard({
                     <div className="flex items-center gap-1.5 text-[11px]">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                       <span>
-                        {t.common.target}: {formatCurrency(target)} (-{formatCurrency(diff)}{" "}
+                        {t.common.target}: {formatCurrency(target)} {t.routes.perPersonSuffix || "/ pess."} (-{formatCurrency(diff)}{" "}
                         {locale === "en" ? "target met" : "no alvo"})
+                        {totalPax > 1 && ` • Total: ${formatCurrency(currentPrice * totalPax)}`}
                       </span>
                     </div>
                   ) : (
                     <div className="flex items-center gap-1.5 text-[11px]">
                       <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
                       <span>
-                        {t.common.target}: {formatCurrency(target)} (+{formatCurrency(currentPrice - target)}{" "}
+                        {t.common.target}: {formatCurrency(target)} {t.routes.perPersonSuffix || "/ pess."} (+{formatCurrency(currentPrice - target)}{" "}
                         {locale === "en" ? "above target" : "acima da meta"})
+                        {totalPax > 1 && ` • Total: ${formatCurrency(currentPrice * totalPax)}`}
                       </span>
                     </div>
                   )

@@ -52,6 +52,7 @@ export default function FlightSearchResultsDrawer({
   const flightDate = route.flightDate;
   const targetPrice = route.targetPrice;
   const passengers = route.passengers;
+  const totalPax = (passengers || 1) + (route.children || 0) + (route.infantsInLap || 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fadeIn" {...overlayProps} role="dialog" aria-modal="true" aria-labelledby="flight-results-title">
@@ -80,7 +81,13 @@ export default function FlightSearchResultsDrawer({
             </div>
             <div className="text-xs text-slate-500 font-medium">
               {getAirportName(origin)} {locale === "en" ? "to" : "para"} {getAirportName(destination)} • {t.history.targetLabel}{" "}
-              <strong className="text-amber-700 font-bold">{formatCurrency(targetPrice)}</strong>
+              <strong className="text-amber-700 font-bold">{formatCurrency(targetPrice)}</strong>{" "}
+              <span className="text-[11px] font-semibold text-slate-500">{t.routes?.perPersonSuffix || "/ pess."}</span>
+              {totalPax > 1 && (
+                <span className="text-slate-400 font-normal ml-1.5">
+                  ({locale === "en" ? `Total for ${totalPax} travelers: ${formatCurrency(targetPrice * totalPax)}` : `Total p/ ${totalPax} passageiros: ${formatCurrency(targetPrice * totalPax)}`})
+                </span>
+              )}
               {locale === "en" && (
                 <span className="text-slate-400 font-normal ml-1">
                   ({formatUsdEstimate(targetPrice)})
@@ -117,9 +124,14 @@ export default function FlightSearchResultsDrawer({
                 {bestDirect ? (
                   <div className="flex items-baseline justify-between mt-1">
                     <div>
-                      <span className="text-base font-black text-slate-900 tabular-nums">
-                        {formatCurrency(bestDirect.price)}
-                      </span>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-base font-black text-slate-900 tabular-nums">
+                          {formatCurrency(bestDirect.price)}
+                        </span>
+                        <span className="text-[10px] font-semibold text-slate-500">
+                          {t.routes?.perPersonSuffix || "/ pess."}
+                        </span>
+                      </div>
                       <span className="text-xs text-slate-500 font-medium block truncate">
                         {bestDirect.airline} {bestDirect.flightNumber ? `• ${bestDirect.flightNumber}` : ""}
                       </span>
@@ -153,9 +165,14 @@ export default function FlightSearchResultsDrawer({
                 {bestWithStops ? (
                   <div className="flex items-baseline justify-between mt-1">
                     <div>
-                      <span className="text-base font-black text-slate-900 tabular-nums">
-                        {formatCurrency(bestWithStops.price)}
-                      </span>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-base font-black text-slate-900 tabular-nums">
+                          {formatCurrency(bestWithStops.price)}
+                        </span>
+                        <span className="text-[10px] font-semibold text-slate-500">
+                          {t.routes?.perPersonSuffix || "/ pess."}
+                        </span>
+                      </div>
                       <span className="text-xs text-slate-500 font-medium block truncate">
                         {bestWithStops.airline} ({bestWithStops.stops === 1 ? (locale === "en" ? "1 stop" : "1 parada") : `${bestWithStops.stops} ${locale === "en" ? "stops" : "paradas"}`})
                       </span>
@@ -292,13 +309,24 @@ export default function FlightSearchResultsDrawer({
                     {/* Preço e Botão */}
                     <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-200/60">
                       <div className="text-left sm:text-right">
-                        <span
-                          className={`text-base font-black tracking-tight ${
-                            isBelow ? "text-emerald-600" : "text-slate-900"
-                          }`}
-                        >
-                          {formatCurrency(optPrice)}
-                        </span>
+                        <div className="flex items-baseline gap-1 justify-start sm:justify-end">
+                          <span
+                            className={`text-base font-black tracking-tight ${
+                              isBelow ? "text-emerald-600" : "text-slate-900"
+                            }`}
+                          >
+                            {formatCurrency(optPrice)}
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-500">
+                            {t.routes?.perPersonSuffix || "/ pess."}
+                          </span>
+                        </div>
+                        {totalPax > 1 && (
+                          <span className="text-[10px] font-semibold text-slate-500 block -mt-0.5">
+                            {locale === "en" ? "Total: " : "Total: "}
+                            {formatCurrency(optPrice * totalPax)}
+                          </span>
+                        )}
                         {locale === "en" && (
                           <span className="text-xs font-semibold text-slate-400 block -mt-0.5">
                             ({formatUsdEstimate(optPrice, "~")})

@@ -252,7 +252,10 @@ export default function AllRoutesOverview({
                         <Tag className="w-3.5 h-3.5 text-amber-600" /> {t.dashboard.table.colTargetPrice}:
                       </span>
                       <div className="text-right">
-                        <strong className="text-slate-800">{formatCurrency(target)}</strong>
+                        <span className="font-bold text-slate-800">{formatCurrency(target)}</span>
+                        <span className="text-[10px] text-slate-500 font-semibold ml-1">
+                          {t.routes?.perPersonSuffix || "/ pess."}
+                        </span>
                         {locale === "en" && (
                           <div className="text-[10px] text-slate-400 font-normal">
                             {formatUsdEstimate(target)}
@@ -275,17 +278,35 @@ export default function AllRoutesOverview({
                   <div className="flex items-baseline justify-between mb-3">
                     <span className="text-xs text-slate-500 font-medium">{t.dashboard.table.colCurrentPrice}:</span>
                     <div className="text-right">
-                      <span
-                        className={`text-xl font-black ${
-                          hasPrice
-                            ? isBelow
-                              ? "text-emerald-700"
-                              : "text-slate-900"
-                            : "text-slate-400"
-                        }`}
-                      >
-                        {hasPrice ? formatCurrency(price as number) : t.common.noResults}
-                      </span>
+                      <div className="flex items-baseline gap-1 justify-end">
+                        <span
+                          className={`text-xl font-black ${
+                            hasPrice
+                              ? isBelow
+                                ? "text-emerald-700"
+                                : "text-slate-900"
+                              : "text-slate-400"
+                          }`}
+                        >
+                          {hasPrice ? formatCurrency(price as number) : t.common.noResults}
+                        </span>
+                        {hasPrice && (
+                          <span className="text-[10px] font-semibold text-slate-500">
+                            {t.routes?.perPersonSuffix || "/ pess."}
+                          </span>
+                        )}
+                      </div>
+                      {hasPrice && (
+                        (() => {
+                          const totalPax = (passengers || 1) + (r.children || 0) + (r.infantsInLap || 0);
+                          return totalPax > 1 ? (
+                            <div className="text-[10px] text-slate-500 font-medium">
+                              {locale === "en" ? "Total: " : "Total: "}
+                              {formatCurrency((price as number) * totalPax)}
+                            </div>
+                          ) : null;
+                        })()
+                      )}
                       {hasPrice && locale === "en" && (
                         <div className="text-[10px] text-slate-500 font-medium">
                           {formatUsdEstimate(price as number)}

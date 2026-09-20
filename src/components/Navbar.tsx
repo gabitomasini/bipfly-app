@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Plane, Settings, RefreshCw, BarChart2, Terminal, Sparkles, Zap } from "lucide-react";
+import { Plane, Settings, RefreshCw, BarChart2, Terminal, Sparkles, Zap, LogIn, LogOut } from "lucide-react";
 import { SchedulerStatus, AppSettings } from "@/lib/types";
 import Tooltip from "@/components/Tooltip";
 import { useToast } from "@/components/Toast";
 import { useTranslation } from "@/lib/i18n/context";
+import { useAuth } from "@/lib/auth/AuthContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 interface NavbarProps {
@@ -18,6 +19,7 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
   const pathname = usePathname();
   const { addToast } = useToast();
   const { t } = useTranslation();
+  const { user, logout, openAuthModal } = useAuth();
   const [schedulerStatus, setSchedulerStatus] = useState<SchedulerStatus | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -130,8 +132,38 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
             })}
           </nav>
 
-          {/* Right Actions: Language Switcher + Search Trigger CTA */}
+          {/* Right Actions: Auth status + Language Switcher + Search Trigger CTA */}
           <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+            {/* User Auth State */}
+            {user ? (
+              <div className="flex items-center gap-1.5 bg-slate-100/90 py-1 pl-2.5 pr-1.5 rounded-xl border border-slate-200/70 text-xs text-slate-700 font-medium">
+                <div className="w-5 h-5 rounded-full bg-sky-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0">
+                  {user.name ? user.name[0].toUpperCase() : user.email[0].toUpperCase()}
+                </div>
+                <span className="hidden sm:inline max-w-[120px] truncate text-slate-800 font-semibold" title={user.email}>
+                  {user.name || user.email.split("@")[0]}
+                </span>
+                <Tooltip content={t.auth.logoutTooltip}>
+                  <button
+                    onClick={() => logout()}
+                    className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                    aria-label={t.auth.logout}
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                  </button>
+                </Tooltip>
+              </div>
+            ) : (
+              <button
+                onClick={() => openAuthModal({ mode: "login" })}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 border border-slate-200/60 transition-all cursor-pointer shadow-2xs"
+              >
+                <LogIn className="w-3.5 h-3.5 text-sky-600" />
+                <span className="hidden sm:inline">{t.auth.alreadyMonitor}</span>
+                <span>{t.auth.login}</span>
+              </button>
+            )}
+
             <LanguageSwitcher />
 
             <Tooltip content={t.nav.scanAllTooltip}>

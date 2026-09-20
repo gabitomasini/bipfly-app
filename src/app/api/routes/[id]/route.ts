@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { findRouteById, updateRoute, deleteRoute, getHistoryByRoute } from "@/lib/db";
+import { getAuthUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -8,9 +9,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Acesso não autorizado." }, { status: 401 });
+    }
+
     const { id } = await params;
     const routeId = Number(id);
-    const route = findRouteById(routeId);
+    const route = findRouteById(routeId, user.id);
 
     if (!route) {
       return NextResponse.json({ success: false, error: "Rota não encontrada." }, { status: 404 });
@@ -28,6 +34,11 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Acesso não autorizado." }, { status: 401 });
+    }
+
     const { id } = await params;
     const routeId = Number(id);
     const body = await request.json();
@@ -45,26 +56,30 @@ export async function PATCH(
     const onlyDirect = body.onlyDirect !== undefined ? Boolean(body.onlyDirect) : (body.apenas_diretos !== undefined ? Boolean(body.apenas_diretos) : undefined);
     const isActive = body.isActive !== undefined ? body.isActive : body.ativo;
 
-    const ok = updateRoute(routeId, {
-      origin,
-      destination,
-      flightDate,
-      returnDate,
-      tripType,
-      targetPrice: targetPrice !== undefined ? Number(targetPrice) : undefined,
-      passengers: passengers !== undefined ? Number(passengers) : undefined,
-      children: children !== undefined ? Number(children) : undefined,
-      infantsInLap: infantsInLap !== undefined ? Number(infantsInLap) : undefined,
-      intervalHours: intervalHours !== undefined ? Number(intervalHours) : undefined,
-      onlyDirect,
-      isActive,
-    });
+    const ok = updateRoute(
+      routeId,
+      {
+        origin,
+        destination,
+        flightDate,
+        returnDate,
+        tripType,
+        targetPrice: targetPrice !== undefined ? Number(targetPrice) : undefined,
+        passengers: passengers !== undefined ? Number(passengers) : undefined,
+        children: children !== undefined ? Number(children) : undefined,
+        infantsInLap: infantsInLap !== undefined ? Number(infantsInLap) : undefined,
+        intervalHours: intervalHours !== undefined ? Number(intervalHours) : undefined,
+        onlyDirect,
+        isActive,
+      },
+      user.id
+    );
 
     if (!ok) {
-      return NextResponse.json({ success: false, error: "Falha ao atualizar rota." }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Falha ao atualizar rota ou rota não encontrada." }, { status: 400 });
     }
 
-    const updatedRoute = findRouteById(routeId);
+    const updatedRoute = findRouteById(routeId, user.id);
     return NextResponse.json({ success: true, data: updatedRoute });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
@@ -76,9 +91,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Acesso não autorizado." }, { status: 401 });
+    }
+
     const { id } = await params;
     const routeId = Number(id);
-    const ok = deleteRoute(routeId);
+    const ok = deleteRoute(routeId, user.id);
 
     if (!ok) {
       return NextResponse.json({ success: false, error: "Rota não encontrada para exclusão." }, { status: 404 });

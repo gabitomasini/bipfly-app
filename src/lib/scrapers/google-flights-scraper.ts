@@ -261,8 +261,14 @@ export async function scrapeGoogleFlights(
 
     for (const raw of rawOptions) {
       try {
-        const unitPrice = parseBrazilianPrice(raw.priceText);
-        if (unitPrice <= 100) continue; // Filtra valores espúrios
+        const rawExtractedPrice = parseBrazilianPrice(raw.priceText);
+        if (rawExtractedPrice <= 50) continue; // Filtra valores espúrios
+
+        // Converte o preço total exibido pelo Google Flights para o preço unitário por passageiro
+        const unitPrice =
+          totalPax > 1
+            ? Math.round((rawExtractedPrice / totalPax) * 100) / 100
+            : rawExtractedPrice;
 
         parsedResults.push({
           origin: normOrigin,
@@ -270,6 +276,9 @@ export async function scrapeGoogleFlights(
           flightDate,
           returnDate: isRoundTrip && returnDate ? returnDate : null,
           tripType: isRoundTrip ? "round_trip" : "one_way",
+          passengers: passengers || 1,
+          children: children || 0,
+          infantsInLap: infantsInLap || 0,
           price: unitPrice,
           currency: "BRL",
           airline: raw.airline,

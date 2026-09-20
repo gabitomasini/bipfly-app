@@ -219,6 +219,9 @@ export async function fetchSerpApiFlights(
     const stops = Math.max(0, flights.length - 1);
 
     const totalPax = (adults || 1) + (children || 0) + (infantsInLap || 0);
+    const unitPrice =
+      totalPax > 1 ? Math.round((price / totalPax) * 100) / 100 : price;
+
     const flightSearchUrl = isRoundTrip && returnDate
       ? `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(
           legDestination
@@ -240,7 +243,7 @@ export async function fetchSerpApiFlights(
       passengers: adults,
       children,
       infantsInLap,
-      price,
+      price: unitPrice,
       currency: "BRL",
       airline,
       flightNumber: flightNum || undefined,
