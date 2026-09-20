@@ -307,8 +307,16 @@ export async function scrapeGoogleFlights(
     uniqueOptions.sort((a, b) => a.price - b.price);
 
     if (uniqueOptions.length === 0) {
+      const isSpecificSao = ["GRU", "CGH", "VCP"].includes(normOrigin);
+      const isSpecificRio = ["GIG", "SDU"].includes(normOrigin);
+      const tip = isSpecificSao
+        ? " (Dica: tente usar 'SAO' para buscar voos de todos os aeroportos de São Paulo, como CGH ou VCP)"
+        : isSpecificRio
+        ? " (Dica: tente usar 'RIO' para buscar voos de todos os aeroportos do Rio de Janeiro, como GIG ou SDU)"
+        : "";
+
       throw new ScraperError(
-        "Nenhum voo pôde ser extraído da página de voos reais do Google Flights."
+        `Nenhum voo comercial disponível no Google Flights para ${normOrigin} → ${normDestination} nesta data${tip}.`
       );
     }
 
