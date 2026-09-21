@@ -31,12 +31,14 @@ export function getDatabase(): Client {
     const tursoAuthToken = process.env.TURSO_AUTH_TOKEN;
 
     if (tursoUrl) {
+      console.log(`[DB] 🌐 Conectando ao Turso Cloud: ${tursoUrl}`);
       clientInstance = createClient({
         url: tursoUrl,
         authToken: tursoAuthToken || undefined,
       });
     } else {
       const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), "radar_passagens.db");
+      console.log(`[DB] 📁 Conectando ao SQLite Local: ${dbPath}`);
       clientInstance = createClient({
         url: `file:${dbPath}`,
       });
