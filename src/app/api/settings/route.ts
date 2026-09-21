@@ -7,7 +7,14 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const settings = await getAppSettings();
-    return NextResponse.json({ success: true, data: settings });
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...settings,
+        databaseProvider: process.env.TURSO_DATABASE_URL ? "turso_cloud" : "sqlite_local",
+        tursoHost: process.env.TURSO_DATABASE_URL ? process.env.TURSO_DATABASE_URL.replace(/:\/\/.*@/, "://") : null,
+      },
+    });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
