@@ -21,7 +21,7 @@ export async function GET(request: Request) {
       });
     }
 
-    const routes = listRoutes({ userId: user.id, activeOnly });
+    const routes = await listRoutes({ userId: user.id, activeOnly });
     return NextResponse.json({
       success: true,
       data: routes,
@@ -56,9 +56,16 @@ export async function POST(request: Request) {
       }
 
       // Cria ou recupera o usuário e estabelece a sessão persistente
-      user = getOrCreateUser(email, name);
+      user = await getOrCreateUser(email, name);
       await createAndSetSession(user.id);
       logger.info("SYSTEM", `Usuário cadastrado/reconhecido via Progressive Profiling: ${user.email}`);
+    }
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: "Falha ao identificar usuário para a rota." },
+        { status: 401 }
+      );
     }
 
     const origin = body.origin || body.origem;
@@ -88,7 +95,7 @@ export async function POST(request: Request) {
     const children = body.children !== undefined ? Number(body.children) : (body.criancas !== undefined ? Number(body.criancas) : 0);
     const infantsInLap = body.infantsInLap !== undefined ? Number(body.infantsInLap) : (body.infants_in_lap !== undefined ? Number(body.infants_in_lap) : (body.bebes !== undefined ? Number(body.bebes) : 0));
 
-    const id = createRoute({
+    const id = await createRoute({
       userId: user.id,
       origin,
       destination,

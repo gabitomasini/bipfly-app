@@ -6,7 +6,7 @@ import { FlightOption, MonitoredRoute, ScanResult } from "./types";
 import { logger } from "./logger";
 
 export async function scanRoute(routeId: number): Promise<ScanResult> {
-  const route = findRouteById(routeId);
+  const route = await findRouteById(routeId);
   const searchedAt = new Date().toISOString();
 
   if (!route) {
@@ -33,7 +33,7 @@ export async function scanRoute(routeId: number): Promise<ScanResult> {
     route.id
   );
 
-  const settings = getAppSettings();
+  const settings = await getAppSettings();
   const apiKey = settings.serpApiKey || process.env.SERPAPI_API_KEY || "";
   const provider = settings.searchProvider || "auto";
 
@@ -132,7 +132,7 @@ export async function scanRoute(routeId: number): Promise<ScanResult> {
       ? lastError.replace(/^Falha no Web Scraper do Google Flights:\s*/i, "")
       : `Nenhum voo encontrado para ${route.origin} → ${route.destination} nesta data.`;
     logger.warn("SCANNER", `Nenhum voo obtido para ${route.origin}→${route.destination}: ${errorMsg}`, undefined, route.id);
-    updateRouteScanStatus(route.id, searchedAt, errorMsg);
+    await updateRouteScanStatus(route.id, searchedAt, errorMsg);
     return {
       success: false,
       routeId: route.id,
@@ -163,7 +163,7 @@ export async function scanRoute(routeId: number): Promise<ScanResult> {
       const msg = "Nenhum voo direto encontrado para esta data/rota.";
       logger.info("SCANNER", `${route.origin}→${route.destination} [Apenas Diretos]: ${msg}`, undefined, route.id);
       if (bestWithStops) {
-        recordFlightHistory({
+        await recordFlightHistory({
           origin: route.origin,
           destination: route.destination,
           flightDate: route.flightDate,
@@ -216,7 +216,7 @@ export async function scanRoute(routeId: number): Promise<ScanResult> {
   const isBelowTarget = lowestPrice <= route.targetPrice;
 
   // Registra no banco SQLite com dados segregados
-  recordFlightHistory({
+  await recordFlightHistory({
     origin: route.origin,
     destination: route.destination,
     flightDate: route.flightDate,
@@ -243,7 +243,7 @@ export async function scanRoute(routeId: number): Promise<ScanResult> {
     searchedAt,
   });
 
-  updateRouteScanStatus(route.id, searchedAt, null);
+  await updateRouteScanStatus(route.id, searchedAt, null);
 
   logger.success(
     "SCANNER",
@@ -320,7 +320,7 @@ export async function scanAllActiveRoutes(): Promise<{
   alertasDisparados?: number;
   resultados?: ScanResult[];
 }> {
-  const activeRoutes = listRoutes(true);
+  const activeRoutes = await listRoutes(true);
   logger.info("SCANNER", `Iniciando ciclo de varredura para ${activeRoutes.length} rota(s) ativa(s)...`);
   const results: ScanResult[] = [];
   let successes = 0;

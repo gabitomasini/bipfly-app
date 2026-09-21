@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
     // 1. Rate Limiting: relaxado para testes locais
     const isDev = process.env.NODE_ENV !== "production";
-    const recentAttempts = countRecentLoginCodesByEmail(cleanEmail, 15);
+    const recentAttempts = await countRecentLoginCodesByEmail(cleanEmail, 15);
     if (!isDev && recentAttempts >= 20) {
       logger.warn("NOTIFICATION", `Rate limit excedido para solicitação de código OTP: ${cleanEmail}`);
       return NextResponse.json(
@@ -32,14 +32,14 @@ export async function POST(request: Request) {
     }
 
     // 2. Localiza ou cria o usuário
-    const user = getOrCreateUser(cleanEmail, name);
+    const user = await getOrCreateUser(cleanEmail, name);
 
     // 3. Gera código OTP de 6 dígitos
     const code = generateOtpCode();
 
     // 4. Salva no banco de dados com validade de 15 minutos
     const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || null;
-    createLoginCode({
+    await createLoginCode({
       userId: user.id,
       code,
       ipAddress: ip,

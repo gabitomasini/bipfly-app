@@ -6,11 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:migrate-turso": "tsx scripts/migrate-to-turso.ts",
+    "db:reset": "tsx scripts/reset-database.ts"
   },
   "dependencies": {
+    "@libsql/client": "^0.18.0",
     "better-sqlite3": "^13.0.3",
     "clsx": "^2.1.1",
+    "dotenv": "^18.0.1",
     "lucide-react": "^1.46.0",
     "next": "16.3.5",
     "node-cron": "^4.6.0",
@@ -30,6 +34,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

@@ -34,20 +34,22 @@ class AppLogger {
       console.log(`ℹ️ ${prefix} ${message}`, details ? details : "");
     }
 
-    let insertedId = 0;
-    // Persistência segura em SQLite
-    try {
-      insertedId = recordLog({
-        timestamp,
-        level,
-        category,
-        message,
-        details,
-        routeId,
-      });
-    } catch (err) {
-      console.error("Falha ao persistir log no SQLite:", err);
-    }
+    let insertedId = Date.now();
+    // Persistência segura no banco de dados (assíncrono / não-bloqueante)
+    recordLog({
+      timestamp,
+      level,
+      category,
+      message,
+      details,
+      routeId,
+    }).then(id => {
+      if (id) {
+        logEntry.id = id;
+      }
+    }).catch(err => {
+      console.error("Falha ao persistir log:", err);
+    });
 
     let detailsStr: string | null = null;
     if (details !== undefined && details !== null) {

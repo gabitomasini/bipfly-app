@@ -25,7 +25,7 @@ export function generateOtpCode(): string {
  */
 export async function createAndSetSession(userId: number): Promise<string> {
   const token = generateSessionToken();
-  createSession(userId, token, 60);
+  await createSession(userId, token, 60);
 
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE_NAME, token, {
@@ -47,7 +47,7 @@ export async function clearAuthSession(): Promise<void> {
   const tokenCookie = cookieStore.get(SESSION_COOKIE_NAME);
 
   if (tokenCookie && tokenCookie.value) {
-    deleteSessionByToken(tokenCookie.value);
+    await deleteSessionByToken(tokenCookie.value);
   }
 
   cookieStore.delete(SESSION_COOKIE_NAME);
@@ -65,7 +65,7 @@ export async function getAuthUser(): Promise<User | null> {
       return null;
     }
 
-    const sessionData = findSessionByToken(tokenCookie.value);
+    const sessionData = await findSessionByToken(tokenCookie.value);
     if (!sessionData) {
       return null;
     }
@@ -79,7 +79,7 @@ export async function getAuthUser(): Promise<User | null> {
 /**
  * Helper para extrair o usuário autenticado diretamente de um objeto Request (caso necessário)
  */
-export function getAuthUserFromRequest(request: Request): User | null {
+export async function getAuthUserFromRequest(request: Request): Promise<User | null> {
   try {
     const cookieHeader = request.headers.get("cookie") || "";
     const cookiesList = cookieHeader.split(";").map((c) => c.trim());
@@ -92,7 +92,7 @@ export function getAuthUserFromRequest(request: Request): User | null {
     const token = sessionCookie.split("=")[1];
     if (!token) return null;
 
-    const sessionData = findSessionByToken(token);
+    const sessionData = await findSessionByToken(token);
     return sessionData ? sessionData.user : null;
   } catch {
     return null;

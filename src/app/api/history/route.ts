@@ -10,10 +10,10 @@ export async function GET(request: Request) {
     const limit = Number(searchParams.get("limit")) || 100;
 
     if (routeIdParam) {
-      const history = getHistoryByRoute(Number(routeIdParam), limit);
+      const history = await getHistoryByRoute(Number(routeIdParam), limit);
       return NextResponse.json({ success: true, data: history });
     } else {
-      const history = getAllHistory(limit);
+      const history = await getAllHistory(limit);
       return NextResponse.json({ success: true, data: history });
     }
   } catch (err: any) {

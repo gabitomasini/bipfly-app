@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const settings = getAppSettings();
+    const settings = await getAppSettings();
     return NextResponse.json({ success: true, data: settings });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     const ntfyTopic = body.ntfyTopic !== undefined ? body.ntfyTopic : body.ntfy_topic;
     const autoNotify = body.autoNotify !== undefined ? body.autoNotify : body.auto_notify;
 
-    saveAppSettings({
+    await saveAppSettings({
       scheduleHours,
       searchProvider,
       serpApiKey,
@@ -32,10 +32,10 @@ export async function POST(request: Request) {
     });
 
     if (scheduleHours !== undefined) {
-      restartScheduler();
+      await restartScheduler();
     }
 
-    const updated = getAppSettings();
+    const updated = await getAppSettings();
     return NextResponse.json({ success: true, data: updated });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

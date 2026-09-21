@@ -98,7 +98,7 @@ async function triggerScheduledScan(triggerSource = "Scheduler") {
   }
 }
 
-export function startScheduler(): void {
+export async function startScheduler(): Promise<void> {
   for (const t of state.tasks) {
     try {
       t.stop();
@@ -106,7 +106,7 @@ export function startScheduler(): void {
   }
   state.tasks = [];
 
-  const settings = getAppSettings();
+  const settings = await getAppSettings();
   const hours = parseScheduleHours(settings.scheduleHours);
   state.activeHours = hours;
 
@@ -138,14 +138,14 @@ export function startScheduler(): void {
   state.running = true;
 }
 
-export function restartScheduler(): SchedulerStatus {
-  startScheduler();
-  return getSchedulerStatus();
+export async function restartScheduler(): Promise<SchedulerStatus> {
+  await startScheduler();
+  return await getSchedulerStatus();
 }
 
-export function getSchedulerStatus(): SchedulerStatus {
+export async function getSchedulerStatus(): Promise<SchedulerStatus> {
   if (!state.running && state.tasks.length === 0) {
-    startScheduler();
+    await startScheduler();
   }
 
   const nextRun = calculateNextRun(state.activeHours);

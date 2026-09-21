@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const settings = getAppSettings();
+    const settings = await getAppSettings();
     const topic = body.topic || body.topico || settings.ntfyTopic;
 
     if (!topic) {

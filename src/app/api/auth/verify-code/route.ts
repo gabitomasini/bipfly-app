@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     const cleanEmail = email.trim().toLowerCase();
     const cleanCode = String(code).trim();
 
-    const user = findUserByEmail(cleanEmail);
+    const user = await findUserByEmail(cleanEmail);
     if (!user) {
       return NextResponse.json(
         { error: "Nenhuma conta vinculada a este endereço de e-mail." },
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     }
 
     // Valida o código OTP ativo
-    const validCode = findValidLoginCode(user.id, cleanCode);
+    const validCode = await findValidLoginCode(user.id, cleanCode);
     if (!validCode) {
       return NextResponse.json(
         { error: "Código de verificação inválido ou expirado. Por favor, solicite um novo." },
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     }
 
     // Marca como utilizado
-    markLoginCodeUsed(validCode.id);
+    await markLoginCodeUsed(validCode.id);
 
     // Cria sessão persistente e define cookie HTTP-only
     await createAndSetSession(user.id);

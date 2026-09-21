@@ -12,7 +12,7 @@ export async function POST(
   try {
     const { id } = await params;
     const routeId = Number(id);
-    const route = findRouteById(routeId);
+    const route = await findRouteById(routeId);
 
     if (!route) {
       return NextResponse.json(
@@ -52,7 +52,7 @@ export async function POST(
       });
     }
 
-    const { inserted, skipped } = bulkInsertHistoricalFlightPrices(route.id, points);
+    const { inserted, skipped } = await bulkInsertHistoricalFlightPrices(route.id, points);
 
     logger.success(
       "SCRAPER",

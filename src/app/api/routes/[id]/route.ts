@@ -16,13 +16,13 @@ export async function GET(
 
     const { id } = await params;
     const routeId = Number(id);
-    const route = findRouteById(routeId, user.id);
+    const route = await findRouteById(routeId, user.id);
 
     if (!route) {
       return NextResponse.json({ success: false, error: "Rota não encontrada." }, { status: 404 });
     }
 
-    const history = getHistoryByRoute(routeId, 100);
+    const history = await getHistoryByRoute(routeId, 100);
     return NextResponse.json({ success: true, data: { ...route, history, historico: history } });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
@@ -50,13 +50,13 @@ export async function PATCH(
     const tripType = body.tripType || body.trip_type;
     const targetPrice = body.targetPrice !== undefined ? body.targetPrice : (body.preco_limite || body.precoLimite);
     const passengers = body.passengers !== undefined ? body.passengers : body.passageiros;
-    const children = body.children !== undefined ? body.children : body.criancas;
-    const infantsInLap = body.infantsInLap !== undefined ? body.infantsInLap : (body.infants_in_lap !== undefined ? body.infants_in_lap : body.bebes);
+    const children = body.children !== undefined ? Number(body.children) : (body.criancas !== undefined ? Number(body.criancas) : undefined);
+    const infantsInLap = body.infantsInLap !== undefined ? Number(body.infantsInLap) : (body.infants_in_lap !== undefined ? Number(body.infants_in_lap) : (body.bebes !== undefined ? Number(body.bebes) : undefined));
     const intervalHours = body.intervalHours !== undefined ? body.intervalHours : body.intervalo_horas;
     const onlyDirect = body.onlyDirect !== undefined ? Boolean(body.onlyDirect) : (body.apenas_diretos !== undefined ? Boolean(body.apenas_diretos) : undefined);
     const isActive = body.isActive !== undefined ? body.isActive : body.ativo;
 
-    const ok = updateRoute(
+    const ok = await updateRoute(
       routeId,
       {
         origin,
@@ -66,8 +66,8 @@ export async function PATCH(
         tripType,
         targetPrice: targetPrice !== undefined ? Number(targetPrice) : undefined,
         passengers: passengers !== undefined ? Number(passengers) : undefined,
-        children: children !== undefined ? Number(children) : undefined,
-        infantsInLap: infantsInLap !== undefined ? Number(infantsInLap) : undefined,
+        children: children !== undefined && !isNaN(children) ? children : undefined,
+        infantsInLap: infantsInLap !== undefined && !isNaN(infantsInLap) ? infantsInLap : undefined,
         intervalHours: intervalHours !== undefined ? Number(intervalHours) : undefined,
         onlyDirect,
         isActive,
@@ -79,7 +79,7 @@ export async function PATCH(
       return NextResponse.json({ success: false, error: "Falha ao atualizar rota ou rota não encontrada." }, { status: 400 });
     }
 
-    const updatedRoute = findRouteById(routeId, user.id);
+    const updatedRoute = await findRouteById(routeId, user.id);
     return NextResponse.json({ success: true, data: updatedRoute });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
@@ -98,7 +98,7 @@ export async function DELETE(
 
     const { id } = await params;
     const routeId = Number(id);
-    const ok = deleteRoute(routeId, user.id);
+    const ok = await deleteRoute(routeId, user.id);
 
     if (!ok) {
       return NextResponse.json({ success: false, error: "Rota não encontrada para exclusão." }, { status: 404 });

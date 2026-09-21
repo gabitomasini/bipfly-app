@@ -42,10 +42,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const recentRecords = getRecentPriceHistory(origin, destination, departureDate, 30);
+    const recentRecords = await getRecentPriceHistory(origin, destination, departureDate, 30);
     const analysis = analyzeFlightPrice(origin, destination, departureDate, price, recentRecords);
 
-    const recordedId = insertFlightPrice({
+    const recordedId = await insertFlightPrice({
       origin,
       destination,
       departureDate,
@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const records = getRecentPriceHistory(origin, destination, departureDate, 30);
+    const records = await getRecentPriceHistory(origin, destination, departureDate, 30);
 
     let testAnalysis = null;
     if (testPriceStr && !isNaN(parseFloat(testPriceStr))) {

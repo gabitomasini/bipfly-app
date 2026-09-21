@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const limit = limitParam ? Math.min(Number(limitParam), 500) : 100;
     const offset = offsetParam ? Number(offsetParam) : 0;
 
-    const { logs, total } = getLogs({
+    const { logs, total } = await getLogs({
       level,
       category,
       search,
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       offset,
     });
 
-    const stats = getLogStats();
+    const stats = await getLogStats();
 
     return NextResponse.json({
       success: true,
@@ -56,7 +56,7 @@ export async function DELETE(request: NextRequest) {
     const daysParam = searchParams.get("days") || searchParams.get("dias");
     const days = daysParam ? Number(daysParam) : undefined;
 
-    const removed = clearLogs(days);
+    const removed = await clearLogs(days);
 
     return NextResponse.json({
       success: true,
