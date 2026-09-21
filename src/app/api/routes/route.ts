@@ -110,6 +110,14 @@ export async function POST(request: Request) {
       onlyDirect,
     });
 
+    const cookieHeader = request.headers.get("cookie") || "";
+    const cookieLocaleMatch = cookieHeader.match(/radar_passagens_locale=([^;]+)/);
+    const detectedLocale =
+      body.locale ||
+      request.headers.get("x-locale") ||
+      (cookieLocaleMatch ? cookieLocaleMatch[1] : undefined) ||
+      "en";
+
     // Envia e-mail de confirmação de monitoramento
     sendRouteCreatedEmail({
       email: user.email,
@@ -119,9 +127,11 @@ export async function POST(request: Request) {
       flightDate,
       returnDate,
       targetPrice: Number(targetPrice),
+      currency: body.currency || "BRL",
       passengers: Number(passengers) || 1,
       children: isNaN(children) ? 0 : children,
       infantsInLap: isNaN(infantsInLap) ? 0 : infantsInLap,
+      locale: detectedLocale,
     }).catch((err) => {
       logger.error("NOTIFICATION", `Falha no disparo do e-mail de confirmação da rota #${id}: ${err.message}`);
     });

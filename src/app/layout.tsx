@@ -15,9 +15,12 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Flight Radar | Intelligent Airfare Deal Tracker",
+  title: "BipFly",
   description:
-    "Automated flight price tracking across Google Flights with real-time alerts, interactive charts, and historical fare intelligence.",
+    "Monitoramento automatizado de preços no Google Flights com alertas em tempo real, inteligência tarifária e histórico de preços.",
+  icons: {
+    icon: "/bipfly-icon.svg",
+  },
 };
 
 export default function RootLayout({

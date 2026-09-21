@@ -5,12 +5,13 @@ import { X, Mail, User as UserIcon, ArrowRight, CheckCircle, RefreshCw, KeyRound
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
 import { useTranslation } from "@/lib/i18n/context";
+import Logo from "@/components/Logo";
 import OtpInput from "./OtpInput";
 
 export default function AuthModal() {
   const { isAuthModalOpen, authModalOptions, closeAuthModal, refreshUser } = useAuth();
   const { addToast } = useToast();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
 
   const mode = authModalOptions.mode || "login";
   const [email, setEmail] = useState("");
@@ -55,7 +56,7 @@ export default function AuthModal() {
       const res = await fetch("/api/auth/send-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase(), name: name.trim() || undefined }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), name: name.trim() || undefined, locale }),
       });
 
       const data = await res.json();
@@ -127,6 +128,7 @@ export default function AuthModal() {
             ...authModalOptions.routeDataToSave,
             email: email.trim().toLowerCase(),
             name: name.trim() || undefined,
+            locale,
           }),
         });
 
@@ -156,8 +158,8 @@ export default function AuthModal() {
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
-              {mode === "progressive" ? <Plane className="w-5 h-5 -rotate-45" /> : <KeyRound className="w-5 h-5" />}
+            <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center p-1.5 shadow-sm">
+              <Logo variant="icon" className="w-7 h-7" />
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900 leading-tight">

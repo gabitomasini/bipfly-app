@@ -63,7 +63,7 @@ export async function sendNtfyNotification(params: {
     lines.push(`🔄 Escalas: ${params.stops === 0 ? "Voo Direto" : `${params.stops} parada(s)`}`);
   }
 
-  lines.push(`\n⚡ Monitorado pelo Radar de Passagens. Clique para comprar ou conferir!`);
+  lines.push(`\n⚡ Monitorado pelo BipFly. Clique para comprar ou conferir!`);
 
   const body = lines.join("\n");
 

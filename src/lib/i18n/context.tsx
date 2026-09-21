@@ -52,23 +52,32 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       const saved = localStorage.getItem(STORAGE_KEY) as SupportedLocale;
       if (saved === "en" || saved === "pt") {
         setLocaleState(saved);
+        document.cookie = `${STORAGE_KEY}=${saved}; path=/; max-age=31536000; SameSite=Lax`;
       }
     } catch {}
   }, []);
+
+  const dictionary = dictionaries[locale] || en;
+
+  // Sync lang attribute on locale change
+  useEffect(() => {
+    try {
+      document.title = "BipFly";
+      document.documentElement.lang = locale === "pt" ? "pt-BR" : "en";
+    } catch {}
+  }, [locale]);
 
   const setLocale = useCallback((newLocale: SupportedLocale) => {
     setLocaleState(newLocale);
     try {
       localStorage.setItem(STORAGE_KEY, newLocale);
-      document.documentElement.lang = newLocale === "pt" ? "pt-BR" : "en";
+      document.cookie = `${STORAGE_KEY}=${newLocale}; path=/; max-age=31536000; SameSite=Lax`;
     } catch {}
   }, []);
 
   const toggleLocale = useCallback(() => {
     setLocale(locale === "en" ? "pt" : "en");
   }, [locale, setLocale]);
-
-  const dictionary = dictionaries[locale] || en;
 
   const formatCurrency = useCallback(
     (amount: number | null | undefined, currency: string = "BRL") =>

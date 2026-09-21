@@ -46,11 +46,20 @@ export async function POST(request: Request) {
       expiresInMinutes: 15,
     });
 
+    const cookieHeader = request.headers.get("cookie") || "";
+    const cookieLocaleMatch = cookieHeader.match(/radar_passagens_locale=([^;]+)/);
+    const detectedLocale =
+      body.locale ||
+      request.headers.get("x-locale") ||
+      (cookieLocaleMatch ? cookieLocaleMatch[1] : undefined) ||
+      "en";
+
     // 5. Dispara e-mail com o código
     await sendOtpEmail({
       email: user.email,
       code,
       name: user.name,
+      locale: detectedLocale,
     });
 
     return NextResponse.json({

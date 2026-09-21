@@ -189,6 +189,7 @@ export default function RouteModal({
         targetPrice: parsedPrice,
         onlyDirect,
         isActive: routeToEdit ? routeToEdit.isActive !== false : true,
+        locale,
       };
 
       // Se for criação e o usuário não estiver autenticado, abre o modal de progressive profiling

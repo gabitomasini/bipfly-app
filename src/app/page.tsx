@@ -226,13 +226,19 @@ export default function DashboardPage() {
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <span>{t.dashboard.title}</span>
-              <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-sky-100 text-sky-800 border border-sky-200">
-                Live
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
+                <span>{t.dashboard.title}</span>
+              </h1>
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span>Live</span>
               </span>
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
+            </div>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
               {t.dashboard.subtitle}
             </p>
           </div>

@@ -48,9 +48,9 @@ export const en: TranslationDictionary = {
     perPersonShort: "/ person",
   },
   nav: {
-    brand: "Flight Radar",
+    brand: "BipFly",
     badge: "SaaS",
-    subtitle: "Airfare Deal Tracker",
+    subtitle: "Set your fare. Take the air.",
     dashboard: "Dashboard",
     routes: "Routes",
     history: "Price History",
@@ -64,7 +64,7 @@ export const en: TranslationDictionary = {
     pt: "Português (BR)",
   },
   dashboard: {
-    title: "Flight Radar",
+    title: "Dashboard",
     subtitle: "Real-time automated price monitoring across major booking engines",
     kpis: {
       monitoredRoutes: "Monitored Routes",
@@ -73,9 +73,9 @@ export const en: TranslationDictionary = {
       dealsFoundSub: "Below your target price",
       lowestPriceFound: "Lowest Price Found",
       lowestPriceRoute: "route",
-      avgCycle: "Scanning Cycle",
+      avgCycle: "Next Scan",
       nextScan: "Next scan in",
-      autoScraper: "Auto Scraper",
+      autoScraper: "Next scan",
       manual: "Manual",
       noRoutesYet: "No routes monitored yet",
     },

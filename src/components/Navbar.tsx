@@ -2,15 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
 import { Plane, Settings, RefreshCw, BarChart2, Terminal, Sparkles, Zap, LogIn, LogOut } from "lucide-react";
-import { SchedulerStatus, AppSettings } from "@/lib/types";
 import Tooltip from "@/components/Tooltip";
-import { useToast } from "@/components/Toast";
 import { useTranslation } from "@/lib/i18n/context";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useScanning } from "@/context/ScanningContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import Logo from "@/components/Logo";
 
 interface NavbarProps {
   onSearchTriggered?: () => void;
@@ -18,38 +16,15 @@ interface NavbarProps {
 
 export default function Navbar({ onSearchTriggered }: NavbarProps) {
   const pathname = usePathname();
-  const { addToast } = useToast();
   const { t } = useTranslation();
   const { user, logout, openAuthModal } = useAuth();
   const { isScanning, scanAllRoutes } = useScanning();
-  const [schedulerStatus, setSchedulerStatus] = useState<SchedulerStatus | null>(null);
-  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
-
-  const fetchStatusAndSettings = async () => {
-    try {
-      const [schRes, setRes] = await Promise.all([
-        fetch("/api/scheduler").then((r) => r.json()).catch(() => null),
-        fetch("/api/settings").then((r) => r.json()).catch(() => null),
-      ]);
-      if (schRes?.success) setSchedulerStatus(schRes.data);
-      if (setRes?.success) setAppSettings(setRes.data);
-    } catch {
-      // ignore
-    }
-  };
-
-  useEffect(() => {
-    fetchStatusAndSettings();
-    const interval = setInterval(fetchStatusAndSettings, 30000);
-    return () => clearInterval(interval);
-  }, []);
 
   const handleRunAllNow = async () => {
     const success = await scanAllRoutes();
     if (success) {
       onSearchTriggered?.();
     }
-    fetchStatusAndSettings();
   };
 
   const navLinks = [
@@ -63,28 +38,20 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
   return (
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200/80 transition-all">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Brand Logo & Name */}
+        <div className="flex items-center justify-between h-16 sm:h-[4.25rem]">
+          {/* Brand Logo & Slogan */}
           <Link
             href="/"
-            className="flex items-center gap-3 group focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded-xl"
+            className="flex flex-col items-start group focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded-xl py-1 pr-2"
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-sky-500/20 group-hover:shadow-lg group-hover:shadow-sky-500/30 group-hover:scale-105 transition-all">
-              <Plane className="w-5 h-5 -rotate-45" />
-            </div>
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-base tracking-tight text-slate-900 group-hover:text-sky-600 transition-colors">
-                  Flight Radar
-                </span>
-                <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-sky-100 text-sky-700">
-                  {t.nav.badge}
-                </span>
-              </div>
-              <span className="text-[11px] text-slate-600 font-medium -mt-0.5">
-                {t.nav.subtitle}
-              </span>
-            </div>
+            <Logo
+              variant="full"
+              textColor="#0f172a"
+              className="h-7 sm:h-7.5 w-auto group-hover:scale-[1.01] transition-transform origin-left"
+            />
+            <span className="text-[10px] sm:text-[10.5px] font-semibold text-slate-500 tracking-tight group-hover:text-slate-700 transition-colors mt-0.5 leading-none pl-0.5">
+              {t.nav.subtitle}
+            </span>
           </Link>
 
           {/* Navigation Links */}

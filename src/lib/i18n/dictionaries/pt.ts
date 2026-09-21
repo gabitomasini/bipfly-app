@@ -48,9 +48,9 @@ export const pt: TranslationDictionary = {
     perPersonShort: "/ pessoa",
   },
   nav: {
-    brand: "Radar Passagens",
+    brand: "BipFly",
     badge: "SaaS",
-    subtitle: "Monitor de Ofertas Aéreas",
+    subtitle: "Trace a meta. Pegue a oferta.",
     dashboard: "Dashboard",
     routes: "Rotas",
     history: "Histórico",
@@ -64,7 +64,7 @@ export const pt: TranslationDictionary = {
     pt: "Português (BR)",
   },
   dashboard: {
-    title: "Radar de Passagens",
+    title: "Dashboard",
     subtitle: "Monitoramento em tempo real nos principais buscadores de passagens",
     kpis: {
       monitoredRoutes: "Rotas Monitoradas",
@@ -73,9 +73,9 @@ export const pt: TranslationDictionary = {
       dealsFoundSub: "Abaixo da meta estipulada",
       lowestPriceFound: "Menor Preço Encontrado",
       lowestPriceRoute: "rota",
-      avgCycle: "Ciclo de Busca",
+      avgCycle: "Próxima Busca",
       nextScan: "Próxima busca em",
-      autoScraper: "Robô Ativo",
+      autoScraper: "Próxima busca",
       manual: "Manual",
       noRoutesYet: "Nenhuma rota monitorada ainda",
     },
