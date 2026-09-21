@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/Toast";
 import { useTranslation } from "@/lib/i18n/context";
 import { validateFullName, validateEmail } from "@/lib/validation";
+import { useScanning } from "@/context/ScanningContext";
 import Logo from "@/components/Logo";
 import OtpInput from "./OtpInput";
 
@@ -13,6 +14,7 @@ export default function AuthModal() {
   const { isAuthModalOpen, authModalOptions, closeAuthModal, refreshUser } = useAuth();
   const { addToast } = useToast();
   const { t, locale } = useTranslation();
+  const { scanSingleRoute } = useScanning();
 
   const mode = authModalOptions.mode || "login";
   const [email, setEmail] = useState("");
@@ -161,6 +163,14 @@ export default function AuthModal() {
         addToast(t.auth.routeCreatedSuccessToast, "success");
         authModalOptions.onSuccess?.(data.user);
         closeAuthModal();
+
+        // Dispara a busca automática imediata
+        if (data.data?.id) {
+          scanSingleRoute(
+            data.data.id,
+            `${authModalOptions.routeDataToSave.origin} → ${authModalOptions.routeDataToSave.destination}`
+          ).catch(() => {});
+        }
       } else {
         await handleSendOtp();
       }

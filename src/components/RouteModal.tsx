@@ -9,6 +9,7 @@ import CustomDatePicker from "./CustomDatePicker";
 import { useModalBehavior } from "@/hooks/useModalBehavior";
 import { useTranslation } from "@/lib/i18n/context";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { useScanning } from "@/context/ScanningContext";
 import { BRL_TO_USD_RATE } from "@/lib/i18n/formatters";
 import { formatCurrency } from "@/lib/utils";
 
@@ -27,6 +28,7 @@ export default function RouteModal({
 }: RouteModalProps) {
   const { t, locale } = useTranslation();
   const { user, openAuthModal } = useAuth();
+  const { scanSingleRoute } = useScanning();
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [tripType, setTripType] = useState<"one_way" | "round_trip">("round_trip");
@@ -214,6 +216,10 @@ export default function RouteModal({
         });
         const json = await res.json();
         if (!json.success) throw new Error(json.error || "Failed to update route.");
+        onSuccess();
+        onClose();
+        // Dispara busca atualizada em tempo real
+        scanSingleRoute(routeToEdit.id, `${normOrigin} → ${normDestination}`).catch(() => {});
       } else {
         const res = await fetch("/api/routes", {
           method: "POST",
@@ -236,10 +242,14 @@ export default function RouteModal({
           }
           throw new Error(json.error || "Failed to create route.");
         }
-      }
 
-      onSuccess();
-      onClose();
+        onSuccess();
+        onClose();
+        // Dispara a busca imediata para encontrar o preço de agora
+        if (json.data?.id) {
+          scanSingleRoute(json.data.id, `${normOrigin} → ${normDestination}`).catch(() => {});
+        }
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {

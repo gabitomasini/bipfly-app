@@ -630,6 +630,15 @@ export async function createRoute(data: {
   return Number(res.lastInsertRowid);
 }
 
+export async function getUserRouteCount(userId: number): Promise<number> {
+  const db = await ensureInitialized();
+  const res = await db.execute({
+    sql: "SELECT COUNT(*) as count FROM monitored_routes WHERE user_id = ?",
+    args: [userId],
+  });
+  return Number(res.rows[0]?.count || 0);
+}
+
 export async function updateRoute(
   id: number,
   data: Partial<{

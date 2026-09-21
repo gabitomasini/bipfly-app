@@ -16,10 +16,13 @@ interface ScanningContextType {
   isScanning: boolean;
   activeRouteId: number | null;
   activeRouteLabel: string | null;
+  customTitle: string | null;
   elapsedSeconds: number;
   isCompleted: boolean;
   scanAllRoutes: () => Promise<boolean>;
   scanSingleRoute: (routeId: number, routeLabel?: string) => Promise<boolean>;
+  startCustomScan: (title: string, label: string, routeId?: number) => void;
+  endCustomScan: (success?: boolean) => void;
   registerRefreshCallback: (cb: () => void) => () => void;
 }
 
@@ -40,6 +43,7 @@ export function ScanningProvider({ children }: { children: ReactNode }) {
   const [isScanning, setIsScanning] = useState(false);
   const [activeRouteId, setActiveRouteId] = useState<number | null>(null);
   const [activeRouteLabel, setActiveRouteLabel] = useState<string | null>(null);
+  const [customTitle, setCustomTitle] = useState<string | null>(null);
   const [scanStartTime, setScanStartTime] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
@@ -186,16 +190,43 @@ export function ScanningProvider({ children }: { children: ReactNode }) {
     [isScanning, t, addToast, triggerRefreshCallbacks]
   );
 
+  const startCustomScan = useCallback((title: string, label: string, routeId?: number) => {
+    setIsScanning(true);
+    setCustomTitle(title);
+    setActiveRouteLabel(label);
+    if (routeId) setActiveRouteId(routeId);
+    setIsCompleted(false);
+  }, []);
+
+  const endCustomScan = useCallback((success = true) => {
+    setIsScanning(false);
+    setCustomTitle(null);
+    setActiveRouteId(null);
+    setActiveRouteLabel(null);
+
+    if (success) {
+      setIsCompleted(true);
+      triggerRefreshCallbacks();
+      if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
+      completionTimerRef.current = setTimeout(() => {
+        setIsCompleted(false);
+      }, 4000);
+    }
+  }, [triggerRefreshCallbacks]);
+
   return (
     <ScanningContext.Provider
       value={{
         isScanning,
         activeRouteId,
         activeRouteLabel,
+        customTitle,
         elapsedSeconds,
         isCompleted,
         scanAllRoutes,
         scanSingleRoute,
+        startCustomScan,
+        endCustomScan,
         registerRefreshCallback,
       }}
     >

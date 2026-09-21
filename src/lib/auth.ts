@@ -76,19 +76,30 @@ export async function getAuthUser(): Promise<User | null> {
   }
 }
 
+export const MAX_ROUTES_PER_USER = 3;
+
 /**
- * Verifica se um usuário possui privilégios de administrador.
- * Se ADMIN_EMAILS não estiver configurada, retorna true (compatibilidade retroativa / dev mode).
- * Se ADMIN_EMAILS estiver configurada, verifica se o e-mail do usuário consta na lista.
+ * Verifica se um usuário possui privilégios de administrador ou feature flag de rotas ilimitadas.
+ * - ADMIN_EMAILS: lista de e-mails de administradores separados por vírgula.
+ * - FEATURE_UNLIMITED_ROUTES: se "true", libera rotas ilimitadas para todos.
  */
 export function isUserAdmin(user: User | null): boolean {
   if (!user) return false;
+  
+  if (process.env.FEATURE_UNLIMITED_ROUTES === "true") {
+    return true;
+  }
+
   const adminEmails = (process.env.ADMIN_EMAILS || "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
 
-  if (adminEmails.length === 0) return true;
-  return adminEmails.includes(user.email.toLowerCase());
+  if (adminEmails.length > 0) {
+    return adminEmails.includes(user.email.toLowerCase());
+  }
+
+  // Se ADMIN_EMAILS não estiver definido, permite admin apenas em dev
+  return process.env.NODE_ENV !== "production";
 }
 

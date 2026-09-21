@@ -195,9 +195,10 @@ export const en: TranslationDictionary = {
     deleting: "Deleting...",
     errorRequired: "Please fill in all required fields.",
     errorDatePast: "Flight date cannot be in the past.",
-    errorPriceInvalid: "Please enter a valid target price per traveler.",
-    errorReturnBeforeDeparture: "Return date must be on or after outbound departure date.",
-    errorInfantsExceedAdults: "The number of lap infants cannot exceed the number of adult passengers (max 1 lap infant per adult).",
+    errorPriceInvalid: "Please enter a valid target price per person greater than zero.",
+    errorReturnBeforeDeparture: "Return date must be on or after departure date.",
+    errorInfantsExceedAdults: "Number of infants in lap cannot exceed number of adults (max 1 infant per adult).",
+    errorLimitReached: "Limit of 3 routes per email reached. Delete an existing route to monitor a new one.",
   },
   flightDrawer: {
     bestDirect: "Best Direct Flight",

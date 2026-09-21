@@ -47,11 +47,13 @@ import {
   Sparkles,
   ChevronDown,
 } from "lucide-react";
+import { useScanning } from "@/context/ScanningContext";
 import { ROUTE_COLORS } from "@/components/MultiRoutePriceChart";
 
 function HistoricoContent() {
   const { t, locale } = useTranslation();
   const { addToast } = useToast();
+  const { startCustomScan, endCustomScan } = useScanning();
   const searchParams = useSearchParams();
   const [routes, setRoutes] = useState<MonitoredRoute[]>([]);
   const [selectedRouteIds, setSelectedRouteIds] = useState<number[]>([]);
@@ -93,12 +95,12 @@ function HistoricoContent() {
     const targetRoute = routes.find((r) => r.id === targetId);
     const routeLabel = targetRoute ? `${targetRoute.origin} → ${targetRoute.destination}` : `Rota #${targetId}`;
 
-    addToast(
-      locale === "en"
-        ? `Fetching ${days}-day price history for ${routeLabel}...`
-        : `Buscando histórico de ${days} dias para ${routeLabel}...`,
-      "info"
-    );
+    const scanTitle = locale === "en"
+      ? `Importing ${days}-Day Price History`
+      : `Importando Histórico de ${days} Dias`;
+    const scanSub = `${routeLabel} • Google Flights`;
+
+    startCustomScan(scanTitle, scanSub, targetId);
 
     try {
       const res = await fetch(`/api/routes/${targetId}/backfill`, {
@@ -114,6 +116,7 @@ function HistoricoContent() {
         
         setBackfillMessage({ type: "success", text: msg });
         addToast(msg, "success");
+        endCustomScan(true);
 
         // Recarrega histórico
         const updated = await fetch(`/api/history?route_id=${targetId}`).then((r) => r.json());
@@ -128,6 +131,7 @@ function HistoricoContent() {
         );
         setBackfillMessage({ type: "info", text: failMsg });
         addToast(failMsg, "info");
+        endCustomScan(false);
       }
     } catch (err: any) {
       const errMsg = locale === "en"
@@ -135,6 +139,7 @@ function HistoricoContent() {
         : "Falha ao consultar histórico no Google Flights. Tente novamente.";
       setBackfillMessage({ type: "error", text: errMsg });
       addToast(errMsg, "error");
+      endCustomScan(false);
     } finally {
       setIsBackfilling(false);
     }
@@ -1185,14 +1190,14 @@ function HistoricoContent() {
                 </div>
               )}
 
-              {/* Card de Inteligência Estatística */}
-              <StatisticalAnalysisCard
+              {/* Card de Inteligência Estatística (Ocultado temporariamente) */}
+              {/* <StatisticalAnalysisCard
                 history={history}
                 currentPrice={singleRoute.latestPrice}
                 origin={singleRoute.origin}
                 destination={singleRoute.destination}
                 departureDate={singleRoute.flightDate}
-              />
+              /> */}
 
               {/* Gráfico Individual */}
               <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200/90 shadow-2xs">

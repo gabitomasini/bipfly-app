@@ -198,6 +198,7 @@ export interface TranslationDictionary {
     errorPriceInvalid: string;
     errorReturnBeforeDeparture: string;
     errorInfantsExceedAdults: string;
+    errorLimitReached: string;
   };
   flightDrawer: {
     bestDirect: string;

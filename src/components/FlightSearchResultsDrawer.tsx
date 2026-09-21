@@ -174,7 +174,7 @@ export default function FlightSearchResultsDrawer({
                         </span>
                       </div>
                       <span className="text-xs text-slate-500 font-medium block truncate">
-                        {bestWithStops.airline} ({bestWithStops.stops === 1 ? (locale === "en" ? "1 stop" : "1 parada") : `${bestWithStops.stops} ${locale === "en" ? "stops" : "paradas"}`})
+                        {bestWithStops.airline} {bestWithStops.flightNumber ? `• ${bestWithStops.flightNumber} ` : ""}({bestWithStops.stops === 1 ? (locale === "en" ? "1 stop" : "1 parada") : `${bestWithStops.stops} ${locale === "en" ? "stops" : "paradas"}`})
                       </span>
                     </div>
                     {bestWithStops.durationMinutes && (

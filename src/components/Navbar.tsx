@@ -54,17 +54,20 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200/80 transition-all">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Brand Logo */}
+          {/* Brand Logo & Slogan */}
           <Link
             href="/"
-            className="flex items-center group focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded-xl py-1 pr-3"
+            className="flex flex-col items-start group focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded-xl py-0.5 pr-2"
             aria-label="BipFly Home"
           >
             <Logo
               variant="full"
               textColor="#0f172a"
-              className="h-8 w-auto group-hover:scale-[1.01] transition-transform origin-left"
+              className="h-7 sm:h-7.5 w-auto group-hover:scale-[1.01] transition-transform origin-left"
             />
+            <span className="text-[10px] sm:text-[10.5px] font-semibold text-slate-500 tracking-tight group-hover:text-slate-700 transition-colors mt-0.5 leading-none pl-0.5">
+              {t.nav.subtitle}
+            </span>
           </Link>
 
           {/* Center Navigation Links (Clean & Minimalist SaaS style with icons) */}

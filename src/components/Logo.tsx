@@ -6,7 +6,7 @@ interface LogoProps extends React.SVGProps<SVGSVGElement> {
   variant?: "full" | "icon";
   textColor?: string; // Color for the "Bip" part (default: currentColor)
   cyanColor?: string; // Color for the "Fly" and airplane part (default: #06B6D4)
-  emeraldColor?: string; // Color for radar rings (default: #10B981)
+  emeraldColor?: string; // Color for radar rings (default: #06B6D4)
   className?: string;
 }
 
@@ -14,7 +14,7 @@ export default function Logo({
   variant = "full",
   textColor = "currentColor",
   cyanColor = "#06B6D4",
-  emeraldColor = "#10B981",
+  emeraldColor = "#06B6D4",
   className = "",
   ...props
 }: LogoProps) {

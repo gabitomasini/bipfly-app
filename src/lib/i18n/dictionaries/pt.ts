@@ -198,6 +198,7 @@ export const pt: TranslationDictionary = {
     errorPriceInvalid: "Informe um preço alvo válido por pessoa maior que zero.",
     errorReturnBeforeDeparture: "A data de retorno deve ser posterior ou igual à data de ida.",
     errorInfantsExceedAdults: "O número de bebês de colo não pode exceder o número de adultos (máx. 1 bebê por adulto).",
+    errorLimitReached: "Limite de 3 rotas por e-mail atingido. Exclua uma rota existente para monitorar uma nova.",
   },
   flightDrawer: {
     bestDirect: "Melhor Voo Direto",

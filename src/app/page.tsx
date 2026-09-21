@@ -474,6 +474,11 @@ export default function DashboardPage() {
                                   </span>
                                 </>
                               )}
+                              {route.lastFlightNumber && (
+                                <span className="font-mono text-[10px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80 shrink-0">
+                                  {route.lastFlightNumber}
+                                </span>
+                              )}
                               {route.onlyDirect && (
                                 <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200/60 shrink-0">
                                   {locale === "en" ? "Direct only" : "Apenas direto"}
@@ -716,7 +721,14 @@ export default function DashboardPage() {
 
                       {/* Airline & Status Pill */}
                       <div className="flex items-center justify-between gap-2">
-                        <AirlineBadge airline={route.lastAirline} size="sm" />
+                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                          <AirlineBadge airline={route.lastAirline} size="sm" />
+                          {route.lastFlightNumber && (
+                            <span className="font-mono text-[10px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80 shrink-0">
+                              {route.lastFlightNumber}
+                            </span>
+                          )}
+                        </div>
                         <div>
                           {!route.isActive ? (
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-500">

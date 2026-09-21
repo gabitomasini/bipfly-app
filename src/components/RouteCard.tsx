@@ -50,7 +50,7 @@ export default function RouteCard({
   isInsideGroup = false,
 }: RouteCardProps) {
   const { t, formatCurrency, formatUsdEstimate, formatDate, formatDateTime, locale } = useTranslation();
-  const { isScanning, activeRouteId } = useScanning();
+  const { isScanning, activeRouteId, startCustomScan, endCustomScan } = useScanning();
   const [isSearching, setIsSearching] = useState(false);
   const isCardSearching = isSearching || (isScanning && (activeRouteId === route.id || activeRouteId === null));
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -151,12 +151,19 @@ export default function RouteCard({
     setIsBackfilling(true);
     setIsMenuOpen(false);
     setFeedback(null);
+    const routeLabel = `${route.origin} → ${route.destination}`;
+    const scanTitle = locale === "en"
+      ? "Importing 30-Day Price History"
+      : "Importando Histórico de 30 Dias";
+    const scanSub = `${routeLabel} • Google Flights`;
+    startCustomScan(scanTitle, scanSub, route.id);
     try {
       const res = await fetch(`/api/routes/${route.id}/backfill`, {
         method: "POST",
       });
       const data = await res.json();
       if (data.success) {
+        endCustomScan(true);
         setFeedback(
           locale === "en"
             ? "30-day historical data imported successfully!"
@@ -165,6 +172,7 @@ export default function RouteCard({
         setTimeout(() => setFeedback(null), 4000);
         onRefreshList();
       } else {
+        endCustomScan(false);
         setFeedback(
           data.error ||
             (locale === "en"
@@ -174,6 +182,7 @@ export default function RouteCard({
         setTimeout(() => setFeedback(null), 4000);
       }
     } catch {
+      endCustomScan(false);
       setFeedback(
         locale === "en"
           ? "Failed to import historical data."
@@ -232,77 +241,77 @@ export default function RouteCard({
     >
       {/* LINHA RESPONSIVA FLEXÍVEL */}
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3.5 sm:gap-4">
-        {/* Bloco Esquerdo (Contexto): GRU → CWB (se simples) • Data • LATAM • 1 Adult */}
-        <div
-          className={`flex items-center gap-2.5 sm:gap-3 text-xs flex-wrap min-w-0 flex-1 ${
-            !route.isActive ? "opacity-75" : "text-slate-600"
-          }`}
-        >
-          {!isInsideGroup && (
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 text-xs font-mono font-black shadow-2xs">
-              <span>{route.origin}</span>
-              <ArrowRight className="w-3 h-3 text-slate-400" />
-              <span>{route.destination}</span>
-            </div>
-          )}
-
-          {/* Flight Date & Trip Type */}
-          <span className="inline-flex items-center gap-1.5 font-bold text-slate-900 text-xs sm:text-sm">
-            <Calendar className="w-4 h-4 text-sky-600 shrink-0" />
-            {isRoundTrip && route.returnDate ? (
-              <span className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200/80">
-                  {t.routes.roundTrip}
-                </span>
-                <span>{formatDate(route.flightDate)} → {formatDate(route.returnDate)}</span>
-                {durationDays !== null && (
-                  <span className="text-xs text-slate-400 font-semibold">
-                    ({durationDays} {durationDays === 1 ? t.routes.day : t.routes.days})
-                  </span>
-                )}
-              </span>
-            ) : (
-              <span>{formatDate(route.flightDate)}</span>
+        {/* Bloco de Informações do Voo + Preço Agrupados com espaçamento equilibrado */}
+        <div className="flex items-center gap-3 sm:gap-4 lg:gap-6 flex-wrap min-w-0 flex-1">
+          {/* Dados do Voo: GRU → CWB (se simples) • Data • LATAM • 1 Adult */}
+          <div
+            className={`flex items-center gap-2.5 sm:gap-3 text-xs flex-wrap min-w-0 ${
+              !route.isActive ? "opacity-75" : "text-slate-600"
+            }`}
+          >
+            {!isInsideGroup && (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 text-xs font-mono font-black shadow-2xs shrink-0">
+                <span>{route.origin}</span>
+                <ArrowRight className="w-3 h-3 text-slate-400" />
+                <span>{route.destination}</span>
+              </div>
             )}
-          </span>
 
-          {/* Airline Badge */}
-          <AirlineBadge airline={route.lastAirline} size="sm" />
-
-          {/* Flight Number */}
-          {route.lastFlightNumber && (
-            <span className="font-mono text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/60">
-              {route.lastFlightNumber}
+            {/* Flight Date & Trip Type */}
+            <span className="inline-flex items-center gap-1.5 font-bold text-slate-900 text-xs sm:text-sm shrink-0">
+              <Calendar className="w-4 h-4 text-sky-600 shrink-0" />
+              {isRoundTrip && route.returnDate ? (
+                <span className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200/80">
+                    {t.routes.roundTrip}
+                  </span>
+                  <span>{formatDate(route.flightDate)} → {formatDate(route.returnDate)}</span>
+                  {durationDays !== null && (
+                    <span className="text-xs text-slate-400 font-semibold">
+                      ({durationDays} {durationDays === 1 ? t.routes.day : t.routes.days})
+                    </span>
+                  )}
+                </span>
+              ) : (
+                <span>{formatDate(route.flightDate)}</span>
+              )}
             </span>
-          )}
 
-          {/* Passengers */}
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
-            <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <span>
-              {route.passengers || 1}{" "}
-              {(route.passengers || 1) === 1 ? t.routes.adult : t.routes.adults}
-              {Boolean(route.children) && `, ${route.children} ${route.children === 1 ? t.routes.child : t.routes.children}`}
-              {Boolean(route.infantsInLap) && `, ${route.infantsInLap} ${route.infantsInLap === 1 ? t.routes.infantInLap : t.routes.infantsInLap}`}
+            {/* Airline Badge */}
+            <AirlineBadge airline={route.lastAirline} size="sm" />
+
+            {/* Flight Number */}
+            {route.lastFlightNumber && (
+              <span className="font-mono text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/60 shrink-0">
+                {route.lastFlightNumber}
+              </span>
+            )}
+
+            {/* Passengers */}
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 shrink-0">
+              <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span>
+                {route.passengers || 1}{" "}
+                {(route.passengers || 1) === 1 ? t.routes.adult : t.routes.adults}
+                {Boolean(route.children) && `, ${route.children} ${route.children === 1 ? t.routes.child : t.routes.children}`}
+                {Boolean(route.infantsInLap) && `, ${route.infantsInLap} ${route.infantsInLap === 1 ? t.routes.infantInLap : t.routes.infantsInLap}`}
+              </span>
             </span>
-          </span>
 
-          {/* Paused status badge (apenas no modo agrupado) */}
-          {isInsideGroup && !route.isActive && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs">
-              <Pause className="w-2.5 h-2.5 text-amber-600 shrink-0" />
-              <span>{t.common.paused}</span>
-            </span>
-          )}
-        </div>
+            {/* Paused status badge (apenas no modo agrupado) */}
+            {isInsideGroup && !route.isActive && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs shrink-0">
+                <Pause className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                <span>{t.common.paused}</span>
+              </span>
+            )}
+          </div>
 
-        {/* Bloco Direito: Preço alinhado à direita + Hint de alerta + Ações integradas */}
-        <div className="flex items-center gap-3 sm:gap-4 flex-wrap sm:flex-nowrap justify-between xl:justify-end shrink-0 max-w-full">
-          {/* Preço Alinhado à Direita com Hint de Alerta de Preço */}
-          <div className="flex items-center gap-2 justify-end text-right shrink-0">
-            <div className={`flex flex-col items-end ${!route.isActive ? "opacity-75" : ""}`}>
+          {/* Preço com espaçamento dedicado e sem ficar espremido */}
+          <div className="flex items-center gap-2 shrink-0 py-0.5 sm:pl-2">
+            <div className={`flex flex-col ${!route.isActive ? "opacity-75" : ""}`}>
               {hasPrice ? (
-                <div className="flex items-baseline gap-1.5">
+                <div className="flex items-baseline gap-1.5 flex-nowrap">
                   <span
                     className={`text-xl sm:text-2xl font-black tracking-tight tabular-nums leading-none ${
                       !route.isActive
@@ -315,19 +324,19 @@ export default function RouteCard({
                     {formatCurrency(currentPrice)}
                   </span>
 
-                  <span className="text-[11px] font-bold text-slate-500">
+                  <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">
                     {t.routes.perPersonSuffix || "/ pess."}
                   </span>
 
                   {locale === "en" && (
-                    <span className="text-xs text-slate-400 font-normal">
+                    <span className="text-xs text-slate-400 font-normal whitespace-nowrap">
                       ({formatUsdEstimate(currentPrice, "~")})
                     </span>
                   )}
                 </div>
               ) : route.lastError ? (
-                <div className="flex flex-col items-end">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200/90 shadow-2xs">
+                <div className="flex flex-col">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200/90 shadow-2xs whitespace-nowrap">
                     <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                     <span>{locale === "en" ? "No flights available" : "Sem vôos no trecho"}</span>
                   </span>
@@ -426,9 +435,10 @@ export default function RouteCard({
               </Tooltip>
             )}
           </div>
+        </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-1.5 shrink-0">
+        {/* Action Buttons (Mantidos exatamente iguais na direita) */}
+        <div className="flex items-center gap-1.5 shrink-0 xl:ml-auto">
             {/* Primary Action: View Flight */}
             <Tooltip content={t.routes.cardViewFlightTooltip}>
               <a
@@ -541,7 +551,6 @@ export default function RouteCard({
             </div>
           </div>
         </div>
-      </div>
 
       {/* Internal Feedback Banner */}
       {feedback && (

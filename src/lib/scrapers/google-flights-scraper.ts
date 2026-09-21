@@ -104,6 +104,21 @@ export async function scrapeGoogleFlights(
 
     await page.waitForTimeout(1500);
 
+    // Expande os detalhes dos cartões no DOM para carregar números de voo (ex: LA 3550, G3 1500, AD 4193)
+    try {
+      await page.evaluate(() => {
+        const btns = Array.from(
+          document.querySelectorAll(
+            "li.pIav2d button[aria-label*='Detalhes do voo'], li.pIav2d button[aria-label*='Flight details'], div.pIav2d button[aria-label*='Detalhes do voo'], div.pIav2d button[aria-label*='Flight details']"
+          )
+        );
+        for (let i = 0; i < Math.min(12, btns.length); i++) {
+          (btns[i] as HTMLButtonElement).click();
+        }
+      });
+      await page.waitForTimeout(500);
+    } catch {}
+
     // Extrai dos cartões de voo oficiais
     const rawOptions = await page.evaluate(() => {
       const cards = Array.from(document.querySelectorAll("li.pIav2d, div.pIav2d"));
@@ -201,17 +216,28 @@ export async function scrapeGoogleFlights(
         
         let airlineName = "";
 
-        // 1. Tenta extrair de tags <img> com alt da companhia aérea
-        const imgEls = card.querySelectorAll("img[alt]");
-        for (const img of Array.from(imgEls)) {
-          const alt = (img.getAttribute("alt") || "").trim();
-          if (alt && !/logo|icon|imagem|flight|voo|airline|companhia/i.test(alt) && alt.length >= 2) {
-            airlineName = alt;
-            break;
+        // 1. Tenta extrair do primeiro span limpo de companhia
+        const firstSpan = card.querySelector(".sSHqwe span:first-child, .TQqCae");
+        if (firstSpan && firstSpan.textContent) {
+          const txt = firstSpan.textContent.trim();
+          if (txt && !/^\d/.test(txt) && !/parada|escala|h|min|R\$|\$|voo direto|sem escalas/i.test(txt)) {
+            airlineName = txt;
           }
         }
 
-        // 2. Tenta extrair de seletores de classe de texto do Google Flights
+        // 2. Tenta extrair de tags <img> com alt da companhia aérea
+        if (!airlineName) {
+          const imgEls = card.querySelectorAll("img[alt]");
+          for (const img of Array.from(imgEls)) {
+            const alt = (img.getAttribute("alt") || "").trim();
+            if (alt && !/logo|icon|imagem|flight|voo|airline|companhia/i.test(alt) && alt.length >= 2) {
+              airlineName = alt;
+              break;
+            }
+          }
+        }
+
+        // 3. Tenta extrair de seletores de classe de texto do Google Flights
         if (!airlineName) {
           const airlineEl = card.querySelector(".sSHqwe span, .sSHqwe, .TQqCae, [data-airline]");
           if (airlineEl && airlineEl.textContent) {
@@ -222,7 +248,7 @@ export async function scrapeGoogleFlights(
           }
         }
 
-        // 3. Tenta encontrar correspondência com a lista global de companhias
+        // 4. Tenta encontrar correspondência com a lista global de companhias
         if (!airlineName) {
           for (const a of knownAirlines) {
             if (new RegExp(`\\b${a}\\b`, "i").test(ariaCombined) || new RegExp(`\\b${a}\\b`, "i").test(fullText)) {
@@ -232,7 +258,7 @@ export async function scrapeGoogleFlights(
           }
         }
 
-        // 4. Extração via regex em aria-label (ex: "Voo da British Airways às 07:41...")
+        // 5. Extração via regex em aria-label (ex: "Voo da British Airways às 07:41...")
         if (!airlineName) {
           const ariaMatch = ariaCombined.match(/(?:Voo da|Voo operado por|Operado por|Flight by|Operated by)\s+([A-Za-zÀ-ÿ0-9\s]+?)(?:,|\.|\s+às|\s+at|\s+com)/i);
           if (ariaMatch && ariaMatch[1]) {
@@ -240,34 +266,41 @@ export async function scrapeGoogleFlights(
           }
         }
 
+        if (airlineName) {
+          airlineName = airlineName.replace(/Operado por.*/i, "").replace(/Operated by.*/i, "").trim();
+        }
+
         // 6. Número do Voo (ex: "LA 3124", "G3 1500", "AD 4050", "BA 246", "TP 72", "AA 904")
         let flightNum: string | undefined;
 
-        for (const aria of allArias) {
-          const m = aria.match(/(?:Voo|Flight|Voo nº|Flight #)\s*([A-Z0-9]{2}\s*\d{2,4})/i) ||
-                    aria.match(/\b(LA|JJ|G3|AD|TP|AF|KL|IB|BA|AA|DL|UA|LH|QR|EK|CM|AV|AR|UX|KQ|ET|AC|WS|LX|AZ|TK)\s*(\d{2,4})\b/i);
-          if (m) {
-            flightNum = m[2] ? `${m[1].toUpperCase()} ${m[2]}` : m[1].toUpperCase();
-            break;
+        // Procura primeiro com prefixo de IATA conhecido
+        const fullCombo = `${ariaCombined} ${fullText}`;
+        const iataMatch = fullCombo.match(/\b(LA|JJ|G3|AD|TP|AF|KL|IB|BA|AA|DL|UA|LH|QR|EK|CM|AV|AR|UX|KQ|ET|AC|WS|LX|AZ|TK|W6|FR|U2|VY)\s*(\d{2,4})(?!\d)/i);
+        if (iataMatch) {
+          flightNum = `${iataMatch[1].toUpperCase()} ${iataMatch[2]}`;
+        }
+
+        if (!flightNum) {
+          for (const aria of allArias) {
+            const m = aria.match(/(?:Voo|Flight|Voo nº|Flight #)\s*([A-Z0-9]{2}\s*\d{2,4})/i);
+            if (m) {
+              flightNum = m[1].toUpperCase();
+              break;
+            }
           }
         }
 
         if (!flightNum) {
-          const textMatch = (ariaCombined + " " + fullText).match(/\b(LA|JJ|G3|AD|TP|AF|KL|IB|BA|AA|DL|UA|LH|QR|EK|CM|AV|AR|UX|KQ|ET|AC|WS|LX|AZ|TK)\s*(\d{2,4})\b/i);
-          if (textMatch) {
-            flightNum = `${textMatch[1].toUpperCase()} ${textMatch[2]}`;
-          } else {
-            const genericMatch = (ariaCombined + " " + fullText).match(/\b([A-Z][A-Z0-9]|[A-Z0-9][A-Z])\s*(\d{2,4})\b/);
-            if (genericMatch && !/^(R\$|H\d|MIN|EM|DE|DA|DO|AO|ID|NO)/i.test(genericMatch[0])) {
-              flightNum = `${genericMatch[1].toUpperCase()} ${genericMatch[2]}`;
-            }
+          const genericMatch = fullCombo.match(/\b([A-Z][A-Z0-9]|[A-Z0-9][A-Z])\s*(\d{2,4})(?!\d)/);
+          if (genericMatch && !/^(R\$|H\d|MIN|EM|DE|DA|DO|AO|ID|NO|BR|SP|RJ|PR|SC|RS|MG|BA|DF|CE|PE)/i.test(genericMatch[0])) {
+            flightNum = `${genericMatch[1].toUpperCase()} ${genericMatch[2]}`;
           }
         }
 
         list.push({
           priceText,
-          airline: airlineName,
-          flightNumber: flightNum,
+          airline: airlineName || "Companhia Aérea",
+          flightNumber: flightNum || null,
           departure,
           arrival,
           durMinutes,

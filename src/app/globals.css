@@ -96,3 +96,34 @@ input[type="button"],
 .animate-fadeIn {
   animation: fadeIn 0.15s ease-out forwards;
 }
+
+/* Barra de Progresso Indeterminada Ativa */
+@keyframes progressIndeterminate {
+  0% {
+    transform: translateX(-120%);
+  }
+  50% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+.animate-progress-indeterminate {
+  animation: progressIndeterminate 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes progressShimmerGrad {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.animate-progress-shimmer {
+  background-size: 200% 100%;
+  animation: progressShimmerGrad 1.8s linear infinite;
+}
