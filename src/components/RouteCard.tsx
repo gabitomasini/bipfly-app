@@ -240,12 +240,12 @@ export default function RouteCard({
       }`}
     >
       {/* LINHA RESPONSIVA FLEXÍVEL */}
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3.5 sm:gap-4">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 sm:gap-4">
         {/* Bloco de Informações do Voo + Preço Agrupados com espaçamento equilibrado */}
-        <div className="flex items-center gap-3 sm:gap-4 lg:gap-6 flex-wrap min-w-0 flex-1">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-4 lg:gap-6 min-w-0 flex-1">
           {/* Dados do Voo: GRU → CWB (se simples) • Data • LATAM • 1 Adult */}
           <div
-            className={`flex items-center gap-2.5 sm:gap-3 text-xs flex-wrap min-w-0 ${
+            className={`flex items-center gap-2 sm:gap-3 text-xs flex-wrap min-w-0 ${
               !route.isActive ? "opacity-75" : "text-slate-600"
             }`}
           >
@@ -437,15 +437,15 @@ export default function RouteCard({
           </div>
         </div>
 
-        {/* Action Buttons (Mantidos exatamente iguais na direita) */}
-        <div className="flex items-center gap-1.5 shrink-0 xl:ml-auto">
+        {/* Action Buttons (Mantidos exatamente iguais no desktop) */}
+        <div className="flex items-center gap-1.5 shrink-0 xl:ml-auto pt-2 sm:pt-0 border-t border-slate-100 sm:border-0 w-full sm:w-auto justify-between sm:justify-end">
             {/* Primary Action: View Flight */}
             <Tooltip content={t.routes.cardViewFlightTooltip}>
               <a
                 href={flightUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl text-xs font-bold border transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-xl text-xs font-bold border transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                   !route.isActive
                     ? "bg-slate-100 text-slate-400 hover:bg-slate-200/70 hover:text-slate-600 border-slate-200/70 shadow-none"
                     : "text-white bg-sky-600 hover:bg-sky-700 active:bg-sky-800 border-transparent shadow-xs hover:shadow-md"

@@ -54,24 +54,26 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200/80 transition-all">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Brand Logo & Slogan */}
-          <Link
-            href="/"
-            className="flex flex-col items-start group focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded-xl py-0.5 pr-2"
-            aria-label="BipFly Home"
-          >
-            <Logo
-              variant="full"
-              textColor="#0f172a"
-              className="h-7 sm:h-7.5 w-auto group-hover:scale-[1.01] transition-transform origin-left"
-            />
-            <span className="text-[10px] sm:text-[10.5px] font-semibold text-slate-500 tracking-tight group-hover:text-slate-700 transition-colors mt-0.5 leading-none pl-0.5">
-              {t.nav.subtitle}
-            </span>
-          </Link>
+          {/* Brand Logo & Slogan (Anchored Left Width) */}
+          <div className="w-56 sm:w-64 shrink-0 flex items-center">
+            <Link
+              href="/"
+              className="flex flex-col items-start group focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded-xl py-0.5 pr-2"
+              aria-label="BipFly Home"
+            >
+              <Logo
+                variant="full"
+                textColor="#0f172a"
+                className="h-7 sm:h-7.5 w-auto group-hover:scale-[1.01] transition-transform origin-left"
+              />
+              <span className="text-[10px] sm:text-[10.5px] font-semibold text-slate-500 tracking-tight group-hover:text-slate-700 transition-colors mt-0.5 leading-none pl-0.5 whitespace-nowrap">
+                {t.nav.subtitle}
+              </span>
+            </Link>
+          </div>
 
-          {/* Center Navigation Links (Clean & Minimalist SaaS style with icons) */}
-          <nav className="hidden md:flex items-center gap-6 h-full">
+          {/* Center Navigation Links (Fixed equal-width item tabs for zero language shift) */}
+          <nav className="hidden md:flex items-center justify-center gap-1 sm:gap-2 h-full">
             {navLinks.map((link) => {
               const Icon = link.icon;
               const isActive = pathname === link.href;
@@ -79,30 +81,30 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`group relative flex items-center gap-2 h-16 text-[13px] font-medium transition-colors ${
+                  className={`group relative flex items-center justify-center gap-2 h-16 w-26 sm:w-28 text-[13px] font-medium transition-colors select-none ${
                     isActive
                       ? "text-slate-900 font-semibold"
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
                   <Icon
-                    className={`w-4 h-4 transition-colors ${
+                    className={`w-4 h-4 shrink-0 transition-colors ${
                       isActive
                         ? "text-sky-600"
                         : "text-slate-400 group-hover:text-slate-600"
                     }`}
                   />
-                  <span>{link.label}</span>
+                  <span className="truncate">{link.label}</span>
                   {isActive && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-600 rounded-full" />
+                    <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-sky-600 rounded-full" />
                   )}
                 </Link>
               );
             })}
           </nav>
 
-          {/* Right Actions: Language Switcher + User Profile Dropdown */}
-          <div className="flex items-center gap-3 shrink-0">
+          {/* Right Actions: Language Switcher + User Profile Dropdown (Anchored Right Width) */}
+          <div className="w-56 sm:w-64 shrink-0 flex items-center justify-end gap-3">
             <LanguageSwitcher />
 
             {/* User Profile / Auth */}
