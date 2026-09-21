@@ -95,16 +95,49 @@ export async function scrapeGoogleFlights(
     try {
       await page.waitForFunction(
         () => {
-          const cards = document.querySelectorAll("li.pIav2d, div.pIav2d");
+          const cards = document.querySelectorAll("li.pIav2d, div.pIav2d, ul.Rk10dc > li");
           return cards.length > 0;
         },
         { timeout: 12000 }
       );
     } catch {}
 
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(1000);
 
-    // Expande os detalhes dos cartões no DOM para carregar números de voo (ex: LA 3550, G3 1500, AD 4193)
+    // 1. Tenta ordenar a busca por Menor Preço diretamente no menu de classificação do Google Flights
+    try {
+      const sortBtn = page.locator(
+        'button[aria-label*="Mudar a ordem de classificação"], button:has-text("Ordenados pelos principais voos"), button[aria-label*="Change sort order"]'
+      ).first();
+      if (await sortBtn.isVisible({ timeout: 1500 })) {
+        await sortBtn.click();
+        await page.waitForTimeout(500);
+        const priceSortOption = page.locator(
+          '[role="menuitemradio"]:has-text("Preço"), [role="menuitem"]:has-text("Preço"), [role="menuitemradio"]:has-text("Price"), [role="menuitem"]:has-text("Price")'
+        ).first();
+        if (await priceSortOption.isVisible({ timeout: 1500 })) {
+          await priceSortOption.click();
+          await page.waitForTimeout(1500);
+        }
+      }
+    } catch {}
+
+    // 2. Clica em "Mostrar mais voos" para expandir todas as ofertas mais baratas (incluindo escalas longas)
+    try {
+      for (let i = 0; i < 3; i++) {
+        const moreBtn = page.locator(
+          'button[aria-label*="Mostrar mais voos"], button:has-text("Mostrar mais voos"), button[aria-label*="Show more"], button:has-text("Show more flights"), button[aria-label*="Outros voos"]'
+        ).first();
+        if (await moreBtn.isVisible({ timeout: 1200 })) {
+          await moreBtn.click().catch(() => {});
+          await page.waitForTimeout(800);
+        } else {
+          break;
+        }
+      }
+    } catch {}
+
+    // 3. Expande os detalhes dos cartões no DOM para carregar números de voo (ex: LA 3550, G3 1500, AD 4193)
     try {
       await page.evaluate(() => {
         const btns = Array.from(
@@ -112,7 +145,7 @@ export async function scrapeGoogleFlights(
             "li.pIav2d button[aria-label*='Detalhes do voo'], li.pIav2d button[aria-label*='Flight details'], div.pIav2d button[aria-label*='Detalhes do voo'], div.pIav2d button[aria-label*='Flight details']"
           )
         );
-        for (let i = 0; i < Math.min(12, btns.length); i++) {
+        for (let i = 0; i < Math.min(15, btns.length); i++) {
           (btns[i] as HTMLButtonElement).click();
         }
       });
@@ -121,7 +154,7 @@ export async function scrapeGoogleFlights(
 
     // Extrai dos cartões de voo oficiais
     const rawOptions = await page.evaluate(() => {
-      const cards = Array.from(document.querySelectorAll("li.pIav2d, div.pIav2d"));
+      const cards = Array.from(document.querySelectorAll("li.pIav2d, div.pIav2d, ul.Rk10dc > li"));
       const list: any[] = [];
 
       for (const card of cards) {
