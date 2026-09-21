@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense } from "react";
+import { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import PriceHistoryChart from "@/components/PriceHistoryChart";
@@ -11,6 +11,9 @@ import ExpandableSearch from "@/components/ExpandableSearch";
 import CustomSelect from "@/components/CustomSelect";
 import Tooltip from "@/components/Tooltip";
 import AirlineBadge from "@/components/AirlineBadge";
+import SkeletonLoader from "@/components/SkeletonLoader";
+import ImportHistoryDropdown from "@/components/ImportHistoryDropdown";
+import { useToast } from "@/components/Toast";
 import { MonitoredRoute, FlightHistoryEntry } from "@/lib/types";
 import {
   formatCurrencyLocale,
@@ -42,11 +45,13 @@ import {
   Calendar,
   X,
   Sparkles,
+  ChevronDown,
 } from "lucide-react";
 import { ROUTE_COLORS } from "@/components/MultiRoutePriceChart";
 
 function HistoricoContent() {
   const { t, locale } = useTranslation();
+  const { addToast } = useToast();
   const searchParams = useSearchParams();
   const [routes, setRoutes] = useState<MonitoredRoute[]>([]);
   const [selectedRouteIds, setSelectedRouteIds] = useState<number[]>([]);
@@ -72,85 +77,150 @@ function HistoricoContent() {
   const [singlePageSize, setSinglePageSize] = useState<number>(10);
   const [singleCurrentPage, setSingleCurrentPage] = useState<number>(1);
 
-  const handleBackfillRoute = async (routeId: number) => {
+  const handleBackfillRoute = async (routeId?: number, days = 60) => {
+    const targetId = routeId || (selectedRouteIds.length === 1 ? selectedRouteIds[0] : routes[0]?.id);
+    if (!targetId) {
+      addToast(
+        locale === "en" ? "Please select a route to import history." : "Selecione uma rota para importar o histórico.",
+        "info"
+      );
+      return;
+    }
+
     setIsBackfilling(true);
     setBackfillMessage(null);
+
+    const targetRoute = routes.find((r) => r.id === targetId);
+    const routeLabel = targetRoute ? `${targetRoute.origin} → ${targetRoute.destination}` : `Rota #${targetId}`;
+
+    addToast(
+      locale === "en"
+        ? `Fetching ${days}-day price history for ${routeLabel}...`
+        : `Buscando histórico de ${days} dias para ${routeLabel}...`,
+      "info"
+    );
+
     try {
-      const res = await fetch(`/api/routes/${routeId}/backfill`, { method: "POST" });
+      const res = await fetch(`/api/routes/${targetId}/backfill`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ days }),
+      });
       const json = await res.json();
-      if (json.success) {
-        if (json.importedCount > 0) {
-          const successTemplate = t.history.backfillSuccess
-            .replace("{count}", String(json.importedCount))
-            .replace("{firstDate}", json.firstDate)
-            .replace("{lastDate}", json.lastDate);
-          setBackfillMessage({
-            type: "success",
-            text: successTemplate,
-          });
-        } else {
-          setBackfillMessage({
-            type: "info",
-            text: json.message || t.history.backfillSynced,
-          });
-        }
+      if (json.success && json.importedCount > 0) {
+        const msg = locale === "en"
+          ? `Successfully imported ${json.importedCount} days of historical price data for ${routeLabel}!`
+          : `Sucesso! ${json.importedCount} dias de histórico de preços importados para ${routeLabel}!`;
+        
+        setBackfillMessage({ type: "success", text: msg });
+        addToast(msg, "success");
+
         // Recarrega histórico
-        const updated = await fetch(`/api/history?route_id=${routeId}`).then((r) => r.json());
-        if (updated.success) setHistory(updated.data || []);
+        const updated = await fetch(`/api/history?route_id=${targetId}`).then((r) => r.json());
+        if (updated.success && updated.data) setHistory(updated.data);
         const allUpdated = await fetch("/api/history?limit=500").then((r) => r.json());
-        if (allUpdated.success) setAllHistory(allUpdated.data || []);
+        if (allUpdated.success && allUpdated.data) setAllHistory(allUpdated.data);
       } else {
-        setBackfillMessage({ type: "error", text: json.error || t.history.backfillError });
+        const failMsg = json.message || (
+          locale === "en"
+            ? `Google Flights has no historical price records for ${days} days on this route. Try a shorter period (e.g. 30 days).`
+            : `O Google Flights não retornou histórico para ${days} dias nesta rota. Tente um período menor (ex: 30 dias).`
+        );
+        setBackfillMessage({ type: "info", text: failMsg });
+        addToast(failMsg, "info");
       }
     } catch (err: any) {
-      setBackfillMessage({ type: "error", text: err.message });
+      const errMsg = locale === "en"
+        ? "Failed to import historical data from Google Flights."
+        : "Falha ao consultar histórico no Google Flights. Tente novamente.";
+      setBackfillMessage({ type: "error", text: errMsg });
+      addToast(errMsg, "error");
     } finally {
       setIsBackfilling(false);
     }
   };
 
-  // Carrega rotas e histórico completo inicial
+  // Carrega rotas e histórico completo inicial de forma unificada
   useEffect(() => {
     const routeParam = searchParams.get("route") || searchParams.get("route_id");
     const targetRouteId = routeParam ? parseInt(routeParam, 10) : null;
 
+    setLoading(true);
     Promise.all([
       fetch("/api/routes").then((res) => res.json()),
       fetch("/api/history?limit=500").then((res) => res.json()),
     ])
-      .then(([routesRes, historyRes]) => {
+      .then(async ([routesRes, historyRes]) => {
+        let loadedRoutes: MonitoredRoute[] = [];
         if (routesRes.success && routesRes.data?.length > 0) {
-          const loadedRoutes: MonitoredRoute[] = routesRes.data;
+          loadedRoutes = routesRes.data;
           setRoutes(loadedRoutes);
+        }
+
+        let initialHistory: FlightHistoryEntry[] = [];
+        if (historyRes.success && historyRes.data) {
+          initialHistory = historyRes.data;
+          setAllHistory(initialHistory);
+        }
+
+        if (loadedRoutes.length > 0) {
           if (targetRouteId && loadedRoutes.some((r) => r.id === targetRouteId)) {
             setSelectedRouteIds([targetRouteId]);
+            try {
+              const singleRes = await fetch(`/api/history?route_id=${targetRouteId}`).then((r) => r.json());
+              if (singleRes.success && singleRes.data) {
+                setHistory(singleRes.data);
+              } else {
+                setHistory(initialHistory);
+              }
+            } catch {
+              setHistory(initialHistory);
+            }
+          } else if (loadedRoutes.length === 1) {
+            const singleId = loadedRoutes[0].id;
+            setSelectedRouteIds([singleId]);
+            try {
+              const singleRes = await fetch(`/api/history?route_id=${singleId}`).then((r) => r.json());
+              if (singleRes.success && singleRes.data) {
+                setHistory(singleRes.data);
+              } else {
+                setHistory(initialHistory);
+              }
+            } catch {
+              setHistory(initialHistory);
+            }
           } else {
             setSelectedRouteIds(loadedRoutes.map((r) => r.id));
+            setHistory(initialHistory);
           }
         }
-        if (historyRes.success && historyRes.data) {
-          setAllHistory(historyRes.data);
-          setHistory(historyRes.data);
-        }
+      })
+      .catch((err) => {
+        console.error("Erro ao carregar histórico inicial:", err);
       })
       .finally(() => setLoading(false));
   }, [searchParams]);
 
-  // Quando o usuário seleciona exatamente 1 rota, carrega os dados específicos dela
-  useEffect(() => {
-    if (selectedRouteIds.length === 1) {
-      const singleId = selectedRouteIds[0];
+  // Carrega histórico específico quando o usuário altera para exatamente 1 rota
+  const handleSelectRouteIds = async (newIds: number[]) => {
+    setSelectedRouteIds(newIds);
+    if (newIds.length === 1) {
       setLoading(true);
-      fetch(`/api/history?route_id=${singleId}`)
-        .then((res) => res.json())
-        .then((json) => {
-          if (json.success) {
-            setHistory(json.data || []);
-          }
-        })
-        .finally(() => setLoading(false));
+      try {
+        const res = await fetch(`/api/history?route_id=${newIds[0]}`);
+        const json = await res.json();
+        if (json.success && json.data) {
+          setHistory(json.data);
+        }
+      } catch (err) {
+        console.error("Erro ao carregar histórico da rota:", err);
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      setHistory(allHistory);
     }
-  }, [selectedRouteIds]);
+  };
 
   // Reseta página ao mudar filtros de rota ou tamanho da página
   useEffect(() => {
@@ -384,26 +454,42 @@ function HistoricoContent() {
               <h1 className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
                 <span>{t.history.title}</span>
               </h1>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                {allHistory.length} {t.common.records}
-              </span>
+              {loading ? (
+                <div className="h-5 w-20 bg-slate-200 rounded-full animate-pulse" />
+              ) : (
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  {allHistory.length} {t.common.records}
+                </span>
+              )}
             </div>
             <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
               {t.history.subtitle}
             </p>
           </div>
 
-          {/* Seletor Multi-Rotas */}
-          {routes.length > 0 && (
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs text-slate-500 font-semibold">{t.history.displayLabel}</span>
-              <RouteMultiSelectDropdown
-                routes={routes}
-                selectedIds={selectedRouteIds}
-                onChange={setSelectedRouteIds}
+          {/* Seletor Multi-Rotas & Importar Histórico */}
+          {loading ? (
+            <div className="h-9 w-60 bg-slate-200 rounded-xl animate-pulse" />
+          ) : routes.length > 0 ? (
+            <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 font-semibold">{t.history.displayLabel}</span>
+                <RouteMultiSelectDropdown
+                  routes={routes}
+                  selectedIds={selectedRouteIds}
+                  onChange={handleSelectRouteIds}
+                />
+              </div>
+
+              {/* Botão Importar Histórico com Dropdown de 30, 60, 120 dias */}
+              <ImportHistoryDropdown
+                onImport={(days) => handleBackfillRoute(selectedRouteIds.length === 1 ? selectedRouteIds[0] : undefined, days)}
+                isLoading={isBackfilling}
+                variant="primary"
+                align="right"
               />
             </div>
-          )}
+          ) : null}
         </div>
 
         {/* Micro-KPI Strip */}
@@ -416,9 +502,13 @@ function HistoricoContent() {
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
                 {t.history.totalRecords}
               </span>
-              <span className="text-base font-black text-slate-900 tabular-nums">
-                {historyStats.totalRecords} <span className="text-xs font-medium text-slate-400">{t.history.quotesLabel}</span>
-              </span>
+              {loading ? (
+                <div className="h-5 w-16 bg-slate-200 rounded animate-pulse mt-1" />
+              ) : (
+                <span className="text-base font-black text-slate-900 tabular-nums">
+                  {historyStats.totalRecords} <span className="text-xs font-medium text-slate-400">{t.history.quotesLabel}</span>
+                </span>
+              )}
             </div>
           </div>
 
@@ -430,13 +520,19 @@ function HistoricoContent() {
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
                 {t.history.allTimeLow}
               </span>
-              <span className="text-base font-black text-emerald-600 tabular-nums">
-                {historyStats.minPrice ? formatCurrencyLocale(historyStats.minPrice, "BRL", locale) : "—"}
-              </span>
-              {locale === "en" && historyStats.minPrice && (
-                <span className="text-[10px] text-slate-400 font-normal block">
-                  ({formatUsdEstimate(historyStats.minPrice, "~")})
-                </span>
+              {loading ? (
+                <div className="h-5 w-20 bg-slate-200 rounded animate-pulse mt-1" />
+              ) : (
+                <>
+                  <span className="text-base font-black text-emerald-600 tabular-nums">
+                    {historyStats.minPrice ? formatCurrencyLocale(historyStats.minPrice, "BRL", locale) : "—"}
+                  </span>
+                  {locale === "en" && historyStats.minPrice && (
+                    <span className="text-[10px] text-slate-400 font-normal block">
+                      ({formatUsdEstimate(historyStats.minPrice, "~")})
+                    </span>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -449,13 +545,19 @@ function HistoricoContent() {
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
                 {t.history.avgPrice}
               </span>
-              <span className="text-base font-black text-slate-900 tabular-nums">
-                {historyStats.avgPrice ? formatCurrencyLocale(historyStats.avgPrice, "BRL", locale) : "—"}
-              </span>
-              {locale === "en" && historyStats.avgPrice && (
-                <span className="text-[10px] text-slate-400 font-normal block">
-                  ({formatUsdEstimate(historyStats.avgPrice, "~")})
-                </span>
+              {loading ? (
+                <div className="h-5 w-20 bg-slate-200 rounded animate-pulse mt-1" />
+              ) : (
+                <>
+                  <span className="text-base font-black text-slate-900 tabular-nums">
+                    {historyStats.avgPrice ? formatCurrencyLocale(historyStats.avgPrice, "BRL", locale) : "—"}
+                  </span>
+                  {locale === "en" && historyStats.avgPrice && (
+                    <span className="text-[10px] text-slate-400 font-normal block">
+                      ({formatUsdEstimate(historyStats.avgPrice, "~")})
+                    </span>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -468,14 +570,66 @@ function HistoricoContent() {
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
                 {t.history.analyzedRoutes}
               </span>
-              <span className="text-base font-black text-slate-900 tabular-nums">
-                {activeSelectedRoutes.length} <span className="text-xs font-medium text-slate-400">{t.history.activeLabel}</span>
-              </span>
+              {loading ? (
+                <div className="h-5 w-14 bg-slate-200 rounded animate-pulse mt-1" />
+              ) : (
+                <span className="text-base font-black text-slate-900 tabular-nums">
+                  {activeSelectedRoutes.length} <span className="text-xs font-medium text-slate-400">{t.history.activeLabel}</span>
+                </span>
+              )}
             </div>
           </div>
         </div>
 
-        {routes.length === 0 ? (
+        {/* Banner de Ação Rápida: Quando ainda não há histórico registrado */}
+        {!loading && routes.length > 0 && allHistory.length === 0 && (
+          <div className="bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-sky-500/10 p-5 sm:p-6 rounded-2xl border border-indigo-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 animate-fadeIn">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <History className={`w-5 h-5 ${isBackfilling ? "animate-spin" : ""}`} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                  <span>{t.history.noHistoryRecordedYet}</span>
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                </h3>
+                <p className="text-xs text-slate-600 mt-0.5 max-w-xl font-medium">
+                  {t.history.noHistoryRecordedDesc}
+                </p>
+              </div>
+            </div>
+
+            <div className="shrink-0">
+              <ImportHistoryDropdown
+                onImport={(days) => handleBackfillRoute(selectedRouteIds[0] || routes[0]?.id, days)}
+                isLoading={isBackfilling}
+                variant="primary"
+                align="right"
+              />
+            </div>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-2xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                  <div className="h-5 w-48 bg-slate-200 rounded-lg animate-pulse" />
+                  <div className="h-3 w-64 bg-slate-100 rounded-lg animate-pulse" />
+                </div>
+                <div className="h-8 w-32 bg-slate-200 rounded-xl animate-pulse" />
+              </div>
+              <div className="h-64 sm:h-80 bg-slate-50 border border-slate-100 rounded-xl animate-pulse flex items-center justify-center">
+                <div className="flex items-center gap-2 text-slate-400 text-xs font-medium">
+                  <RefreshCw className="w-4 h-4 animate-spin text-sky-600" />
+                  <span>{t.history.loadingUnified}</span>
+                </div>
+              </div>
+            </div>
+            <SkeletonLoader variant="row" count={5} />
+          </div>
+        ) : routes.length === 0 ? (
           <div className="bg-white p-12 text-center rounded-2xl border border-dashed border-slate-300">
             <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center mx-auto mb-3">
               <Plane className="w-6 h-6" />
@@ -632,7 +786,8 @@ function HistoricoContent() {
                 </div>
               ) : (
                 <>
-                  <div className="overflow-x-auto rounded-2xl border border-slate-200/90 shadow-2xs">
+                  {/* Desktop Table (Visible on lg: >= 1024px) */}
+                  <div className="hidden lg:block overflow-x-auto rounded-2xl border border-slate-200/90 shadow-2xs">
                     <table className="w-full text-xs text-left text-slate-700">
                       <thead className="bg-slate-50/90 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200/80 font-bold">
                         <tr>
@@ -758,6 +913,111 @@ function HistoricoContent() {
                     </table>
                   </div>
 
+                  {/* Mobile / Tablet Compact Stream (Visible on lg: < 1024px, zero horizontal scroll) */}
+                  <div className="lg:hidden divide-y divide-slate-100 rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden bg-white">
+                    {paginatedMultiHistory.map((item) => {
+                      const r = item.routeId != null ? routeMap.get(item.routeId) : null;
+                      const targetPrice = r?.targetPrice || 0;
+                      const isBelow = item.lowestPrice <= targetPrice;
+                      const color = (item.routeId != null ? routeColorMap.get(item.routeId) : null) || "#0284c7";
+                      const flightUrl =
+                        item.bookingLink ||
+                        getGoogleFlightsUrl(
+                          item.origin,
+                          item.destination,
+                          item.flightDate,
+                          r?.passengers || 1,
+                          item.returnDate || r?.returnDate,
+                          item.tripType || r?.tripType,
+                          item.children || r?.children || 0,
+                          item.infantsInLap || r?.infantsInLap || 0
+                        );
+                      const isRoundTrip = (item.tripType === "round_trip" || r?.tripType === "round_trip");
+                      const returnDate = item.returnDate || r?.returnDate;
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="p-3 sm:p-3.5 hover:bg-slate-50/75 transition-colors flex items-center justify-between gap-2.5 sm:gap-3"
+                        >
+                          {/* Left: Route segment + Airline + Dates + Query Time */}
+                          <div className="space-y-1 min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: color }}
+                              />
+                              <span className="px-1.5 py-0.2 rounded bg-slate-100 border border-slate-200 text-xs font-bold text-slate-800">
+                                {item.origin}
+                              </span>
+                              <span className="text-slate-400 text-xs">→</span>
+                              <span className="px-1.5 py-0.2 rounded bg-slate-100 border border-slate-200 text-xs font-bold text-slate-800">
+                                {item.destination}
+                              </span>
+                              {isRoundTrip && (
+                                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-1 rounded">
+                                  🔁
+                                </span>
+                              )}
+                              <AirlineBadge airline={item.airline} size="sm" />
+                            </div>
+
+                            <div className="flex items-center gap-2 text-[11px] text-slate-500 flex-wrap">
+                              <span className="font-medium text-slate-600">
+                                📅 {formatDateLocale(item.flightDate, locale)}
+                                {isRoundTrip && returnDate && ` - ${formatDateLocale(returnDate, locale)}`}
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                • {formatRelativeTimeLocale(item.searchedAt, locale)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Right: Price + Status vs Target + Link */}
+                          <div className="flex flex-col items-end gap-1 shrink-0 text-right">
+                            <span
+                              className={`text-sm sm:text-base font-black tracking-tight tabular-nums ${
+                                isBelow ? "text-emerald-700" : "text-slate-900"
+                              }`}
+                            >
+                              {formatCurrencyLocale(item.lowestPrice, item.currency, locale)}
+                            </span>
+
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  isBelow
+                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200/80"
+                                    : "bg-rose-50 text-rose-700 border border-rose-200/80"
+                                }`}
+                              >
+                                {isBelow ? (
+                                  <>
+                                    <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                                    <span>-{formatCurrencyLocale(targetPrice - item.lowestPrice, "BRL", locale)}</span>
+                                  </>
+                                ) : (
+                                  <span>+{formatCurrencyLocale(item.lowestPrice - targetPrice, "BRL", locale)}</span>
+                                )}
+                              </span>
+
+                              <a
+                                href={flightUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors cursor-pointer shrink-0"
+                                title={t.common.viewFlight}
+                                aria-label={t.common.viewFlight}
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
                   {/* Controles Inferiores de Paginação */}
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 text-xs text-slate-500 border-t border-slate-100">
                     <div>
@@ -872,15 +1132,14 @@ function HistoricoContent() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2.5">
-                  <button
-                    onClick={() => handleBackfillRoute(singleRoute.id)}
-                    disabled={isBackfilling}
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
-                  >
-                    <History className={`w-3.5 h-3.5 ${isBackfilling ? "animate-spin" : ""}`} />
-                    <span>{isBackfilling ? t.history.importing : t.history.import30d}</span>
-                  </button>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  {/* Dropdown de Importação 30d, 60d, 120d */}
+                  <ImportHistoryDropdown
+                    onImport={(days) => handleBackfillRoute(singleRoute.id, days)}
+                    isLoading={isBackfilling}
+                    variant="subtle"
+                    align="right"
+                  />
 
                   <a
                     href={
@@ -1018,7 +1277,8 @@ function HistoricoContent() {
                   <p className="text-xs text-slate-500 font-medium py-4">{t.common.noResults}</p>
                 ) : (
                   <>
-                    <div className="overflow-x-auto rounded-2xl border border-slate-200/90 shadow-2xs">
+                    {/* Desktop Table (Visible on lg: >= 1024px) */}
+                    <div className="hidden lg:block overflow-x-auto rounded-2xl border border-slate-200/90 shadow-2xs">
                       <table className="w-full text-xs text-left text-slate-700">
                         <thead className="bg-slate-50/90 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200/80 font-bold">
                           <tr>
@@ -1120,6 +1380,110 @@ function HistoricoContent() {
                           })}
                         </tbody>
                       </table>
+                    </div>
+
+                    {/* Mobile / Tablet Compact Stream (Visible on lg: < 1024px, zero horizontal scroll) */}
+                    <div className="lg:hidden divide-y divide-slate-100 rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden bg-white">
+                      {paginatedSingleHistory.map((item, idx) => {
+                        const rowNumber = (singleCurrentPage - 1) * singlePageSize + idx + 1;
+                        const isBelow = item.lowestPrice <= singleRoute.targetPrice;
+                        const flightUrl =
+                          item.bookingLink ||
+                          getGoogleFlightsUrl(
+                            item.origin,
+                            item.destination,
+                            item.flightDate,
+                            singleRoute.passengers || 1,
+                            item.returnDate || singleRoute.returnDate,
+                            item.tripType || singleRoute.tripType,
+                            item.children || singleRoute.children || 0,
+                            item.infantsInLap || singleRoute.infantsInLap || 0
+                          );
+
+                        return (
+                          <div
+                            key={item.id}
+                            className="p-3 sm:p-3.5 hover:bg-slate-50/75 transition-colors flex items-center justify-between gap-2.5 sm:gap-3"
+                          >
+                            {/* Left Side: Index + Query Timestamp + Airline & Times */}
+                            <div className="flex items-start gap-2 sm:gap-2.5 min-w-0 flex-1">
+                              <span className="font-mono text-[10px] sm:text-[11px] text-slate-400 font-bold shrink-0 mt-0.5 w-4 text-center">
+                                {rowNumber}
+                              </span>
+
+                              <div className="space-y-1 min-w-0 flex-1">
+                                {/* Timestamp & Relative time */}
+                                <div className="flex items-baseline gap-1.5 flex-wrap">
+                                  <span className="font-mono text-xs font-bold text-slate-800">
+                                    {formatDateTimeLocale(item.searchedAt, locale)}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-medium">
+                                    ({formatRelativeTimeLocale(item.searchedAt, locale)})
+                                  </span>
+                                </div>
+
+                                {/* Airline + Flight number + Times */}
+                                <div className="flex items-center gap-1.5 flex-wrap text-[11px] text-slate-600">
+                                  <AirlineBadge airline={item.airline} size="sm" />
+                                  {item.flightNumber && (
+                                    <span className="font-mono text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200/60">
+                                      {item.flightNumber}
+                                    </span>
+                                  )}
+                                  {item.departureTime && (
+                                    <span className="font-mono text-[10px] sm:text-[11px] text-slate-500">
+                                      {item.departureTime} → {item.arrivalTime || "—"}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Right Side: Price + Status Badge + Quick Link */}
+                            <div className="flex flex-col items-end gap-1 shrink-0 text-right">
+                              <div className="flex items-baseline gap-1">
+                                <span
+                                  className={`text-sm sm:text-base font-black tracking-tight tabular-nums ${
+                                    isBelow ? "text-emerald-700" : "text-slate-900"
+                                  }`}
+                                >
+                                  {formatCurrencyLocale(item.lowestPrice, item.currency, locale)}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    isBelow
+                                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs"
+                                      : "bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs"
+                                  }`}
+                                >
+                                  {isBelow ? (
+                                    <>
+                                      <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                                      <span>{t.dashboard.table.targetMet}</span>
+                                    </>
+                                  ) : (
+                                    <span>{t.dashboard.table.aboveTarget}</span>
+                                  )}
+                                </span>
+
+                                <a
+                                  href={flightUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors cursor-pointer shrink-0"
+                                  title={t.common.viewFlight}
+                                  aria-label={t.common.viewFlight}
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
 
                     {/* Controles Inferiores de Paginação */}

@@ -8,6 +8,8 @@ import { AppLog, LogCategory, LogLevel, LogStats } from "@/lib/types";
 import { formatDateTimeLocale, formatRelativeTimeLocale } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import { useScanning } from "@/context/ScanningContext";
+import { useAuth } from "@/lib/auth/AuthContext";
+import Link from "next/link";
 import {
   Terminal,
   RefreshCw,
@@ -31,11 +33,14 @@ import {
   ArrowDownCircle,
   Send,
   Zap,
+  ShieldAlert,
+  ArrowLeft,
 } from "lucide-react";
 
 export default function LogsPage() {
   const { t, locale } = useTranslation();
   const { isScanning, scanAllRoutes } = useScanning();
+  const { user, isLoading: authLoading } = useAuth();
   const [logs, setLogs] = useState<AppLog[]>([]);
   const [stats, setStats] = useState<LogStats>({
     total: 0,
@@ -278,6 +283,34 @@ export default function LogsPage() {
     }
   };
 
+  if (!authLoading && user && user.isAdmin === false) {
+    return (
+      <div className="min-h-screen pb-24 bg-slate-50/70">
+        <Navbar />
+        <main className="max-w-xl mx-auto px-4 pt-20 text-center space-y-5">
+          <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto shadow-sm">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold text-slate-800">Acesso Restrito</h1>
+            <p className="text-sm text-slate-500 max-w-md mx-auto">
+              A visualização de logs e telemetria do sistema é restrita aos administradores cadastrados.
+            </p>
+          </div>
+          <div className="pt-2">
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-semibold transition-colors shadow-xs"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Voltar ao Painel</span>
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen pb-24 bg-slate-50/70">
       <Navbar onSearchTriggered={() => fetchInitialLogs()} />
@@ -392,7 +425,11 @@ export default function LogsPage() {
               <span>{t.logs.statTotal}</span>
               <Layers className="w-4 h-4 text-slate-400" />
             </div>
-            <div className="text-2xl font-black text-slate-900">{stats.total}</div>
+            {loading ? (
+              <div className="h-8 w-16 bg-slate-200 rounded animate-pulse my-1" />
+            ) : (
+              <div className="text-2xl font-black text-slate-900">{stats.total}</div>
+            )}
             <div className="text-[11px] text-slate-400 mt-1 font-medium">{t.logs.statTotalDesc}</div>
           </button>
 
@@ -409,7 +446,11 @@ export default function LogsPage() {
               <span>{t.logs.statSuccess}</span>
               <CheckCircle2 className="w-4 h-4 text-emerald-500" />
             </div>
-            <div className="text-2xl font-black text-emerald-700">{stats.success}</div>
+            {loading ? (
+              <div className="h-8 w-16 bg-emerald-100 rounded animate-pulse my-1" />
+            ) : (
+              <div className="text-2xl font-black text-emerald-700">{stats.success}</div>
+            )}
             <div className="text-[11px] text-emerald-600/80 mt-1 font-medium">{t.logs.statSuccessDesc}</div>
           </button>
 
@@ -426,7 +467,11 @@ export default function LogsPage() {
               <span>{t.logs.statInfo}</span>
               <Info className="w-4 h-4 text-sky-500" />
             </div>
-            <div className="text-2xl font-black text-sky-700">{stats.info}</div>
+            {loading ? (
+              <div className="h-8 w-16 bg-sky-100 rounded animate-pulse my-1" />
+            ) : (
+              <div className="text-2xl font-black text-sky-700">{stats.info}</div>
+            )}
             <div className="text-[11px] text-sky-600/80 mt-1 font-medium">{t.logs.statInfoDesc}</div>
           </button>
 
@@ -443,7 +488,11 @@ export default function LogsPage() {
               <span>{t.logs.statWarn}</span>
               <AlertTriangle className="w-4 h-4 text-amber-500" />
             </div>
-            <div className="text-2xl font-black text-amber-700">{stats.warn}</div>
+            {loading ? (
+              <div className="h-8 w-16 bg-amber-100 rounded animate-pulse my-1" />
+            ) : (
+              <div className="text-2xl font-black text-amber-700">{stats.warn}</div>
+            )}
             <div className="text-[11px] text-amber-600/80 mt-1 font-medium">{t.logs.statWarnDesc}</div>
           </button>
 
@@ -460,7 +509,11 @@ export default function LogsPage() {
               <span>{t.logs.statError}</span>
               <AlertCircle className="w-4 h-4 text-rose-500" />
             </div>
-            <div className="text-2xl font-black text-rose-700">{stats.error}</div>
+            {loading ? (
+              <div className="h-8 w-16 bg-rose-100 rounded animate-pulse my-1" />
+            ) : (
+              <div className="text-2xl font-black text-rose-700">{stats.error}</div>
+            )}
             <div className="text-[11px] text-rose-600/80 mt-1 font-medium">{t.logs.statErrorDesc}</div>
           </button>
         </div>
@@ -530,9 +583,20 @@ export default function LogsPage() {
           </div>
 
           {loading ? (
-            <div className="py-20 text-center space-y-3">
-              <RefreshCw className="w-8 h-8 text-sky-600 animate-spin mx-auto" />
-              <p className="text-xs text-slate-500 font-medium">{t.logs.loadingEvents}</p>
+            <div className="divide-y divide-slate-100 p-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="p-4 flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-slate-200 animate-pulse shrink-0" />
+                  <div className="space-y-2 flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <div className="h-4 w-16 bg-slate-200 rounded animate-pulse" />
+                      <div className="h-4 w-20 bg-slate-100 rounded animate-pulse" />
+                      <div className="h-4 w-24 bg-slate-100 rounded animate-pulse" />
+                    </div>
+                    <div className="h-4 w-3/4 bg-slate-200 rounded animate-pulse" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : logs.length === 0 ? (
             <div className="py-20 text-center space-y-3">

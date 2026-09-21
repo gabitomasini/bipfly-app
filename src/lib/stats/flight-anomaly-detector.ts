@@ -83,7 +83,7 @@ export function analyzeFlightPrice(
   currentPrice: number,
   historyPrices: (FlightPriceRecord | { lowestPrice?: number; menor_preco?: number; price?: number } | number)[] = []
 ): PriceAnalysisResult {
-  const MIN_SAMPLE_SIZE = 5;
+  const MIN_SAMPLE_FOR_DEAL = 3;
 
   const prices: number[] = historyPrices.map((item) => {
     if (typeof item === "number") return item;
@@ -95,17 +95,32 @@ export function analyzeFlightPrice(
 
   const sampleSize = prices.length;
 
-  // Se houver menos de 5 registros, amostra insuficiente para inferência estatística
-  if (sampleSize < MIN_SAMPLE_SIZE) {
+  if (sampleSize === 0) {
     return {
-      sampleSize,
-      mean: sampleSize > 0 ? round2(prices.reduce((a, b) => a + b, 0) / sampleSize) : null,
+      sampleSize: 0,
+      mean: null,
       stdDev: null,
       zScore: null,
       dealLevel: "NORMAL",
       isDeal: false,
       discountPercent: null,
-      message: `Amostra insuficiente (${sampleSize}/${MIN_SAMPLE_SIZE} registros nos últimos 30 dias). Status padrão NORMAL.`,
+      message: "Nenhum histórico de cotação registrado para esta rota.",
+    };
+  }
+
+  // Com 1 cotação
+  if (sampleSize === 1) {
+    const singleMean = round2(prices[0]);
+    const singleDiscount = singleMean > 0 ? round2(((singleMean - currentPrice) / singleMean) * 100) : 0;
+    return {
+      sampleSize: 1,
+      mean: singleMean,
+      stdDev: 0,
+      zScore: 0,
+      dealLevel: "NORMAL",
+      isDeal: false,
+      discountPercent: singleDiscount,
+      message: "Coletando amostra de preços (1/5 cotações).",
     };
   }
 
@@ -116,22 +131,26 @@ export function analyzeFlightPrice(
   let dealLevel: DealLevel = "NORMAL";
   let isDeal = false;
 
-  if (rawZScore <= -2.0) {
-    dealLevel = "IMPERDIVEL";
-    isDeal = true;
-  } else if (rawZScore <= -1.5) {
-    dealLevel = "OPORTUNIDADE";
-    isDeal = true;
+  if (sampleSize >= MIN_SAMPLE_FOR_DEAL) {
+    if (rawZScore <= -2.0) {
+      dealLevel = "IMPERDIVEL";
+      isDeal = true;
+    } else if (rawZScore <= -1.5) {
+      dealLevel = "OPORTUNIDADE";
+      isDeal = true;
+    }
   }
 
   const roundedMean = round2(mean);
   const roundedStdDev = round2(stdDev);
-  const roundedZScore = round2(rawZScore);
+  const roundedZScore = round2(rawZScore === -999 ? -3 : rawZScore === 999 ? 3 : rawZScore);
   const roundedDiscount = round2(discountPercent);
 
   let message = `Preço atual R$ ${currentPrice.toFixed(2)} está dentro da faixa de flutuação normal (Média: R$ ${roundedMean.toFixed(2)}).`;
 
-  if (dealLevel === "IMPERDIVEL") {
+  if (sampleSize < MIN_SAMPLE_FOR_DEAL) {
+    message = `Coletando amostra (${sampleSize}/5 cotações). Média inicial calculada em R$ ${roundedMean.toFixed(2)}.`;
+  } else if (dealLevel === "IMPERDIVEL") {
     message = `🔥 Anomalia de Preço IMPERDÍVEL! Z-Score de ${roundedZScore} (${Math.abs(roundedZScore)} desvios abaixo da média). Desconto estimado de ${roundedDiscount}%.`;
   } else if (dealLevel === "OPORTUNIDADE") {
     message = `✨ OPORTUNIDADE detectada! Z-Score de ${roundedZScore} (${Math.abs(roundedZScore)} desvios abaixo da média). Desconto estimado de ${roundedDiscount}%.`;

@@ -1,10 +1,19 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { logEmitter } from "@/lib/logger";
 import { AppLog } from "@/lib/types";
+import { getAuthUser, isUserAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const user = await getAuthUser();
+  if (!isUserAdmin(user)) {
+    return NextResponse.json(
+      { success: false, error: "Acesso não autorizado ao stream de logs." },
+      { status: 403 }
+    );
+  }
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({

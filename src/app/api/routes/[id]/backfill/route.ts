@@ -21,10 +21,21 @@ export async function POST(
       );
     }
 
+    let days = 60;
+    try {
+      const url = new URL(request.url);
+      const queryDays = url.searchParams.get("days");
+      if (queryDays) days = Number(queryDays) || 60;
+      else {
+        const body = await request.json().catch(() => ({}));
+        if (body?.days) days = Number(body.days) || 60;
+      }
+    } catch {}
+
     logger.info(
       "SCRAPER",
-      `Iniciando importação de histórico retroativo para rota #${route.id} (${route.origin} → ${route.destination}, ${route.flightDate})`,
-      { routeId: route.id, origin: route.origin, destination: route.destination, flightDate: route.flightDate },
+      `Iniciando importação de histórico retroativo (${days} dias) para rota #${route.id} (${route.origin} → ${route.destination}, ${route.flightDate})`,
+      { routeId: route.id, origin: route.origin, destination: route.destination, flightDate: route.flightDate, days },
       route.id
     );
 
@@ -36,19 +47,20 @@ export async function POST(
       route.tripType,
       route.passengers || 1,
       route.children || 0,
-      route.infantsInLap || 0
+      route.infantsInLap || 0,
+      days
     );
 
     if (points.length === 0) {
       return NextResponse.json({
-        success: true,
+        success: false,
         routeId: route.id,
         origin: route.origin,
         destination: route.destination,
         flightDate: route.flightDate,
         importedCount: 0,
         skippedCount: 0,
-        message: "O Google Flights não possui histórico de preços acumulado para esta rota específica.",
+        message: `O Google Flights não retornou histórico de preços para o período de ${days} dias. Tente um período menor (ex: 30 dias).`,
       });
     }
 

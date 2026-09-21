@@ -398,9 +398,13 @@ function RotasContent() {
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
                 {t.dashboard.kpis.monitoredRoutes}
               </span>
-              <span className="text-base font-black text-slate-900 tabular-nums">
-                {counts.total} <span className="text-xs font-medium text-slate-400">{locale === "en" ? "routes" : "rotas"}</span>
-              </span>
+              {loading ? (
+                <div className="h-5 w-16 bg-slate-200 rounded animate-pulse mt-1" />
+              ) : (
+                <span className="text-base font-black text-slate-900 tabular-nums">
+                  {counts.total} <span className="text-xs font-medium text-slate-400">{locale === "en" ? "routes" : "rotas"}</span>
+                </span>
+              )}
             </div>
           </div>
 
@@ -412,9 +416,13 @@ function RotasContent() {
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
                 {t.common.active}
               </span>
-              <span className="text-base font-black text-slate-900 tabular-nums">
-                {counts.active} <span className="text-xs font-medium text-slate-400">{locale === "en" ? "scanning" : "em varredura"}</span>
-              </span>
+              {loading ? (
+                <div className="h-5 w-16 bg-slate-200 rounded animate-pulse mt-1" />
+              ) : (
+                <span className="text-base font-black text-slate-900 tabular-nums">
+                  {counts.active} <span className="text-xs font-medium text-slate-400">{locale === "en" ? "scanning" : "em varredura"}</span>
+                </span>
+              )}
             </div>
           </div>
 
@@ -426,9 +434,13 @@ function RotasContent() {
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
                 {t.dashboard.kpis.dealsFound}
               </span>
-              <span className="text-base font-black text-emerald-600 tabular-nums">
-                {counts.target} <span className="text-xs font-medium text-slate-400">{locale === "en" ? "ready" : "prontas"}</span>
-              </span>
+              {loading ? (
+                <div className="h-5 w-16 bg-slate-200 rounded animate-pulse mt-1" />
+              ) : (
+                <span className="text-base font-black text-emerald-600 tabular-nums">
+                  {counts.target} <span className="text-xs font-medium text-slate-400">{locale === "en" ? "ready" : "prontas"}</span>
+                </span>
+              )}
             </div>
           </div>
 
@@ -440,13 +452,19 @@ function RotasContent() {
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
                 {t.dashboard.kpis.lowestPriceFound}
               </span>
-              <span className="text-base font-black text-slate-900 tabular-nums">
-                {counts.lowestPrice ? formatCurrency(counts.lowestPrice) : "—"}
-              </span>
-              {locale === "en" && counts.lowestPrice && (
-                <span className="text-[10px] text-slate-400 font-normal ml-1">
-                  ({formatUsdEstimate(counts.lowestPrice, "~")})
-                </span>
+              {loading ? (
+                <div className="h-5 w-20 bg-slate-200 rounded animate-pulse mt-1" />
+              ) : (
+                <>
+                  <span className="text-base font-black text-slate-900 tabular-nums">
+                    {counts.lowestPrice ? formatCurrency(counts.lowestPrice) : "—"}
+                  </span>
+                  {locale === "en" && counts.lowestPrice && (
+                    <span className="text-[10px] text-slate-400 font-normal ml-1">
+                      ({formatUsdEstimate(counts.lowestPrice, "~")})
+                    </span>
+                  )}
+                </>
               )}
             </div>
           </div>

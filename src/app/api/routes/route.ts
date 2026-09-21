@@ -3,6 +3,7 @@ import { listRoutes, createRoute, getOrCreateUser } from "@/lib/db";
 import { getAuthUser, createAndSetSession } from "@/lib/auth";
 import { sendRouteCreatedEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
+import { validateFullName, validateEmail } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -43,20 +44,35 @@ export async function POST(request: Request) {
     if (!user) {
       const email = body.email || body.userEmail;
       const name = body.name || body.userName;
+      const locale = (body.locale === "en" ? "en" : "pt") as "pt" | "en";
 
-      if (!email || typeof email !== "string" || !email.includes("@")) {
+      const nameVal = validateFullName(name, locale);
+      if (!nameVal.isValid) {
         return NextResponse.json(
           {
             success: false,
-            error: "Para ativar o monitoramento, informe um e-mail válido para receber os alertas.",
+            error: nameVal.error || "Informe seu nome e sobrenome completos.",
             requiresAuth: true,
           },
-          { status: 401 }
+          { status: 400 }
+        );
+      }
+
+      const emailVal = validateEmail(email, locale);
+      if (!emailVal.isValid) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: emailVal.error || "Informe um endereço de e-mail válido para receber os alertas.",
+            suggestedEmail: emailVal.suggestedValue,
+            requiresAuth: true,
+          },
+          { status: 400 }
         );
       }
 
       // Cria ou recupera o usuário e estabelece a sessão persistente
-      user = await getOrCreateUser(email, name);
+      user = await getOrCreateUser(email.trim().toLowerCase(), name.trim());
       await createAndSetSession(user.id);
       logger.info("SYSTEM", `Usuário cadastrado/reconhecido via Progressive Profiling: ${user.email}`);
     }

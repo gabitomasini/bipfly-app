@@ -3,15 +3,21 @@ import { countRecentLoginCodesByEmail, createLoginCode, getOrCreateUser } from "
 import { generateOtpCode } from "@/lib/auth";
 import { sendOtpEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
+import { validateEmail } from "@/lib/validation";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { email, name } = body;
+    const locale = (body.locale === "en" ? "en" : "pt") as "pt" | "en";
 
-    if (!email || typeof email !== "string" || !email.includes("@")) {
+    const emailVal = validateEmail(email, locale);
+    if (!emailVal.isValid) {
       return NextResponse.json(
-        { error: "Informe um endereço de e-mail válido." },
+        {
+          error: emailVal.error || "Informe um endereço de e-mail válido.",
+          suggestedEmail: emailVal.suggestedValue,
+        },
         { status: 400 }
       );
     }

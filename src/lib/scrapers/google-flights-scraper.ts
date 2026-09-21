@@ -240,13 +240,34 @@ export async function scrapeGoogleFlights(
           }
         }
 
-        if (!airlineName) {
-          airlineName = "Companhia Aérea";
+        // 6. Número do Voo (ex: "LA 3124", "G3 1500", "AD 4050", "BA 246", "TP 72", "AA 904")
+        let flightNum: string | undefined;
+
+        for (const aria of allArias) {
+          const m = aria.match(/(?:Voo|Flight|Voo nº|Flight #)\s*([A-Z0-9]{2}\s*\d{2,4})/i) ||
+                    aria.match(/\b(LA|JJ|G3|AD|TP|AF|KL|IB|BA|AA|DL|UA|LH|QR|EK|CM|AV|AR|UX|KQ|ET|AC|WS|LX|AZ|TK)\s*(\d{2,4})\b/i);
+          if (m) {
+            flightNum = m[2] ? `${m[1].toUpperCase()} ${m[2]}` : m[1].toUpperCase();
+            break;
+          }
+        }
+
+        if (!flightNum) {
+          const textMatch = (ariaCombined + " " + fullText).match(/\b(LA|JJ|G3|AD|TP|AF|KL|IB|BA|AA|DL|UA|LH|QR|EK|CM|AV|AR|UX|KQ|ET|AC|WS|LX|AZ|TK)\s*(\d{2,4})\b/i);
+          if (textMatch) {
+            flightNum = `${textMatch[1].toUpperCase()} ${textMatch[2]}`;
+          } else {
+            const genericMatch = (ariaCombined + " " + fullText).match(/\b([A-Z][A-Z0-9]|[A-Z0-9][A-Z])\s*(\d{2,4})\b/);
+            if (genericMatch && !/^(R\$|H\d|MIN|EM|DE|DA|DO|AO|ID|NO)/i.test(genericMatch[0])) {
+              flightNum = `${genericMatch[1].toUpperCase()} ${genericMatch[2]}`;
+            }
+          }
         }
 
         list.push({
           priceText,
           airline: airlineName,
+          flightNumber: flightNum,
           departure,
           arrival,
           durMinutes,
@@ -282,6 +303,7 @@ export async function scrapeGoogleFlights(
           price: unitPrice,
           currency: "BRL",
           airline: raw.airline,
+          flightNumber: raw.flightNumber,
           departureTime: raw.departure,
           arrivalTime: raw.arrival,
           stops: raw.stops,
@@ -349,7 +371,8 @@ export async function scrapeGoogleFlightsPriceHistory(
   tripType?: "one_way" | "round_trip",
   passengers = 1,
   children = 0,
-  infantsInLap = 0
+  infantsInLap = 0,
+  days = 60
 ): Promise<{ date: string; timestampMs: number; price: number; currency: string }[]> {
   const normOrigin = origin.trim().toUpperCase();
   const normDestination = destination.trim().toUpperCase();
@@ -363,8 +386,8 @@ export async function scrapeGoogleFlightsPriceHistory(
 
   logger.info(
     "SCRAPER",
-    `📈 [Histórico Retroativo] Consultando série temporal no Google Flights (${isRoundTrip ? "Ida e Volta" : "Somente Ida"}) para ${normOrigin} → ${normDestination} (${flightDate}${returnDate ? ` até ${returnDate}` : ""})`,
-    { url: searchUrl, origin: normOrigin, destination: normDestination, flightDate, returnDate: returnDate || null, tripType: isRoundTrip ? "round_trip" : "one_way", totalPax }
+    `📈 [Histórico Retroativo ${days}d] Consultando série temporal no Google Flights (${isRoundTrip ? "Ida e Volta" : "Somente Ida"}) para ${normOrigin} → ${normDestination} (${flightDate}${returnDate ? ` até ${returnDate}` : ""})`,
+    { url: searchUrl, origin: normOrigin, destination: normDestination, flightDate, returnDate: returnDate || null, tripType: isRoundTrip ? "round_trip" : "one_way", totalPax, days }
   );
 
   let browser;
@@ -445,8 +468,12 @@ export async function scrapeGoogleFlightsPriceHistory(
 
     // Deduplica por data e ordena cronologicamente
     const uniqueMap = new Map<string, { date: string; timestampMs: number; price: number; currency: string }>();
+    const cutoffTimestamp = Date.now() - days * 24 * 60 * 60 * 1000;
+
     for (const p of points) {
-      uniqueMap.set(p.date, p);
+      if (p.timestampMs >= cutoffTimestamp || days >= 120) {
+        uniqueMap.set(p.date, p);
+      }
     }
 
     const sortedPoints = Array.from(uniqueMap.values()).sort((a, b) => a.timestampMs - b.timestampMs);

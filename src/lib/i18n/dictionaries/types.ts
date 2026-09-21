@@ -247,7 +247,17 @@ export interface TranslationDictionary {
     targetMetDiff: string;
     aboveTargetDiff: string;
     viewFlightBtn: string;
+    importHistory: string;
     import30d: string;
+    import60d: string;
+    import120d: string;
+    import30dLabel: string;
+    import60dLabel: string;
+    import120dLabel: string;
+    importDesc: string;
+    noHistoryRecordedYet: string;
+    noHistoryRecordedDesc: string;
+    noHistoryFound: string;
     importing: string;
     priceEvolution: string;
     queryLog: string;
@@ -436,6 +446,9 @@ export interface TranslationDictionary {
     resendCode: string;
     resendIn: string;
     errorEmailInvalid: string;
+    errorFullNameRequired: string;
+    didYouMean: string;
+    applySuggestion: string;
     errorOtpLength: string;
     otpSentToast: string;
     loginSuccessToast: string;

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, isUserAdmin } from "@/lib/auth";
 
 export async function GET() {
   try {
@@ -12,12 +12,15 @@ export async function GET() {
       });
     }
 
+    const isAdmin = isUserAdmin(user);
+
     return NextResponse.json({
       authenticated: true,
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
+        isAdmin,
       },
     });
   } catch {

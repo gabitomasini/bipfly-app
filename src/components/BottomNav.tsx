@@ -4,25 +4,29 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Sparkles, Plane, BarChart2, Terminal, Settings } from "lucide-react";
 import { useTranslation } from "@/lib/i18n/context";
+import { useAuth } from "@/lib/auth/AuthContext";
 
 export default function BottomNav() {
   const pathname = usePathname();
   const { t } = useTranslation();
+  const { user } = useAuth();
 
   const navItems = [
     { href: "/", label: t.nav.dashboard, icon: Sparkles },
     { href: "/routes", label: t.nav.routes, icon: Plane },
     { href: "/history", label: t.nav.history, icon: BarChart2 },
-    { href: "/logs", label: t.nav.logs, icon: Terminal },
+    ...(user?.isAdmin !== false ? [{ href: "/logs", label: t.nav.logs, icon: Terminal }] : []),
     { href: "/settings", label: t.nav.settings, icon: Settings },
   ];
+
+  const colCount = navItems.length;
 
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-[60] md:hidden bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-lg px-2 pt-1.5"
       style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom, 0.5rem))" }}
     >
-      <div className="grid grid-cols-5 items-center w-full max-w-md mx-auto gap-1">
+      <div className={`grid items-center w-full max-w-md mx-auto gap-1 ${colCount === 4 ? "grid-cols-4" : "grid-cols-5"}`}>
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive =

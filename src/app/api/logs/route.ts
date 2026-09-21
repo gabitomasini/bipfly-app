@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLogs, getLogStats, clearLogs } from "@/lib/db";
 import { LogCategory, LogLevel } from "@/lib/types";
+import { getAuthUser, isUserAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getAuthUser();
+    if (!isUserAdmin(user)) {
+      return NextResponse.json(
+        { success: false, error: "Acesso não autorizado aos logs do sistema." },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
 
     const levelParam = searchParams.get("level");
@@ -52,6 +61,14 @@ export async function GET(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const user = await getAuthUser();
+    if (!isUserAdmin(user)) {
+      return NextResponse.json(
+        { success: false, error: "Acesso não autorizado." },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const daysParam = searchParams.get("days") || searchParams.get("dias");
     const days = daysParam ? Number(daysParam) : undefined;

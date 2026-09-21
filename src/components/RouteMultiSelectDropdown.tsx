@@ -67,9 +67,9 @@ export default function RouteMultiSelectDropdown({
 
   // Label do botão principal
   const getButtonLabel = () => {
-    if (routes.length === 0) return "Nenhuma rota cadastrada";
+    if (routes.length === 0) return "Carregando rotas...";
     if (allSelected) return `Todas as rotas (${routes.length})`;
-    if (selectedIds.length === 0) return "Nenhuma rota selecionada";
+    if (selectedIds.length === 0) return "Selecione as rotas";
     if (selectedIds.length === 1) {
       const r = routes.find((item) => item.id === selectedIds[0]);
       return r ? `${r.origin} → ${r.destination} (${formatDateBR(r.flightDate)})` : "1 rota selecionada";

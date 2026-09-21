@@ -77,24 +77,18 @@ export async function getAuthUser(): Promise<User | null> {
 }
 
 /**
- * Helper para extrair o usuário autenticado diretamente de um objeto Request (caso necessário)
+ * Verifica se um usuário possui privilégios de administrador.
+ * Se ADMIN_EMAILS não estiver configurada, retorna true (compatibilidade retroativa / dev mode).
+ * Se ADMIN_EMAILS estiver configurada, verifica se o e-mail do usuário consta na lista.
  */
-export async function getAuthUserFromRequest(request: Request): Promise<User | null> {
-  try {
-    const cookieHeader = request.headers.get("cookie") || "";
-    const cookiesList = cookieHeader.split(";").map((c) => c.trim());
-    const sessionCookie = cookiesList.find((c) => c.startsWith(`${SESSION_COOKIE_NAME}=`));
+export function isUserAdmin(user: User | null): boolean {
+  if (!user) return false;
+  const adminEmails = (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
 
-    if (!sessionCookie) {
-      return null;
-    }
-
-    const token = sessionCookie.split("=")[1];
-    if (!token) return null;
-
-    const sessionData = await findSessionByToken(token);
-    return sessionData ? sessionData.user : null;
-  } catch {
-    return null;
-  }
+  if (adminEmails.length === 0) return true;
+  return adminEmails.includes(user.email.toLowerCase());
 }
+

@@ -233,43 +233,127 @@ export default function StatisticalAnalysisCard({
         </div>
       </div>
 
-      {/* Escala Visual de Z-Score (Curva Normal) */}
-      {zScore !== null && (
-        <div className="pt-2">
-          <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium mb-1.5">
+      {/* Escala Visual de Z-Score (Curva Normal com Ponteiro Ativo) */}
+      <div className="pt-2">
+        <div className="flex items-center justify-between text-xs font-semibold mb-2.5">
+          <span className="text-slate-600 flex items-center gap-1.5">
+            <Activity className="w-4 h-4 text-indigo-600" />
             <span>{t.stats.scaleTitle}</span>
-            <span className="font-bold text-slate-700">
-              {t.stats.scalePosition} <strong>{zScore}σ</strong>
-            </span>
-          </div>
+          </span>
+          <span
+            className={`px-2.5 py-0.5 rounded-full text-xs font-black tracking-tight border shadow-2xs ${
+              zScore !== null && zScore <= -2
+                ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                : zScore !== null && zScore <= -1.5
+                ? "bg-sky-100 text-sky-800 border-sky-300"
+                : zScore !== null && zScore > 1.5
+                ? "bg-rose-100 text-rose-800 border-rose-300"
+                : "bg-slate-100 text-slate-800 border-slate-200"
+            }`}
+          >
+            {zScore !== null ? `${zScore > 0 ? `+${zScore}` : zScore}σ` : t.stats.calculating}
+            {discountPercent !== null && discountPercent !== 0 && (
+              <span className="ml-1 text-[11px] font-bold opacity-90">
+                ({discountPercent > 0 ? `-${discountPercent}%` : `+${Math.abs(discountPercent)}%`})
+              </span>
+            )}
+          </span>
+        </div>
 
-          <div className="relative h-4 rounded-full bg-slate-100 overflow-hidden flex border border-slate-200">
-            {/* Faixa Imperdível (Z <= -2.0) */}
-            <Tooltip content={`${t.stats.stealDeal} (Z <= -2.0)`}>
-              <div className="w-1/4 bg-emerald-400/80 border-r border-white h-full" />
-            </Tooltip>
-            {/* Faixa Oportunidade (-2.0 < Z <= -1.5) */}
-            <Tooltip content={`${t.stats.greatPrice} (-2.0 < Z <= -1.5)`}>
-              <div className="w-1/6 bg-sky-300/80 border-r border-white h-full" />
-            </Tooltip>
-            {/* Faixa Normal (-1.5 < Z < +1.5) */}
-            <Tooltip content={`${t.stats.normalRange} (-1.5 a +1.5)`}>
-              <div className="w-1/3 bg-slate-200/90 border-r border-white h-full" />
-            </Tooltip>
-            {/* Faixa Alto (Z >= +1.5) */}
-            <Tooltip content={`${t.stats.scaleHigh} (Z >= +1.5)`}>
-              <div className="w-1/4 bg-rose-300/80 h-full" />
-            </Tooltip>
-          </div>
+        {/* Barra de Distribuição com Ponteiro */}
+        <div className="relative pt-3 pb-1">
+          {/* Ponteiro / Indicador do Preço Atual */}
+          {zScore !== null && (
+            <div
+              className="absolute top-0 bottom-1 flex flex-col items-center -translate-x-1/2 pointer-events-none transition-all duration-500 ease-out z-20"
+              style={{
+                left: `${Math.max(4, Math.min(96, ((Math.max(-3, Math.min(3, zScore)) - -3) / 6) * 100))}%`,
+              }}
+            >
+              {/* Badge Flutuante no Topo */}
+              <div className="bg-slate-950 text-white text-[10px] font-black px-1.5 py-0.5 rounded-md shadow-md whitespace-nowrap mb-0.5 flex items-center gap-1">
+                <span>{zScore > 0 ? `+${zScore}` : zScore}σ</span>
+              </div>
+              {/* Pino / Seta */}
+              <div className="w-3 h-3 rounded-full bg-slate-900 border-2 border-white shadow-md flex items-center justify-center -mb-1 z-30">
+                <div
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    zScore <= -1.5 ? "bg-emerald-400" : zScore > 1.5 ? "bg-rose-400" : "bg-sky-400"
+                  }`}
+                />
+              </div>
+              {/* Linha vertical cortando a barra */}
+              <div className="w-0.5 flex-1 bg-slate-950 shadow-xs" />
+            </div>
+          )}
 
-          <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1 font-medium px-1">
-            <span className="text-emerald-700 font-bold">{t.stats.scaleStealDeal}</span>
-            <span className="text-sky-700 font-bold">{t.stats.scaleGreatDeal}</span>
-            <span className="text-slate-600">{t.stats.scaleNormal}</span>
-            <span className="text-rose-700 font-bold">{t.stats.scaleHigh}</span>
+          {/* Faixas Coloridas de Distribuição */}
+          <div className="relative h-5 rounded-xl overflow-hidden flex border border-slate-200/90 shadow-inner bg-slate-100">
+            {/* Faixa Imperdível (-3.0 a -2.0) = 16.7% */}
+            <Tooltip content={`${t.stats.stealDeal} (Z <= -2.0σ) - Super Desconto`}>
+              <div className="w-[16.7%] bg-emerald-500 h-full border-r border-white/60 relative group cursor-pointer flex items-center justify-center">
+                <span className="text-[9px] font-black text-white/90 hidden sm:inline uppercase tracking-tighter">
+                  Promo
+                </span>
+              </div>
+            </Tooltip>
+
+            {/* Faixa Oportunidade (-2.0 a -1.5) = 8.3% */}
+            <Tooltip content={`${t.stats.greatPrice} (-2.0σ < Z <= -1.5σ) - Bom Desconto`}>
+              <div className="w-[8.3%] bg-sky-400 h-full border-r border-white/60 relative group cursor-pointer" />
+            </Tooltip>
+
+            {/* Faixa Normal (-1.5 a +1.5) = 50% */}
+            <Tooltip content={`${t.stats.normalRange} (-1.5σ a +1.5σ) - Flutuação Normal`}>
+              <div className="w-[50%] bg-indigo-100/90 h-full border-r border-white/60 relative group cursor-pointer flex items-center justify-center">
+                <span className="text-[9px] font-bold text-slate-500 hidden sm:inline">
+                  {t.stats.scaleNormal} (Média)
+                </span>
+              </div>
+            </Tooltip>
+
+            {/* Faixa Alto (+1.5 a +3.0) = 25% */}
+            <Tooltip content={`${t.stats.scaleHigh} (Z >= +1.5σ) - Preço Elevado`}>
+              <div className="w-[25%] bg-rose-400 h-full relative group cursor-pointer flex items-center justify-center">
+                <span className="text-[9px] font-black text-white/90 hidden sm:inline uppercase tracking-tighter">
+                  Alto
+                </span>
+              </div>
+            </Tooltip>
           </div>
         </div>
-      )}
+
+        {/* Legenda dos Marcadores da Escala */}
+        <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1.5 font-semibold px-0.5">
+          <span className="text-emerald-700 font-bold flex items-center gap-1">
+            <Flame className="w-3 h-3 text-emerald-600 inline" />
+            <span>{t.stats.scaleStealDeal}</span>
+          </span>
+          <span className="text-sky-700 font-bold">{t.stats.scaleGreatDeal}</span>
+          <span className="text-slate-600 font-medium">Média (0σ)</span>
+          <span className="text-rose-700 font-bold">{t.stats.scaleHigh}</span>
+        </div>
+
+        {/* Amostra em Coleta - Progresso */}
+        {sampleSize < 5 && (
+          <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+            <span className="flex items-center gap-1.5 font-medium">
+              <Info className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span>
+                {locale === "en"
+                  ? `Collecting data: ${sampleSize} of 5 quotes logged for full statistical model`
+                  : `Coleta de dados: ${sampleSize} de 5 cotações registradas para maturidade estatística`}
+              </span>
+            </span>
+            <div className="w-20 bg-slate-100 rounded-full h-1.5 overflow-hidden border border-slate-200 shrink-0">
+              <div
+                className="bg-indigo-600 h-full rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(100, (sampleSize / 5) * 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

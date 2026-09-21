@@ -258,7 +258,7 @@ export default function DashboardPage() {
         </div>
 
         {/* 4 Top KPI Cards */}
-        <MetricCards routes={routes} schedulerStatus={schedulerStatus} />
+        <MetricCards routes={routes} schedulerStatus={schedulerStatus} loading={loading} />
 
         {/* Live Deals Table & Filter Panel */}
         <div className="space-y-4">
