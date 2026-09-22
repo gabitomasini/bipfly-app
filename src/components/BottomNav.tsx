@@ -15,7 +15,7 @@ export default function BottomNav() {
     { href: "/", label: t.nav.dashboard, icon: Sparkles },
     { href: "/routes", label: t.nav.routes, icon: Plane },
     { href: "/history", label: t.nav.history, icon: BarChart2 },
-    ...(user?.isAdmin !== false ? [{ href: "/logs", label: t.nav.logs, icon: Terminal }] : []),
+    ...(user?.isAdmin ? [{ href: "/logs", label: t.nav.logs, icon: Terminal }] : []),
     { href: "/settings", label: t.nav.settings, icon: Settings },
   ];
 
@@ -31,7 +31,7 @@ export default function BottomNav() {
           const Icon = item.icon;
           const isActive =
             item.href === "/"
-              ? pathname === "/"
+              ? pathname === "/" || pathname === "/dashboard"
               : pathname === item.href || pathname.startsWith(item.href + "/");
 
           return (

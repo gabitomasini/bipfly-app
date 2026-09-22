@@ -1,6 +1,7 @@
-import { findRouteById, listRoutes, recordFlightHistory, getAppSettings, updateRouteScanStatus } from "./db";
+import { findRouteById, listRoutes, recordFlightHistory, getAppSettings, updateRouteScanStatus, findUserById } from "./db";
 import { scrapeGoogleFlights } from "./scrapers/google-flights-scraper";
 import { sendNtfyNotification } from "./notifier";
+import { sendDealAlertEmail } from "./email";
 import { FlightOption, MonitoredRoute, ScanResult } from "./types";
 import { logger } from "./logger";
 
@@ -190,32 +191,78 @@ export async function scanRoute(routeId: number): Promise<ScanResult> {
 
   let notified = false;
   const settings = await getAppSettings();
-  if (isBelowTarget && settings.autoNotify && settings.ntfyTopic) {
-    notified = await sendNtfyNotification({
-      topic: settings.ntfyTopic,
-      origin: route.origin,
-      destination: route.destination,
-      flightDate: route.flightDate,
-      price: lowestPrice,
-      targetPrice: route.targetPrice,
-      currency: primaryOption.currency || "BRL",
-      passengers: route.passengers || 1,
-      children: route.children || 0,
-      infantsInLap: route.infantsInLap || 0,
-      airline: primaryOption.airline,
-      flightNumber: primaryOption.flightNumber,
-      departureTime: primaryOption.departureTime,
-      arrivalTime: primaryOption.arrivalTime,
-      stops: primaryOption.stops,
-      bookingLink: primaryOption.bookingLink,
-    });
-    if (notified) {
-      logger.success(
-        "NOTIFICATION",
-        `🚨 Alerta de preço disparado para o tópico '${settings.ntfyTopic}': R$ ${lowestPrice.toFixed(2)} <= R$ ${route.targetPrice.toFixed(2)}`,
-        { route: `${route.origin}->${route.destination}`, price: lowestPrice, targetPrice: route.targetPrice },
-        route.id
-      );
+
+  if (isBelowTarget) {
+    // 1. Notificação Push NTFY (se configurado nas opções)
+    if (settings.autoNotify && settings.ntfyTopic) {
+      const ntfySent = await sendNtfyNotification({
+        topic: settings.ntfyTopic,
+        origin: route.origin,
+        destination: route.destination,
+        flightDate: route.flightDate,
+        price: lowestPrice,
+        targetPrice: route.targetPrice,
+        currency: primaryOption.currency || "BRL",
+        passengers: route.passengers || 1,
+        children: route.children || 0,
+        infantsInLap: route.infantsInLap || 0,
+        airline: primaryOption.airline,
+        flightNumber: primaryOption.flightNumber,
+        departureTime: primaryOption.departureTime,
+        arrivalTime: primaryOption.arrivalTime,
+        stops: primaryOption.stops,
+        bookingLink: primaryOption.bookingLink,
+      });
+      if (ntfySent) {
+        notified = true;
+        logger.success(
+          "NOTIFICATION",
+          `🚨 Alerta de preço disparado para o tópico '${settings.ntfyTopic}': R$ ${lowestPrice.toFixed(2)} <= R$ ${route.targetPrice.toFixed(2)}`,
+          { route: `${route.origin}->${route.destination}`, price: lowestPrice, targetPrice: route.targetPrice },
+          route.id
+        );
+      }
+    }
+
+    // 2. Disparo de E-mail de Alerta para o usuário proprietário da rota
+    if (route.userId) {
+      try {
+        const user = await findUserById(route.userId);
+        if (user && user.email) {
+          const emailSent = await sendDealAlertEmail({
+            email: user.email,
+            name: user.name,
+            origin: route.origin,
+            destination: route.destination,
+            flightDate: route.flightDate,
+            returnDate: route.returnDate || null,
+            price: lowestPrice,
+            targetPrice: route.targetPrice,
+            currency: primaryOption.currency || "BRL",
+            airline: primaryOption.airline,
+            flightNumber: primaryOption.flightNumber,
+            departureTime: primaryOption.departureTime,
+            arrivalTime: primaryOption.arrivalTime,
+            stops: primaryOption.stops,
+            durationMinutes: primaryOption.durationMinutes,
+            bookingLink: primaryOption.bookingLink,
+            passengers: route.passengers || 1,
+            children: route.children || 0,
+            infantsInLap: route.infantsInLap || 0,
+          });
+          if (emailSent) {
+            notified = true;
+            logger.success(
+              "NOTIFICATION",
+              `🎯 E-mail de alerta de preço enviado para ${user.email} (Rota #${route.id}: R$ ${lowestPrice.toFixed(2)} <= Meta R$ ${route.targetPrice.toFixed(2)})`,
+              { email: user.email, price: lowestPrice, targetPrice: route.targetPrice },
+              route.id
+            );
+          }
+        }
+      } catch (err: any) {
+        logger.error("NOTIFICATION", `Falha ao enviar e-mail de alerta de preço para rota #${route.id}: ${err.message}`);
+      }
     }
   }
 

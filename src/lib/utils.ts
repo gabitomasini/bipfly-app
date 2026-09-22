@@ -85,23 +85,34 @@ export function getGoogleFlightsUrl(
 ): string {
   const normOrigin = (origin || "").trim().toUpperCase();
   const normDestination = (destination || "").trim().toUpperCase();
-  const totalPax = (passengers || 1) + (children || 0) + (infantsInLap || 0);
-  const paxParam = totalPax > 1 ? `&passengers=${totalPax}` : "";
   const isRoundTrip = tripType === "round_trip" || (Boolean(returnDate) && tripType !== "one_way");
+
+  const totalAdults = passengers || 1;
+  const totalKids = children || 0;
+  const totalInfants = infantsInLap || 0;
+
+  let paxQuery = "";
+  if (totalAdults > 1 || totalKids > 0 || totalInfants > 0) {
+    const parts: string[] = [];
+    if (totalAdults > 0) parts.push(`${totalAdults} adult${totalAdults > 1 ? "s" : ""}`);
+    if (totalKids > 0) parts.push(`${totalKids} child${totalKids > 1 ? "ren" : ""}`);
+    if (totalInfants > 0) parts.push(`${totalInfants} infant${totalInfants > 1 ? "s" : ""}`);
+    paxQuery = ` for ${parts.join(" ")}`;
+  }
 
   if (isRoundTrip && returnDate) {
     return `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(
       normDestination
     )}%20from%20${encodeURIComponent(normOrigin)}%20on%20${encodeURIComponent(
       flightDate
-    )}%20through%20${encodeURIComponent(returnDate)}&curr=BRL&hl=pt-BR${paxParam}`;
+    )}%20through%20${encodeURIComponent(returnDate)}${encodeURIComponent(paxQuery)}&curr=BRL&hl=pt-BR`;
   }
 
   return `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(
     normDestination
   )}%20from%20${encodeURIComponent(normOrigin)}%20on%20${encodeURIComponent(
     flightDate
-  )}%20oneway&curr=BRL&hl=pt-BR${paxParam}`;
+  )}%20oneway${encodeURIComponent(paxQuery)}&curr=BRL&hl=pt-BR`;
 }
 
 export function formatRelativeTime(dateStr?: string | null, locale: SupportedLocale = "en"): string {

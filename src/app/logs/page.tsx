@@ -131,6 +131,10 @@ export default function LogsPage() {
 
   // Carrega histórico inicial do banco
   const fetchInitialLogs = useCallback(async () => {
+    if (authLoading || !user || !user.isAdmin) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -152,7 +156,7 @@ export default function LogsPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedLevel, selectedCategory, searchTerm]);
+  }, [authLoading, user, selectedLevel, selectedCategory, searchTerm]);
 
   useEffect(() => {
     fetchInitialLogs();
@@ -168,7 +172,7 @@ export default function LogsPage() {
 
   // Gerenciador de Server-Sent Events (SSE) em Tempo Real
   useEffect(() => {
-    if (!streamActive) {
+    if (authLoading || !user || !user.isAdmin || !streamActive) {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
@@ -199,29 +203,20 @@ export default function LogsPage() {
           };
         });
 
-        // Flash visual de log ao vivo
-        setLatestLiveLogId(newLog.id);
-        setTimeout(() => setLatestLiveLogId(null), 2500);
-
-        // Insere o novo log no topo respeitando filtros se aplicáveis
+        // Adiciona ao topo da lista respeitando filtros
         setLogs((prev) => {
-          // Previne duplicados
-          if (prev.some((l) => l.id === newLog.id)) return prev;
-
-          // Se tiver filtro ativo, verifica se corresponde
           if (selectedLevel !== "ALL" && newLog.level !== selectedLevel) return prev;
           if (selectedCategory !== "ALL" && newLog.category !== selectedCategory) return prev;
-          if (searchTerm.trim()) {
-            const term = searchTerm.toLowerCase();
-            const matchMsg = newLog.message.toLowerCase().includes(term);
-            const matchDetails = (newLog.details || "").toLowerCase().includes(term);
-            if (!matchMsg && !matchDetails) return prev;
+          if (searchTerm.trim() && !newLog.message.toLowerCase().includes(searchTerm.toLowerCase().trim())) {
+            return prev;
           }
-
-          return [newLog, ...prev.slice(0, 199)];
+          return [newLog, ...prev].slice(0, 500);
         });
+
+        setLatestLiveLogId(newLog.id);
+        setTimeout(() => setLatestLiveLogId(null), 3000);
       } catch (err) {
-        console.error("Erro ao processar evento SSE:", err);
+        console.error("Erro ao processar evento de log:", err);
       }
     });
 
@@ -231,9 +226,8 @@ export default function LogsPage() {
 
     return () => {
       es.close();
-      eventSourceRef.current = null;
     };
-  }, [streamActive, selectedLevel, selectedCategory, searchTerm]);
+  }, [authLoading, user, streamActive, selectedLevel, selectedCategory, searchTerm]);
 
   const toggleExpand = (id: number) => {
     setExpandedLogIds((prev) => {
@@ -283,7 +277,19 @@ export default function LogsPage() {
     }
   };
 
-  if (!authLoading && user && user.isAdmin === false) {
+  if (authLoading) {
+    return (
+      <div className="min-h-screen pb-24 bg-slate-50/70">
+        <Navbar />
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 space-y-6">
+          <div className="h-10 w-48 bg-slate-200 rounded-xl animate-pulse" />
+          <div className="h-64 bg-slate-100 rounded-2xl animate-pulse" />
+        </main>
+      </div>
+    );
+  }
+
+  if (!user || !user.isAdmin) {
     return (
       <div className="min-h-screen pb-24 bg-slate-50/70">
         <Navbar />
@@ -292,18 +298,22 @@ export default function LogsPage() {
             <ShieldAlert className="w-8 h-8" />
           </div>
           <div className="space-y-2">
-            <h1 className="text-2xl font-bold text-slate-800">Acesso Restrito</h1>
+            <h1 className="text-2xl font-bold text-slate-800">
+              {locale === "en" ? "Restricted Access" : "Acesso Restrito"}
+            </h1>
             <p className="text-sm text-slate-500 max-w-md mx-auto">
-              A visualização de logs e telemetria do sistema é restrita aos administradores cadastrados.
+              {locale === "en"
+                ? "Viewing system logs and telemetry is strictly restricted to authenticated administrators."
+                : "A visualização de logs e telemetria do sistema é restrita aos administradores cadastrados."}
             </p>
           </div>
           <div className="pt-2">
             <Link
-              href="/dashboard"
+              href="/"
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-semibold transition-colors shadow-xs"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Voltar ao Painel</span>
+              <span>{locale === "en" ? "Back to Dashboard" : "Voltar ao Início"}</span>
             </Link>
           </div>
         </main>

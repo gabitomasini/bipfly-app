@@ -1,4 +1,5 @@
 import { FlightOption } from "./types";
+import { getGoogleFlightsUrl } from "./utils";
 import { logger } from "./logger";
 
 export class FlightTrackerError extends Error {
@@ -218,21 +219,17 @@ export async function fetchSerpApiFlights(
     const totalDuration = item.total_duration || firstLeg.duration || null;
     const stops = Math.max(0, flights.length - 1);
 
-    const totalPax = (adults || 1) + (children || 0) + (infantsInLap || 0);
-    const unitPrice =
-      totalPax > 1 ? Math.round((price / totalPax) * 100) / 100 : price;
-
-    const flightSearchUrl = isRoundTrip && returnDate
-      ? `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(
-          legDestination
-        )}%20from%20${encodeURIComponent(legOrigin)}%20on%20${encodeURIComponent(
-          flightDate
-        )}%20through%20${encodeURIComponent(returnDate)}&curr=BRL&hl=pt-BR${totalPax > 1 ? `&passengers=${totalPax}` : ""}`
-      : `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(
-          legDestination
-        )}%20from%20${encodeURIComponent(legOrigin)}%20on%20${encodeURIComponent(
-          flightDate
-        )}%20oneway&curr=BRL&hl=pt-BR${totalPax > 1 ? `&passengers=${totalPax}` : ""}`;
+    const unitPrice = price;
+    const flightSearchUrl = getGoogleFlightsUrl(
+      legOrigin,
+      legDestination,
+      flightDate,
+      adults,
+      returnDate,
+      isRoundTrip ? "round_trip" : "one_way",
+      children,
+      infantsInLap
+    );
 
     results.push({
       origin: legOrigin,

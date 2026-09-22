@@ -1,6 +1,7 @@
 import { chromium, Browser } from "playwright";
 import { FlightOption } from "../types";
 import { parseBrazilianPrice } from "../flight-tracker";
+import { getGoogleFlightsUrl } from "../utils";
 import { logger } from "../logger";
 
 export class ScraperError extends Error {
@@ -112,14 +113,19 @@ export async function scrapeGoogleFlights(
 ): Promise<FlightOption[]> {
   const normOrigin = origin.trim().toUpperCase();
   const normDestination = destination.trim().toUpperCase();
-  const totalPax = (passengers || 1) + (children || 0) + (infantsInLap || 0);
-  const paxParam = totalPax > 1 ? `&passengers=${totalPax}` : "";
   const isRoundTrip = tripType === "round_trip" || (Boolean(returnDate) && tripType !== "one_way");
 
   // URL direta de voos no Google Flights em BRL e idioma pt-BR (one-way ou ida e volta)
-  const searchUrl = isRoundTrip && returnDate
-    ? `https://www.google.com/travel/flights?q=Flights%20to%20${normDestination}%20from%20${normOrigin}%20on%20${flightDate}%20through%20${returnDate}&curr=BRL&hl=pt-BR${paxParam}`
-    : `https://www.google.com/travel/flights?q=Flights%20to%20${normDestination}%20from%20${normOrigin}%20on%20${flightDate}%20oneway&curr=BRL&hl=pt-BR${paxParam}`;
+  const searchUrl = getGoogleFlightsUrl(
+    normOrigin,
+    normDestination,
+    flightDate,
+    passengers,
+    returnDate,
+    tripType,
+    children,
+    infantsInLap
+  );
 
   logger.info(
     "SCRAPER",
@@ -433,11 +439,8 @@ export async function scrapeGoogleFlights(
         const rawExtractedPrice = parseBrazilianPrice(raw.priceText);
         if (rawExtractedPrice <= 50) continue; // Filtra valores espúrios
 
-        // Converte o preço total exibido pelo Google Flights para o preço unitário por passageiro
-        const unitPrice =
-          totalPax > 1
-            ? Math.round((rawExtractedPrice / totalPax) * 100) / 100
-            : rawExtractedPrice;
+        // O Google Flights exibe a tarifa individual por passageiro nos cartões de voo
+        const unitPrice = rawExtractedPrice;
 
         parsedResults.push({
           origin: normOrigin,
@@ -597,7 +600,7 @@ export async function scrapeGoogleFlightsPriceHistory(
           for (const [ts, price] of rawPoints) {
             const d = new Date(ts);
             if (!isNaN(d.getTime()) && price >= 50 && price <= 300000) {
-              const unitPrice = totalPax > 1 ? Math.round((Number(price) / totalPax) * 100) / 100 : Number(price);
+              const unitPrice = Number(price);
               points.push({
                 date: d.toISOString().split("T")[0],
                 timestampMs: ts,

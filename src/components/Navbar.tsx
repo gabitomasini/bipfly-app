@@ -47,7 +47,7 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
     { href: "/routes", label: t.nav.routes, icon: Plane },
     { href: "/history", label: t.nav.history, icon: BarChart2 },
     { href: "/settings", label: t.nav.settings, icon: Settings },
-    ...(user?.isAdmin !== false ? [{ href: "/logs", label: t.nav.logs, icon: Terminal }] : []),
+    ...(user?.isAdmin ? [{ href: "/logs", label: t.nav.logs, icon: Terminal }] : []),
   ];
 
   return (
@@ -76,7 +76,10 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
           <nav className="hidden md:flex items-center justify-center gap-1 sm:gap-2 h-full">
             {navLinks.map((link) => {
               const Icon = link.icon;
-              const isActive = pathname === link.href;
+              const isActive =
+                link.href === "/"
+                  ? pathname === "/" || pathname === "/dashboard"
+                  : pathname === link.href;
               return (
                 <Link
                   key={link.href}
