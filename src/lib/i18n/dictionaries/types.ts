@@ -78,6 +78,8 @@ export interface TranslationDictionary {
       autoScraper: string;
       manual: string;
       noRoutesYet: string;
+      noRoutesToScan: string;
+      noActiveRoutes: string;
     };
     filters: {
       allAirlines: string;

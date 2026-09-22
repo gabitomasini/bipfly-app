@@ -78,6 +78,8 @@ export const pt: TranslationDictionary = {
       autoScraper: "Próxima busca",
       manual: "Manual",
       noRoutesYet: "Nenhuma rota monitorada ainda",
+      noRoutesToScan: "Sem rotas para escanear",
+      noActiveRoutes: "Sem rotas",
     },
     filters: {
       allAirlines: "Todas as Cias",

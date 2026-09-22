@@ -81,6 +81,10 @@ export default function AllRoutesOverview({
     };
   }, [routes, allHistory]);
 
+  if (routes.length === 0) {
+    return null;
+  }
+
   return (
     <div className="space-y-6">
       {/* 4 Cards de Métricas Globais */}

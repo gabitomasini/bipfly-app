@@ -336,6 +336,8 @@ export default function MetricCards({ routes, schedulerStatus, loading = false }
               content={
                 isScanning
                   ? t.nav.scanning
+                  : activeCount === 0
+                  ? (t.dashboard.kpis.noRoutesToScan || (locale === "en" ? "No routes to scan" : "Sem rotas para escanear"))
                   : locale === "en"
                   ? "Scan all routes now"
                   : "Escanear todas as rotas agora"
@@ -346,12 +348,14 @@ export default function MetricCards({ routes, schedulerStatus, loading = false }
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  scanAllRoutes();
+                  if (activeCount > 0) scanAllRoutes();
                 }}
-                disabled={isScanning}
+                disabled={isScanning || activeCount === 0}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs ${
                   isScanning
                     ? "bg-violet-50 text-violet-700 border border-violet-200"
+                    : activeCount === 0
+                    ? "bg-slate-50 text-slate-400 border border-slate-200/50 opacity-60 cursor-not-allowed"
                     : "bg-slate-100 hover:bg-violet-50 text-slate-700 hover:text-violet-700 border border-slate-200/80 hover:border-violet-200 hover:shadow-xs"
                 } disabled:opacity-75`}
                 aria-label={locale === "en" ? "Scan now" : "Escanear agora"}
@@ -359,7 +363,7 @@ export default function MetricCards({ routes, schedulerStatus, loading = false }
                 {isScanning ? (
                   <RefreshCw className="w-3 h-3 animate-spin text-violet-600 shrink-0" />
                 ) : (
-                  <Zap className="w-3 h-3 text-amber-500 fill-amber-500 shrink-0" />
+                  <Zap className={`w-3 h-3 ${activeCount === 0 ? "text-slate-400" : "text-amber-500 fill-amber-500"} shrink-0`} />
                 )}
                 <span>
                   {isScanning
@@ -379,31 +383,55 @@ export default function MetricCards({ routes, schedulerStatus, loading = false }
         </div>
 
         <div className="mt-3">
-          <div className="flex items-baseline justify-between">
-            <span suppressHydrationWarning className="text-3xl font-black tracking-tight text-slate-900 tabular-nums">
-              {mounted ? nextRunText : "--:--"}
-            </span>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-              <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse" />
-              {isSchedulerActive ? t.common.active : t.common.paused}
-            </span>
-          </div>
+          {activeCount === 0 ? (
+            <>
+              <div className="flex items-baseline justify-between">
+                <span className="text-3xl font-black tracking-tight text-slate-300 tabular-nums">
+                  —
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200/60">
+                  {totalCount === 0
+                    ? t.dashboard.kpis.noActiveRoutes
+                    : (locale === "en" ? "Paused" : "Pausado")}
+                </span>
+              </div>
+              <div className="mt-2.5">
+                <span className="text-[11px] text-slate-400 font-medium block truncate">
+                  {totalCount === 0
+                    ? t.dashboard.kpis.noRoutesToScan
+                    : (locale === "en" ? "All routes are paused" : "Todas as rotas estão pausadas")}
+                </span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-baseline justify-between">
+                <span suppressHydrationWarning className="text-3xl font-black tracking-tight text-slate-900 tabular-nums">
+                  {mounted ? nextRunText : "--:--"}
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse" />
+                  {isSchedulerActive ? t.common.active : t.common.paused}
+                </span>
+              </div>
 
-          {/* Visual Progress Bar */}
-          <div className="mt-3">
-            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-              <div
-                className="bg-indigo-600 h-full rounded-full transition-all duration-1000 ease-linear"
-                style={{ width: `${mounted && isSchedulerActive ? Math.min(100, Math.max(2, Math.round(progressPercent))) : 0}%` }}
-              />
-            </div>
-            <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium mt-1">
-              <span>{t.dashboard.kpis.autoScraper}</span>
-              <span suppressHydrationWarning className="font-semibold text-indigo-600 tabular-nums">
-                {remainingFormatted}
-              </span>
-            </div>
-          </div>
+              {/* Visual Progress Bar */}
+              <div className="mt-3">
+                <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className="bg-indigo-600 h-full rounded-full transition-all duration-1000 ease-linear"
+                    style={{ width: `${mounted && isSchedulerActive ? Math.min(100, Math.max(2, Math.round(progressPercent))) : 0}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium mt-1">
+                  <span>{t.dashboard.kpis.autoScraper}</span>
+                  <span suppressHydrationWarning className="font-semibold text-indigo-600 tabular-nums">
+                    {remainingFormatted}
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

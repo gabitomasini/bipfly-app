@@ -75,9 +75,11 @@ export const en: TranslationDictionary = {
       lowestPriceRoute: "route",
       avgCycle: "Next Scan",
       nextScan: "Next scan in",
-      autoScraper: "Next scan",
+      autoScraper: "Auto Scraper",
       manual: "Manual",
       noRoutesYet: "No routes monitored yet",
+      noRoutesToScan: "No routes to scan",
+      noActiveRoutes: "No routes",
     },
     filters: {
       allAirlines: "All Airlines",

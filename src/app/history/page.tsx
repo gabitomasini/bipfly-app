@@ -160,12 +160,16 @@ function HistoricoContent() {
         if (routesRes.success && routesRes.data?.length > 0) {
           loadedRoutes = routesRes.data;
           setRoutes(loadedRoutes);
+        } else {
+          setRoutes([]);
         }
 
         let initialHistory: FlightHistoryEntry[] = [];
         if (historyRes.success && historyRes.data) {
           initialHistory = historyRes.data;
           setAllHistory(initialHistory);
+        } else {
+          setAllHistory([]);
         }
 
         if (loadedRoutes.length > 0) {
@@ -198,6 +202,9 @@ function HistoricoContent() {
             setSelectedRouteIds(loadedRoutes.map((r) => r.id));
             setHistory(initialHistory);
           }
+        } else {
+          setSelectedRouteIds([]);
+          setHistory([]);
         }
       })
       .catch((err) => {
@@ -240,8 +247,18 @@ function HistoricoContent() {
 
   // Histórico filtrado para as rotas selecionadas
   const activeSelectedHistory = useMemo(() => {
-    return allHistory.filter((h) => h.routeId != null && selectedRouteIds.includes(h.routeId));
-  }, [allHistory, selectedRouteIds]);
+    if (routes.length === 0 || selectedRouteIds.length === 0) return [];
+    return allHistory.filter((h) => {
+      if (h.routeId != null) return selectedRouteIds.includes(h.routeId);
+      return routes.some(
+        (r) =>
+          selectedRouteIds.includes(r.id) &&
+          r.origin === h.origin &&
+          r.destination === h.destination &&
+          r.flightDate === h.flightDate
+      );
+    });
+  }, [allHistory, selectedRouteIds, routes]);
 
   // Rota única se selecionada apenas 1
   const singleRoute = useMemo(() => {
@@ -269,13 +286,18 @@ function HistoricoContent() {
 
   // Global KPIs for History
   const historyStats = useMemo(() => {
-    const totalRecords = allHistory.length;
+    if (routes.length === 0 || activeSelectedRoutes.length === 0) {
+      return { totalRecords: 0, minPrice: null, minPriceRecord: null, avgPrice: null };
+    }
+
+    const currentHistory = selectedRouteIds.length === 1 ? history : activeSelectedHistory;
+    const totalRecords = currentHistory.length;
     let minPrice: number | null = null;
     let minPriceRecord: FlightHistoryEntry | null = null;
     let sumPrice = 0;
     let validCount = 0;
 
-    allHistory.forEach((h) => {
+    currentHistory.forEach((h) => {
       if (h.lowestPrice > 0) {
         sumPrice += h.lowestPrice;
         validCount += 1;
@@ -289,7 +311,7 @@ function HistoricoContent() {
     const avgPrice = validCount > 0 ? Math.round(sumPrice / validCount) : null;
 
     return { totalRecords, minPrice, minPriceRecord, avgPrice };
-  }, [allHistory]);
+  }, [routes.length, activeSelectedRoutes.length, selectedRouteIds.length, history, activeSelectedHistory]);
 
   // Available airlines in history
   const historyAirlines = useMemo(() => {
@@ -461,11 +483,11 @@ function HistoricoContent() {
               </h1>
               {loading ? (
                 <div className="h-5 w-20 bg-slate-200 rounded-full animate-pulse" />
-              ) : (
+              ) : routes.length > 0 && allHistory.length > 0 ? (
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
                   {allHistory.length} {t.common.records}
                 </span>
-              )}
+              ) : null}
             </div>
             <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
               {t.history.subtitle}
@@ -498,93 +520,95 @@ function HistoricoContent() {
         </div>
 
         {/* Micro-KPI Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
-              <History className="w-4.5 h-4.5" />
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
-                {t.history.totalRecords}
-              </span>
-              {loading ? (
-                <div className="h-5 w-16 bg-slate-200 rounded animate-pulse mt-1" />
-              ) : (
-                <span className="text-base font-black text-slate-900 tabular-nums">
-                  {historyStats.totalRecords} <span className="text-xs font-medium text-slate-400">{t.history.quotesLabel}</span>
+        {routes.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+                <History className="w-4.5 h-4.5" />
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                  {t.history.totalRecords}
                 </span>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
-              <TrendingDown className="w-4.5 h-4.5" />
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
-                {t.history.allTimeLow}
-              </span>
-              {loading ? (
-                <div className="h-5 w-20 bg-slate-200 rounded animate-pulse mt-1" />
-              ) : (
-                <>
-                  <span className="text-base font-black text-emerald-600 tabular-nums">
-                    {historyStats.minPrice ? formatCurrencyLocale(historyStats.minPrice, "BRL", locale) : "—"}
-                  </span>
-                  {locale === "en" && historyStats.minPrice && (
-                    <span className="text-[10px] text-slate-400 font-normal block">
-                      ({formatUsdEstimate(historyStats.minPrice, "~")})
-                    </span>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600 shrink-0">
-              <DollarSign className="w-4.5 h-4.5" />
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
-                {t.history.avgPrice}
-              </span>
-              {loading ? (
-                <div className="h-5 w-20 bg-slate-200 rounded animate-pulse mt-1" />
-              ) : (
-                <>
+                {loading ? (
+                  <div className="h-5 w-16 bg-slate-200 rounded animate-pulse mt-1" />
+                ) : (
                   <span className="text-base font-black text-slate-900 tabular-nums">
-                    {historyStats.avgPrice ? formatCurrencyLocale(historyStats.avgPrice, "BRL", locale) : "—"}
+                    {historyStats.totalRecords} <span className="text-xs font-medium text-slate-400">{t.history.quotesLabel}</span>
                   </span>
-                  {locale === "en" && historyStats.avgPrice && (
-                    <span className="text-[10px] text-slate-400 font-normal block">
-                      ({formatUsdEstimate(historyStats.avgPrice, "~")})
-                    </span>
-                  )}
-                </>
-              )}
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 shrink-0">
-              <Globe className="w-4.5 h-4.5" />
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
-                {t.history.analyzedRoutes}
-              </span>
-              {loading ? (
-                <div className="h-5 w-14 bg-slate-200 rounded animate-pulse mt-1" />
-              ) : (
-                <span className="text-base font-black text-slate-900 tabular-nums">
-                  {activeSelectedRoutes.length} <span className="text-xs font-medium text-slate-400">{t.history.activeLabel}</span>
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+                <TrendingDown className="w-4.5 h-4.5" />
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                  {t.history.allTimeLow}
                 </span>
-              )}
+                {loading ? (
+                  <div className="h-5 w-20 bg-slate-200 rounded animate-pulse mt-1" />
+                ) : (
+                  <>
+                    <span className="text-base font-black text-emerald-600 tabular-nums">
+                      {historyStats.minPrice ? formatCurrencyLocale(historyStats.minPrice, "BRL", locale) : "—"}
+                    </span>
+                    {locale === "en" && historyStats.minPrice && (
+                      <span className="text-[10px] text-slate-400 font-normal block">
+                        ({formatUsdEstimate(historyStats.minPrice, "~")})
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600 shrink-0">
+                <DollarSign className="w-4.5 h-4.5" />
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                  {t.history.avgPrice}
+                </span>
+                {loading ? (
+                  <div className="h-5 w-20 bg-slate-200 rounded animate-pulse mt-1" />
+                ) : (
+                  <>
+                    <span className="text-base font-black text-slate-900 tabular-nums">
+                      {historyStats.avgPrice ? formatCurrencyLocale(historyStats.avgPrice, "BRL", locale) : "—"}
+                    </span>
+                    {locale === "en" && historyStats.avgPrice && (
+                      <span className="text-[10px] text-slate-400 font-normal block">
+                        ({formatUsdEstimate(historyStats.avgPrice, "~")})
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 shrink-0">
+                <Globe className="w-4.5 h-4.5" />
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                  {t.history.analyzedRoutes}
+                </span>
+                {loading ? (
+                  <div className="h-5 w-14 bg-slate-200 rounded animate-pulse mt-1" />
+                ) : (
+                  <span className="text-base font-black text-slate-900 tabular-nums">
+                    {activeSelectedRoutes.length} <span className="text-xs font-medium text-slate-400">{t.history.activeLabel}</span>
+                  </span>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Banner de Ação Rápida: Quando ainda não há histórico registrado */}
         {!loading && routes.length > 0 && allHistory.length === 0 && (

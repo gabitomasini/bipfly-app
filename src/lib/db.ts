@@ -1002,13 +1002,17 @@ export async function bulkInsertHistoricalFlightPrices(
   return { inserted, skipped };
 }
 
-export async function getHistoryByRoute(routeId: number, limit = 50): Promise<FlightHistoryEntry[]> {
+export async function getHistoryByRoute(routeId: number, limit = 50, userId?: number): Promise<FlightHistoryEntry[]> {
   const db = await ensureInitialized();
+  const userCheckSql = userId !== undefined ? " AND r.user_id = ?" : "";
+  const args = userId !== undefined ? [routeId, userId, limit] : [routeId, limit];
+
   const res = await db.execute({
     sql: `
       SELECT h.* FROM flight_history h
-      JOIN monitored_routes r ON r.id = ?
-      WHERE h.origin = r.origin 
+      JOIN monitored_routes r ON r.id = ? ${userCheckSql}
+      WHERE (h.route_id = r.id OR (
+        h.origin = r.origin 
         AND h.destination = r.destination 
         AND h.flight_date = r.flight_date
         AND COALESCE(h.trip_type, 'one_way') = COALESCE(r.trip_type, 'one_way')
@@ -1017,10 +1021,36 @@ export async function getHistoryByRoute(routeId: number, limit = 50): Promise<Fl
           OR
           (COALESCE(r.trip_type, 'one_way') = 'one_way' AND (h.return_date IS NULL OR h.return_date = ''))
         )
+      ))
       ORDER BY h.searched_at DESC, h.id DESC 
       LIMIT ?
     `,
-    args: [routeId, limit],
+    args,
+  });
+  return res.rows.map(mapHistoryRow);
+}
+
+export async function getHistoryByUser(userId: number, limit = 200): Promise<FlightHistoryEntry[]> {
+  const db = await ensureInitialized();
+  const res = await db.execute({
+    sql: `
+      SELECT DISTINCT h.* FROM flight_history h
+      JOIN monitored_routes r ON (h.route_id = r.id OR (
+        h.origin = r.origin 
+        AND h.destination = r.destination 
+        AND h.flight_date = r.flight_date
+        AND COALESCE(h.trip_type, 'one_way') = COALESCE(r.trip_type, 'one_way')
+        AND (
+          (COALESCE(r.trip_type, 'one_way') = 'round_trip' AND h.return_date = r.return_date AND h.return_date IS NOT NULL AND h.return_date != '')
+          OR
+          (COALESCE(r.trip_type, 'one_way') = 'one_way' AND (h.return_date IS NULL OR h.return_date = ''))
+        )
+      ))
+      WHERE r.user_id = ?
+      ORDER BY h.searched_at DESC, h.id DESC
+      LIMIT ?
+    `,
+    args: [userId, limit],
   });
   return res.rows.map(mapHistoryRow);
 }
