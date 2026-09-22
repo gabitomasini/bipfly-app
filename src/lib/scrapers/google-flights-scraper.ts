@@ -29,14 +29,12 @@ const OPTIMIZED_CHROME_ARGS = [
   "--disable-sync",
   "--disable-translate",
   "--disable-features=site-per-process,TranslateUI",
-  "--single-process",
   "--no-zygote",
   "--no-first-run",
   "--mute-audio",
   "--hide-scrollbars",
   "--disable-blink-features=AutomationControlled",
   "--window-size=1024,600",
-  "--js-flags=--max-old-space-size=256",
 ];
 
 const BROWSER_LAUNCH_TIMEOUT = 30_000; // 30s ao invés de 180s default

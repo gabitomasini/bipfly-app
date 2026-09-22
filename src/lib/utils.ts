@@ -77,42 +77,33 @@ export function getGoogleFlightsUrl(
   origin: string,
   destination: string,
   flightDate: string,
-  passengers: number = 1,
+  _passengers: number = 1,
   returnDate?: string | null,
   tripType?: "one_way" | "round_trip",
-  children: number = 0,
-  infantsInLap: number = 0
+  _children: number = 0,
+  _infantsInLap: number = 0
 ): string {
   const normOrigin = (origin || "").trim().toUpperCase();
   const normDestination = (destination || "").trim().toUpperCase();
   const isRoundTrip = tripType === "round_trip" || (Boolean(returnDate) && tripType !== "one_way");
 
-  const totalAdults = passengers || 1;
-  const totalKids = children || 0;
-  const totalInfants = infantsInLap || 0;
-
-  let paxQuery = "";
-  if (totalAdults > 1 || totalKids > 0 || totalInfants > 0) {
-    const parts: string[] = [];
-    if (totalAdults > 0) parts.push(`${totalAdults} adult${totalAdults > 1 ? "s" : ""}`);
-    if (totalKids > 0) parts.push(`${totalKids} child${totalKids > 1 ? "ren" : ""}`);
-    if (totalInfants > 0) parts.push(`${totalInfants} infant${totalInfants > 1 ? "s" : ""}`);
-    paxQuery = ` for ${parts.join(" ")}`;
-  }
-
+  // Nota: O parâmetro natural `q=` do Google Flights não suporta termos de passageiros
+  // (ex: '2 adults', 'for 1 child'). A inclusão desses termos quebra o mecanismo de busca e
+  // redireciona para a página inicial em branco sem resultados. O Google Flights já exibe por
+  // padrão a tarifa unitária (por passageiro adulto), que é a base usada pelo nosso sistema.
   if (isRoundTrip && returnDate) {
     return `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(
       normDestination
     )}%20from%20${encodeURIComponent(normOrigin)}%20on%20${encodeURIComponent(
       flightDate
-    )}%20through%20${encodeURIComponent(returnDate)}${encodeURIComponent(paxQuery)}&curr=BRL&hl=pt-BR`;
+    )}%20through%20${encodeURIComponent(returnDate)}&curr=BRL&hl=pt-BR`;
   }
 
   return `https://www.google.com/travel/flights?q=Flights%20to%20${encodeURIComponent(
     normDestination
   )}%20from%20${encodeURIComponent(normOrigin)}%20on%20${encodeURIComponent(
     flightDate
-  )}%20oneway${encodeURIComponent(paxQuery)}&curr=BRL&hl=pt-BR`;
+  )}%20oneway&curr=BRL&hl=pt-BR`;
 }
 
 export function formatRelativeTime(dateStr?: string | null, locale: SupportedLocale = "en"): string {
