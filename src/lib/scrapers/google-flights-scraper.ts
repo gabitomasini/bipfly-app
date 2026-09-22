@@ -1,4 +1,4 @@
-import { chromium } from "playwright";
+import { chromium, Browser } from "playwright";
 import { FlightOption } from "../types";
 import { parseBrazilianPrice } from "../flight-tracker";
 import { logger } from "../logger";
@@ -8,6 +8,95 @@ export class ScraperError extends Error {
     super(message);
     this.name = "ScraperError";
   }
+}
+
+// ── Flags otimizadas para ambientes com pouca memória (Railway, containers) ──
+const OPTIMIZED_CHROME_ARGS = [
+  "--no-sandbox",
+  "--disable-setuid-sandbox",
+  "--disable-dev-shm-usage",
+  "--disable-gpu",
+  "--disable-software-rasterizer",
+  "--disable-extensions",
+  "--disable-background-networking",
+  "--disable-background-timer-throttling",
+  "--disable-backgrounding-occluded-windows",
+  "--disable-renderer-backgrounding",
+  "--disable-component-update",
+  "--disable-default-apps",
+  "--disable-domain-reliability",
+  "--disable-sync",
+  "--disable-translate",
+  "--disable-features=site-per-process,TranslateUI",
+  "--single-process",
+  "--no-zygote",
+  "--no-first-run",
+  "--mute-audio",
+  "--hide-scrollbars",
+  "--disable-blink-features=AutomationControlled",
+  "--window-size=1024,600",
+  "--js-flags=--max-old-space-size=256",
+];
+
+const BROWSER_LAUNCH_TIMEOUT = 30_000; // 30s ao invés de 180s default
+const MAX_LAUNCH_RETRIES = 2;
+
+// ── Mutex para garantir que apenas um Chromium roda por vez ──
+let browserLock: Promise<void> = Promise.resolve();
+
+async function withBrowserLock<T>(fn: () => Promise<T>): Promise<T> {
+  let releaseLock: () => void;
+  const previousLock = browserLock;
+  browserLock = new Promise<void>((resolve) => {
+    releaseLock = resolve;
+  });
+
+  await previousLock;
+  try {
+    return await fn();
+  } finally {
+    releaseLock!();
+  }
+}
+
+/**
+ * Lança o Chromium com retry e cleanup entre tentativas.
+ */
+async function launchBrowserWithRetry(): Promise<Browser> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= MAX_LAUNCH_RETRIES; attempt++) {
+    try {
+      logger.info("SCRAPER", `🚀 Lançando Chromium (tentativa ${attempt}/${MAX_LAUNCH_RETRIES})...`);
+      const browser = await chromium.launch({
+        headless: true,
+        args: OPTIMIZED_CHROME_ARGS,
+        timeout: BROWSER_LAUNCH_TIMEOUT,
+      });
+      logger.info("SCRAPER", `✅ Chromium pronto (tentativa ${attempt}).`);
+      return browser;
+    } catch (err: any) {
+      lastError = err;
+      logger.warn(
+        "SCRAPER",
+        `⚠️ Falha ao lançar Chromium (tentativa ${attempt}/${MAX_LAUNCH_RETRIES}): ${err.message}`
+      );
+
+      // Aguarda um pouco para liberar recursos antes de tentar novamente
+      if (attempt < MAX_LAUNCH_RETRIES) {
+        // Força garbage collection se disponível
+        if (global.gc) {
+          try { global.gc(); } catch {}
+        }
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    }
+  }
+
+  throw new ScraperError(
+    `Chromium não pôde ser iniciado após ${MAX_LAUNCH_RETRIES} tentativas. ` +
+    `O servidor pode estar sem memória/CPU suficiente. Último erro: ${lastError?.message || "desconhecido"}`
+  );
 }
 
 export async function scrapeGoogleFlights(
@@ -49,33 +138,26 @@ export async function scrapeGoogleFlights(
     }
   );
 
+  return withBrowserLock(async () => {
+  const startTime = Date.now();
   let browser;
   try {
-    browser = await chromium.launch({
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-blink-features=AutomationControlled",
-        "--window-size=1280,800",
-      ],
-    });
+    browser = await launchBrowserWithRetry();
 
     const context = await browser.newContext({
       userAgent:
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
       locale: "pt-BR",
       timezoneId: "America/Sao_Paulo",
-      viewport: { width: 1280, height: 800 },
+      viewport: { width: 1024, height: 600 },
     });
 
     const page = await context.newPage();
 
-    // Bloqueia imagens e mídias pesadas
+    // Bloqueia imagens, mídias e fontes pesadas para economizar memória
     await page.route("**/*", (route) => {
       const type = route.request().resourceType();
-      if (["image", "media"].includes(type)) {
+      if (["image", "media", "font"].includes(type)) {
         return route.abort();
       }
       route.continue();
@@ -414,7 +496,8 @@ export async function scrapeGoogleFlights(
 
     return finalTop;
   } catch (err: any) {
-    logger.error("SCRAPER", `Falha no Scraper para ${normOrigin}→${normDestination}: ${err.message}`, { error: err.stack });
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    logger.error("SCRAPER", `Falha no Scraper para ${normOrigin}→${normDestination} (${elapsed}s): ${err.message}`, { error: err.stack });
     if (err instanceof ScraperError) {
       throw err;
     }
@@ -424,6 +507,7 @@ export async function scrapeGoogleFlights(
       await browser.close().catch(() => {});
     }
   }
+  }); // withBrowserLock
 }
 
 /**
@@ -456,29 +540,22 @@ export async function scrapeGoogleFlightsPriceHistory(
     { url: searchUrl, origin: normOrigin, destination: normDestination, flightDate, returnDate: returnDate || null, tripType: isRoundTrip ? "round_trip" : "one_way", totalPax, days }
   );
 
+  return withBrowserLock(async () => {
   let browser;
   try {
-    browser = await chromium.launch({
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-blink-features=AutomationControlled",
-        "--window-size=1280,800",
-      ],
-    });
+    browser = await launchBrowserWithRetry();
 
     const context = await browser.newContext({
       userAgent:
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
       locale: "pt-BR",
       timezoneId: "America/Sao_Paulo",
+      viewport: { width: 1024, height: 600 },
     });
 
     const page = await context.newPage();
 
-    // Bloqueia mídias pesadas
+    // Bloqueia mídias e fontes pesadas
     await page.route("**/*", (route) => {
       const type = route.request().resourceType();
       if (["image", "media", "font"].includes(type)) {
@@ -572,6 +649,7 @@ export async function scrapeGoogleFlightsPriceHistory(
       await browser.close().catch(() => {});
     }
   }
+  }); // withBrowserLock
 }
 
 export const buscarVoosScraper = scrapeGoogleFlights;

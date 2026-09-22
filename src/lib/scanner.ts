@@ -1,5 +1,4 @@
 import { findRouteById, listRoutes, recordFlightHistory, getAppSettings, updateRouteScanStatus } from "./db";
-import { fetchSerpApiFlights } from "./flight-tracker";
 import { scrapeGoogleFlights } from "./scrapers/google-flights-scraper";
 import { sendNtfyNotification } from "./notifier";
 import { FlightOption, MonitoredRoute, ScanResult } from "./types";
@@ -33,98 +32,25 @@ export async function scanRoute(routeId: number): Promise<ScanResult> {
     route.id
   );
 
-  const settings = await getAppSettings();
-  const apiKey = settings.serpApiKey || process.env.SERPAPI_API_KEY || "";
-  const provider = settings.searchProvider || "auto";
-
   let options: FlightOption[] = [];
-  let providerUsed = "Google Flights API (SerpApi)";
+  const providerUsed = "Web Scraping Direto (Playwright)";
   let lastError: string | undefined = undefined;
 
-  // 1. Estratégia de Busca conforme Provedor Selecionado
-  if (provider === "scraper") {
-    providerUsed = "Web Scraping Direto (Playwright)";
-    try {
-      options = await scrapeGoogleFlights(
-        route.origin,
-        route.destination,
-        route.flightDate,
-        route.passengers || 1,
-        5,
-        route.returnDate,
-        route.tripType,
-        route.children || 0,
-        route.infantsInLap || 0
-      );
-    } catch (err: any) {
-      lastError = err.message;
-      logger.error("SCRAPER", `Erro no Web Scraper para ${route.origin}→${route.destination}: ${err.message}`, { error: err.stack }, route.id);
-    }
-  } else if (provider === "serpapi") {
-    providerUsed = "Google Flights API (SerpApi)";
-    try {
-      options = await fetchSerpApiFlights(
-        route.origin,
-        route.destination,
-        route.flightDate,
-        route.passengers || 1,
-        apiKey,
-        5,
-        route.returnDate,
-        route.tripType,
-        route.children || 0,
-        route.infantsInLap || 0
-      );
-    } catch (err: any) {
-      lastError = err.message;
-      logger.error("API", `Erro na SerpApi para ${route.origin}→${route.destination}: ${err.message}`, { error: err.stack }, route.id);
-    }
-  } else {
-    // Modo "auto"
-    try {
-      options = await scrapeGoogleFlights(
-        route.origin,
-        route.destination,
-        route.flightDate,
-        route.passengers || 1,
-        5,
-        route.returnDate,
-        route.tripType,
-        route.children || 0,
-        route.infantsInLap || 0
-      );
-      providerUsed = "Web Scraping Direto (Playwright)";
-    } catch (scraperErr: any) {
-      logger.warn(
-        "SCANNER",
-        `Web Scraper falhou para ${route.origin}→${route.destination}. Acionando fallback para SerpApi API...`,
-        { scraperError: scraperErr.message },
-        route.id
-      );
-      try {
-        options = await fetchSerpApiFlights(
-          route.origin,
-          route.destination,
-          route.flightDate,
-          route.passengers || 1,
-          apiKey,
-          5,
-          route.returnDate,
-          route.tripType,
-          route.children || 0,
-          route.infantsInLap || 0
-        );
-        providerUsed = "Google Flights API (Fallback SerpApi)";
-      } catch (apiErr: any) {
-        lastError = `Scraper: ${scraperErr.message} | API: ${apiErr.message}`;
-        logger.error(
-          "SCANNER",
-          `Falha em ambos provedores para ${route.origin}→${route.destination}: ${lastError}`,
-          undefined,
-          route.id
-        );
-      }
-    }
+  try {
+    options = await scrapeGoogleFlights(
+      route.origin,
+      route.destination,
+      route.flightDate,
+      route.passengers || 1,
+      5,
+      route.returnDate,
+      route.tripType,
+      route.children || 0,
+      route.infantsInLap || 0
+    );
+  } catch (err: any) {
+    lastError = err.message;
+    logger.error("SCRAPER", `Erro no Web Scraper para ${route.origin}→${route.destination}: ${err.message}`, { error: err.stack }, route.id);
   }
 
   if (options.length === 0) {
@@ -263,6 +189,7 @@ export async function scanRoute(routeId: number): Promise<ScanResult> {
   );
 
   let notified = false;
+  const settings = await getAppSettings();
   if (isBelowTarget && settings.autoNotify && settings.ntfyTopic) {
     notified = await sendNtfyNotification({
       topic: settings.ntfyTopic,
