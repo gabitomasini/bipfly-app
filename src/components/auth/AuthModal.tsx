@@ -76,6 +76,10 @@ export default function AuthModal() {
 
       setStep("otp");
       setResendCooldown(60);
+      if (data.devCode) {
+        setOtpCode(data.devCode);
+        console.log(`[DEV OTP] Código gerado: ${data.devCode}`);
+      }
       addToast(t.auth.otpSentToast, "info");
     } catch {
       setErrorMessage(t.toasts.connError);

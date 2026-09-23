@@ -362,6 +362,17 @@ export interface TranslationDictionary {
     catNotification: string;
     catApi: string;
     catSystem: string;
+    onlineUsersTitle: string;
+    onlineUsersDesc: string;
+    activeSessionsTitle: string;
+    totalUsersTitle: string;
+    liveIndicator: string;
+    recentActiveUsers: string;
+    noRecentUsers: string;
+    onlineNow: string;
+    seenMinutesAgo: string;
+    refreshOnlineUsers: string;
+    hideOnlineDetails: string;
   };
   settings: {
     title: string;

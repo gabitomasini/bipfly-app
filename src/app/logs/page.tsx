@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Navbar from "@/components/Navbar";
 import CustomSelect from "@/components/CustomSelect";
 import Tooltip from "@/components/Tooltip";
-import { AppLog, LogCategory, LogLevel, LogStats } from "@/lib/types";
+import { AppLog, LogCategory, LogLevel, LogStats, OnlineUserStats } from "@/lib/types";
 import { formatDateTimeLocale, formatRelativeTimeLocale } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import { useScanning } from "@/context/ScanningContext";
@@ -35,6 +35,8 @@ import {
   Zap,
   ShieldAlert,
   ArrowLeft,
+  Users,
+  UserCheck,
 } from "lucide-react";
 
 export default function LogsPage() {
@@ -49,6 +51,14 @@ export default function LogsPage() {
     warn: 0,
     error: 0,
   });
+  const [onlineStats, setOnlineStats] = useState<OnlineUserStats>({
+    onlineUsersCount: 0,
+    activeSessionsCount: 0,
+    totalUsers: 0,
+    recentUsers: [],
+  });
+  const [showOnlineDetails, setShowOnlineDetails] = useState(false);
+  const [refreshingOnline, setRefreshingOnline] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedLevel, setSelectedLevel] = useState<LogLevel | "ALL">("ALL");
   const [selectedCategory, setSelectedCategory] = useState<LogCategory | "ALL">("ALL");
@@ -150,6 +160,9 @@ export default function LogsPage() {
         if (json.data.stats) {
           setStats(json.data.stats);
         }
+        if (json.data.onlineStats) {
+          setOnlineStats(json.data.onlineStats);
+        }
       }
     } catch (err) {
       console.error("Erro ao carregar logs iniciais:", err);
@@ -157,6 +170,32 @@ export default function LogsPage() {
       setLoading(false);
     }
   }, [authLoading, user, selectedLevel, selectedCategory, searchTerm]);
+
+  // Carrega apenas estatísticas de usuários online sob demanda ou em polling
+  const fetchOnlineStats = useCallback(async () => {
+    if (authLoading || !user || !user.isAdmin) return;
+    setRefreshingOnline(true);
+    try {
+      const res = await fetch("/api/logs/online-users");
+      const json = await res.json();
+      if (json.success && json.data) {
+        setOnlineStats(json.data);
+      }
+    } catch (err) {
+      console.error("Erro ao atualizar usuários online:", err);
+    } finally {
+      setRefreshingOnline(false);
+    }
+  }, [authLoading, user]);
+
+  // Polling automático da contagem de usuários a cada 30 segundos
+  useEffect(() => {
+    if (authLoading || !user || !user.isAdmin) return;
+    const interval = setInterval(() => {
+      fetchOnlineStats();
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [authLoading, user, fetchOnlineStats]);
 
   useEffect(() => {
     fetchInitialLogs();
@@ -418,6 +457,183 @@ export default function LogsPage() {
               </button>
             </Tooltip>
           </div>
+        </div>
+
+        {/* Card de Usuários Online em Tempo Real (Exclusivo Administrador) */}
+        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white p-5 rounded-2xl shadow-md border border-slate-700/60 relative overflow-hidden">
+          {/* Fundo decorativo sutil */}
+          <div className="absolute top-0 right-0 -mt-8 -mr-8 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-1/3 -mb-8 w-40 h-40 bg-sky-500/10 rounded-full blur-2xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 shadow-inner">
+                <Users className="w-5 h-5 text-emerald-400" />
+                <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 border-2 border-slate-900"></span>
+                </span>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-bold text-white tracking-tight">
+                    {t.logs.onlineUsersTitle}
+                  </h2>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 tracking-wider">
+                    {t.logs.liveIndicator}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  {t.logs.onlineUsersDesc}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end md:self-auto">
+              <Tooltip content={t.logs.refreshOnlineUsers}>
+                <button
+                  onClick={fetchOnlineStats}
+                  disabled={refreshingOnline}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/80 rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${refreshingOnline ? "animate-spin text-emerald-400" : ""}`} />
+                  <span className="hidden sm:inline">{t.logs.reload}</span>
+                </button>
+              </Tooltip>
+
+              {onlineStats.recentUsers && onlineStats.recentUsers.length > 0 && (
+                <button
+                  onClick={() => setShowOnlineDetails((prev) => !prev)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/30 hover:bg-emerald-600/40 text-emerald-200 border border-emerald-500/40 rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                >
+                  {showOnlineDetails ? (
+                    <>
+                      <ChevronDown className="w-3.5 h-3.5 rotate-180 transition-transform" />
+                      <span>{t.logs.hideOnlineDetails || "Ocultar Detalhes"}</span>
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-3.5 h-3.5 transition-transform" />
+                      <span>{t.logs.recentActiveUsers}</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Grid de Contadores Principais */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 pt-4 border-t border-slate-700/60 relative z-10">
+            {/* Usuários Online */}
+            <div className="bg-slate-800/60 backdrop-blur-xs border border-slate-700/80 rounded-xl p-3.5 flex items-center justify-between">
+              <div>
+                <div className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                  {t.logs.onlineUsersTitle}
+                </div>
+                <div className="text-2xl font-black text-emerald-400 mt-0.5">
+                  {onlineStats.onlineUsersCount}
+                </div>
+                <div className="text-[11px] text-slate-300 mt-0.5">
+                  Últimos 5 minutos
+                </div>
+              </div>
+              <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                <UserCheck className="w-5 h-5" />
+              </div>
+            </div>
+
+            {/* Sessões Ativas */}
+            <div className="bg-slate-800/60 backdrop-blur-xs border border-slate-700/80 rounded-xl p-3.5 flex items-center justify-between">
+              <div>
+                <div className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                  {t.logs.activeSessionsTitle}
+                </div>
+                <div className="text-2xl font-black text-sky-400 mt-0.5">
+                  {onlineStats.activeSessionsCount}
+                </div>
+                <div className="text-[11px] text-slate-300 mt-0.5">
+                  Dispositivos / abas conectadas
+                </div>
+              </div>
+              <div className="p-2.5 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-400">
+                <Radio className="w-5 h-5" />
+              </div>
+            </div>
+
+            {/* Total Cadastrado */}
+            <div className="bg-slate-800/60 backdrop-blur-xs border border-slate-700/80 rounded-xl p-3.5 flex items-center justify-between">
+              <div>
+                <div className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                  {t.logs.totalUsersTitle}
+                </div>
+                <div className="text-2xl font-black text-indigo-300 mt-0.5">
+                  {onlineStats.totalUsers}
+                </div>
+                <div className="text-[11px] text-slate-300 mt-0.5">
+                  Base total registrada
+                </div>
+              </div>
+              <div className="p-2.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                <Users className="w-5 h-5" />
+              </div>
+            </div>
+          </div>
+
+          {/* Detalhes Expansíveis dos Usuários Recentes */}
+          {showOnlineDetails && (
+            <div className="mt-4 pt-4 border-t border-slate-700/60 relative z-10 animate-in fade-in duration-200">
+              <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                <span>{t.logs.recentActiveUsers}</span>
+              </div>
+
+              {onlineStats.recentUsers.length === 0 ? (
+                <p className="text-xs text-slate-300 py-2">
+                  {t.logs.noRecentUsers}
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  {onlineStats.recentUsers.map((u) => {
+                    const isOnline = u.minutesAgo <= 5;
+                    return (
+                      <div
+                        key={u.id}
+                        className={`flex items-center justify-between p-2.5 rounded-xl border text-xs transition-colors ${
+                          isOnline
+                            ? "bg-emerald-950/30 border-emerald-500/40 text-emerald-100"
+                            : "bg-slate-800/40 border-slate-700/70 text-slate-300"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${
+                            isOnline ? "bg-emerald-400 ring-2 ring-emerald-400/30" : "bg-slate-500"
+                          }`} />
+                          <div className="truncate">
+                            <div className="font-semibold text-white truncate">
+                              {u.name || u.email.split("@")[0]}
+                            </div>
+                            <div className="text-[11px] text-slate-300 truncate">
+                              {u.email}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0 ml-3">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold ${
+                            isOnline
+                              ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                              : "bg-slate-700/50 text-slate-300"
+                          }`}>
+                            {isOnline ? t.logs.onlineNow : `${u.minutesAgo}m atrás`}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Cards de Métricas e Estatísticas de Logs */}

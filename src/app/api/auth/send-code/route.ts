@@ -68,10 +68,17 @@ export async function POST(request: Request) {
       locale: detectedLocale,
     });
 
+    if (isDev) {
+      console.log(`\n======================================================`);
+      console.log(`🔑 [DEV OTP] Código para ${user.email}: ${code}`);
+      console.log(`======================================================\n`);
+    }
+
     return NextResponse.json({
       success: true,
       message: "Código de verificação enviado para o seu e-mail.",
       email: user.email,
+      ...(isDev ? { devCode: code } : {}),
     });
   } catch (error: any) {
     logger.error("API", `Erro em /api/auth/send-code: ${error.message}`);

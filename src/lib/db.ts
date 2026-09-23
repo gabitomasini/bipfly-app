@@ -13,6 +13,8 @@ import {
   LogCategory,
   LogStats,
   LogFilterOptions,
+  OnlineUserStats,
+  OnlineUserItem,
 } from "./types";
 
 declare global {
@@ -93,6 +95,7 @@ export async function initSchema(db: Client): Promise<void> {
   `);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(session_token);`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_user_sessions_last_seen ON user_sessions(last_seen_at);`);
 
   // 4. Tabela de rotas monitoradas (monitored_routes)
   await db.execute(`
@@ -1366,6 +1369,64 @@ export async function clearLogs(days?: number): Promise<number> {
   return res.rowsAffected;
 }
 
+export async function getOnlineUserStats(): Promise<OnlineUserStats> {
+  const db = await ensureInitialized();
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+  // Total de usuários cadastrados
+  const totalUsersRes = await db.execute("SELECT COUNT(*) as count FROM users");
+  const totalUsers = Number(totalUsersRes.rows[0]?.count || 0);
+
+  // Sessões ativas nos últimos 5 minutos
+  const activeSessionsRes = await db.execute({
+    sql: `SELECT COUNT(*) as count FROM user_sessions WHERE last_seen_at >= ? AND datetime(expires_at) > datetime('now')`,
+    args: [fiveMinutesAgo],
+  });
+  const activeSessionsCount = Number(activeSessionsRes.rows[0]?.count || 0);
+
+  // Usuários únicos ativos nos últimos 5 minutos
+  const onlineUsersRes = await db.execute({
+    sql: `SELECT COUNT(DISTINCT user_id) as count FROM user_sessions WHERE last_seen_at >= ? AND datetime(expires_at) > datetime('now')`,
+    args: [fiveMinutesAgo],
+  });
+  const onlineUsersCount = Number(onlineUsersRes.rows[0]?.count || 0);
+
+  // Últimos usuários com atividade (máximo 10)
+  const recentUsersRes = await db.execute({
+    sql: `SELECT u.id, u.name, u.email, u.created_at, MAX(s.last_seen_at) as last_seen_at
+          FROM user_sessions s
+          JOIN users u ON s.user_id = u.id
+          WHERE datetime(s.expires_at) > datetime('now')
+          GROUP BY u.id, u.name, u.email, u.created_at
+          ORDER BY last_seen_at DESC
+          LIMIT 10`,
+  });
+
+  const nowMs = Date.now();
+  const recentUsers: OnlineUserItem[] = recentUsersRes.rows.map((row) => {
+    const r = row as Record<string, unknown>;
+    const lastSeenTime = new Date(String(r.last_seen_at)).getTime();
+    const diffMs = Math.max(0, nowMs - lastSeenTime);
+    const minutesAgo = Math.round(diffMs / 60000);
+
+    return {
+      id: Number(r.id),
+      name: r.name ? String(r.name) : null,
+      email: String(r.email),
+      lastSeenAt: String(r.last_seen_at),
+      createdAt: String(r.created_at),
+      minutesAgo,
+    };
+  });
+
+  return {
+    onlineUsersCount,
+    activeSessionsCount,
+    totalUsers,
+    recentUsers,
+  };
+}
+
 // Backward-compatibility aliases
 export const listarRotas = listRoutes;
 export const buscarRotaPorId = findRouteById;
@@ -1383,3 +1444,4 @@ export const obterEstatisticasLogsDb = getLogStats;
 export const limparLogsDb = clearLogs;
 export const inserirFlightPrice = insertFlightPrice;
 export const buscarHistoricoPrecosRecentes = getRecentPriceHistory;
+export const obterUsuariosOnlineDb = getOnlineUserStats;

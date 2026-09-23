@@ -51,6 +51,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshUser();
   }, [refreshUser]);
 
+  // Heartbeat em segundo plano para manter last_seen_at atualizado enquanto a aba estiver ativa
+  useEffect(() => {
+    if (!user) return;
+
+    const sendHeartbeat = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        fetch("/api/auth/heartbeat", { method: "POST" }).catch(() => {});
+      }
+    };
+
+    // Dispara a cada 2 minutos
+    const interval = setInterval(sendHeartbeat, 120_000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        sendHeartbeat();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [user]);
+
   const logout = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST" });

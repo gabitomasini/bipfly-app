@@ -191,6 +191,22 @@ export interface LogStats {
   error: number;
 }
 
+export interface OnlineUserItem {
+  id: number;
+  name: string | null;
+  email: string;
+  lastSeenAt: string;
+  createdAt: string;
+  minutesAgo: number;
+}
+
+export interface OnlineUserStats {
+  onlineUsersCount: number;
+  activeSessionsCount: number;
+  totalUsers: number;
+  recentUsers: OnlineUserItem[];
+}
+
 export interface LogFilterOptions {
   level?: LogLevel | "ALL";
   category?: LogCategory | "ALL";

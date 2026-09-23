@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getLogs, getLogStats, clearLogs } from "@/lib/db";
+import { getLogs, getLogStats, clearLogs, getOnlineUserStats } from "@/lib/db";
 import { LogCategory, LogLevel } from "@/lib/types";
 import { getAuthUser, isUserAdmin } from "@/lib/auth";
 
@@ -39,7 +39,10 @@ export async function GET(request: NextRequest) {
       offset,
     });
 
-    const stats = await getLogStats();
+    const [stats, onlineStats] = await Promise.all([
+      getLogStats(),
+      getOnlineUserStats(),
+    ]);
 
     return NextResponse.json({
       success: true,
@@ -47,6 +50,7 @@ export async function GET(request: NextRequest) {
         logs,
         total,
         stats,
+        onlineStats,
         page: Math.floor(offset / limit) + 1,
         limit,
       },
