@@ -10,12 +10,14 @@ import { useModalBehavior } from "@/hooks/useModalBehavior";
 import { useTranslation } from "@/lib/i18n/context";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useScanning } from "@/context/ScanningContext";
+import { useToast } from "@/components/Toast";
 import { BRL_TO_USD_RATE } from "@/lib/i18n/formatters";
 import { formatCurrency } from "@/lib/utils";
 
 interface RouteModalProps {
   isOpen: boolean;
   routeToEdit?: MonitoredRoute | null;
+  currentRouteCount?: number;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -23,11 +25,13 @@ interface RouteModalProps {
 export default function RouteModal({
   isOpen,
   routeToEdit,
+  currentRouteCount,
   onClose,
   onSuccess,
 }: RouteModalProps) {
   const { t, locale } = useTranslation();
   const { user, openAuthModal } = useAuth();
+  const { addToast } = useToast();
   const { scanSingleRoute } = useScanning();
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
@@ -79,7 +83,14 @@ export default function RouteModal({
     setError(null);
   }, [routeToEdit, isOpen, locale]);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (isOpen && !routeToEdit && currentRouteCount !== undefined && currentRouteCount >= 3) {
+      addToast(t.modal.errorLimitReached, "error");
+      onClose();
+    }
+  }, [isOpen, routeToEdit, currentRouteCount, t.modal.errorLimitReached, onClose, addToast]);
+
+  if (!isOpen || (!routeToEdit && currentRouteCount !== undefined && currentRouteCount >= 3)) return null;
 
   const numericInputPrice = parseFloat(targetPrice.replace(",", ".")) || 0;
   const usdEstimate = numericInputPrice > 0 ? Math.round(numericInputPrice * BRL_TO_USD_RATE) : 0;

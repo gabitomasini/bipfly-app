@@ -98,8 +98,8 @@ export async function POST(request: Request) {
         const detectedLocale = body.locale === "en" ? "en" : "pt";
         const limitError =
           detectedLocale === "en"
-            ? `Limit of ${MAX_ROUTES_PER_USER} routes per email reached. Delete an existing route to add a new one.`
-            : `Limite de ${MAX_ROUTES_PER_USER} rotas por e-mail atingido. Exclua uma rota existente para cadastrar uma nova.`;
+            ? "Route limit reached - delete an existing route to add a new one."
+            : "Limite de rotas cadastradas atingido - apague uma rota existente para cadastrar outra.";
 
         logger.info("API", `Limite de rotas atingido para usuário ${user.email} (${currentRouteCount}/${MAX_ROUTES_PER_USER})`);
         return NextResponse.json(

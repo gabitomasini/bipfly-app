@@ -322,7 +322,7 @@ export default function LogsPage() {
   }
 
   return (
-    <div className="min-h-screen pb-24 bg-slate-50/70">
+    <div className="min-h-full pb-28 md:pb-14 bg-slate-50/70">
       <Navbar onSearchTriggered={() => fetchInitialLogs()} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6">

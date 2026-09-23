@@ -354,7 +354,7 @@ function RotasContent() {
   };
 
   return (
-    <div className="min-h-screen pb-24 bg-slate-50/70">
+    <div className="min-h-full pb-28 md:pb-14 bg-slate-50/70">
       <Navbar onSearchTriggered={fetchRoutes} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6">
@@ -377,6 +377,10 @@ function RotasContent() {
           <div className="flex items-center gap-2.5">
             <button
               onClick={() => {
+                if (routes.length >= 3) {
+                  addToast(t.modal.errorLimitReached, "error");
+                  return;
+                }
                 setEditingRoute(null);
                 setIsRouteModalOpen(true);
               }}
@@ -860,6 +864,7 @@ function RotasContent() {
       <RouteModal
         isOpen={isRouteModalOpen}
         routeToEdit={editingRoute}
+        currentRouteCount={routes.length}
         onClose={() => setIsRouteModalOpen(false)}
         onSuccess={fetchRoutes}
       />

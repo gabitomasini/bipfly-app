@@ -18,20 +18,20 @@ import { Eye, EyeOff, Layers, Percent, DollarSign, Filter, Calendar } from "luci
 import CustomTooltip from "./Tooltip";
 
 export const ROUTE_COLORS = [
-  "#0284c7", // Sky 600
-  "#4f46e5", // Indigo 600
-  "#059669", // Emerald 600
-  "#d97706", // Amber 600
-  "#e11d48", // Rose 600
-  "#9333ea", // Purple 600
-  "#0d9488", // Teal 600
-  "#ea580c", // Orange 600
-  "#2563eb", // Blue 600
-  "#db2777", // Pink 600
+  "#2563eb", // 1. Azul Royal Vibrante
+  "#ea580c", // 2. Laranja Solar Intenso
+  "#10b981", // 3. Verde Esmeralda Radiante
+  "#8b5cf6", // 4. Violeta Orquídea
+  "#e11d48", // 5. Rosa Choque / Rose
+  "#0d9488", // 6. Teal
+  "#d97706", // 7. Amber
+  "#0284c7", // 8. Sky Blue
 ];
 
 interface MultiRoutePriceChartProps {
   routes: MonitoredRoute[];
+  selectedRouteIds?: number[];
+  onSelectedRouteIdsChange?: (newSelectedIds: number[]) => void;
   allHistory: FlightHistoryEntry[];
 }
 
@@ -39,12 +39,16 @@ type TimeRange = "7d" | "15d" | "30d" | "all";
 
 export default function MultiRoutePriceChart({
   routes,
+  selectedRouteIds,
+  onSelectedRouteIdsChange,
   allHistory,
 }: MultiRoutePriceChartProps) {
   const { t, locale } = useTranslation();
 
-  // Controle de visibilidade de rotas no gráfico
-  const [visibleRoutes, setVisibleRoutes] = useState<Record<number, boolean>>(() => {
+  const isControlled = selectedRouteIds !== undefined && onSelectedRouteIdsChange !== undefined;
+
+  // Fallback de controle interno caso não seja controlado externamente
+  const [internalVisibleRoutes, setInternalVisibleRoutes] = useState<Record<number, boolean>>(() => {
     const map: Record<number, boolean> = {};
     routes.forEach((r) => {
       map[r.id] = true;
@@ -52,33 +56,67 @@ export default function MultiRoutePriceChart({
     return map;
   });
 
+  const isRouteVisible = (id: number) => {
+    if (isControlled) {
+      return selectedRouteIds.includes(id);
+    }
+    return internalVisibleRoutes[id] !== false;
+  };
+
+  const handleChipClick = (routeId: number) => {
+    if (isControlled) {
+      const allIds = routes.map((r) => r.id);
+      const isAllSelected = allIds.length > 0 && selectedRouteIds.length === allIds.length;
+
+      if (isAllSelected) {
+        // Se todos os chips estão selecionados e clica em 1, mantém só ele e desmarca os outros
+        onSelectedRouteIdsChange([routeId]);
+      } else if (selectedRouteIds.length === 1 && selectedRouteIds[0] === routeId) {
+        // Se clicar no único selecionado, restaura todos selecionados
+        onSelectedRouteIdsChange(allIds);
+      } else {
+        if (selectedRouteIds.includes(routeId)) {
+          onSelectedRouteIdsChange(selectedRouteIds.filter((id) => id !== routeId));
+        } else {
+          onSelectedRouteIdsChange([...selectedRouteIds, routeId]);
+        }
+      }
+    } else {
+      setInternalVisibleRoutes((prev) => ({
+        ...prev,
+        [routeId]: !prev[routeId],
+      }));
+    }
+  };
+
   // Filtro de Período
   const [timeRange, setTimeRange] = useState<TimeRange>("30d");
 
   // Modo: 'absolute' (Preço em R$) ou 'normalized' (% da Meta da Rota)
   const [viewMode, setViewMode] = useState<"absolute" | "normalized">("absolute");
 
-  const toggleRoute = (id: number) => {
-    setVisibleRoutes((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
-  };
-
   const showAllRoutes = () => {
-    const map: Record<number, boolean> = {};
-    routes.forEach((r) => {
-      map[r.id] = true;
-    });
-    setVisibleRoutes(map);
+    if (isControlled) {
+      onSelectedRouteIdsChange(routes.map((r) => r.id));
+    } else {
+      const map: Record<number, boolean> = {};
+      routes.forEach((r) => {
+        map[r.id] = true;
+      });
+      setInternalVisibleRoutes(map);
+    }
   };
 
   const hideAllRoutes = () => {
-    const map: Record<number, boolean> = {};
-    routes.forEach((r) => {
-      map[r.id] = false;
-    });
-    setVisibleRoutes(map);
+    if (isControlled) {
+      onSelectedRouteIdsChange([]);
+    } else {
+      const map: Record<number, boolean> = {};
+      routes.forEach((r) => {
+        map[r.id] = false;
+      });
+      setInternalVisibleRoutes(map);
+    }
   };
 
   // Mapeia cor para cada rota
@@ -130,6 +168,7 @@ export default function MultiRoutePriceChart({
       const airline = item.airline;
 
       if (!routeId || !searchedAt) return;
+      if (!isRouteVisible(routeId)) return;
       const d = new Date(searchedAt);
       const isIsoDay = searchedAt.includes("T12:00:00.000Z");
       const minuteKey = isIsoDay ? searchedAt.slice(0, 10) : d.toISOString().slice(0, 16);
@@ -151,7 +190,7 @@ export default function MultiRoutePriceChart({
     });
 
     return Array.from(timeMap.values());
-  }, [filteredHistory, routes, locale]);
+  }, [filteredHistory, routes, locale, selectedRouteIds, internalVisibleRoutes]);
 
   const CustomMultiTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -313,7 +352,7 @@ export default function MultiRoutePriceChart({
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-slate-500 font-semibold mr-1">{t.history.routesLabel}</span>
         {routes.map((r, idx) => {
-          const isVis = visibleRoutes[r.id] !== false;
+          const isVis = isRouteVisible(r.id);
           const color = routeColorMap[r.id] || ROUTE_COLORS[idx % ROUTE_COLORS.length];
           const origin = r.origin;
           const destination = r.destination;
@@ -322,7 +361,7 @@ export default function MultiRoutePriceChart({
           return (
             <button
               key={r.id}
-              onClick={() => toggleRoute(r.id)}
+              onClick={() => handleChipClick(r.id)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
                 isVis
                   ? "bg-white border-slate-300 text-slate-900 shadow-2xs"
@@ -385,7 +424,7 @@ export default function MultiRoutePriceChart({
 
             {/* Renderiza uma Line para cada rota ativa */}
             {routes.map((r, idx) => {
-              if (visibleRoutes[r.id] === false) return null;
+              if (!isRouteVisible(r.id)) return null;
               const color = routeColorMap[r.id] || ROUTE_COLORS[idx % ROUTE_COLORS.length];
               const dataKey = viewMode === "absolute" ? `route_${r.id}` : `route_${r.id}_pct`;
               const origin = r.origin;

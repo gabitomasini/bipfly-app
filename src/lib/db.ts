@@ -196,7 +196,7 @@ export async function initSchema(db: Client): Promise<void> {
   const now = new Date().toISOString();
   await db.execute({
     sql: `INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)`,
-    args: ["schedule_hours", process.env.SCHEDULE_HOURS || "00:00,03:00,06:00,09:00,12:00,15:00,18:00,21:00", now],
+    args: ["schedule_hours", process.env.SCHEDULE_HOURS || "00:00,12:00", now],
   });
   await db.execute({
     sql: `INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)`,
@@ -1108,7 +1108,7 @@ export async function getAppSettings(): Promise<AppSettings> {
   }
 
   return {
-    scheduleHours: map["schedule_hours"] || "00:00,03:00,06:00,09:00,12:00,15:00,18:00,21:00",
+    scheduleHours: map["schedule_hours"] || "00:00,12:00",
     searchProvider: (map["search_provider"] as any) || "scraper",
     serpApiKey: map["serpapi_api_key"] || "",
     ntfyTopic: map["ntfy_topic"] || "radar-passagens",

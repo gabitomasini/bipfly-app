@@ -99,7 +99,6 @@ export function isUserAdmin(user: User | null): boolean {
     return adminEmails.includes(user.email.toLowerCase());
   }
 
-  // Se ADMIN_EMAILS não estiver definido, permite admin apenas em dev
-  return process.env.NODE_ENV !== "production";
+  return false;
 }
 

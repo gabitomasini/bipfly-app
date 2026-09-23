@@ -65,7 +65,8 @@ export const en: TranslationDictionary = {
   },
   dashboard: {
     title: "Dashboard",
-    subtitle: "Real-time automated price monitoring across major booking engines",
+    welcomeTitle: "Welcome!",
+    subtitle: "Track live flight routes, monitor fare drops in real time, and view historical price trends across major booking engines",
     kpis: {
       monitoredRoutes: "Monitored Routes",
       active: "active",
@@ -200,7 +201,7 @@ export const en: TranslationDictionary = {
     errorPriceInvalid: "Please enter a valid target price per person greater than zero.",
     errorReturnBeforeDeparture: "Return date must be on or after departure date.",
     errorInfantsExceedAdults: "Number of infants in lap cannot exceed number of adults (max 1 infant per adult).",
-    errorLimitReached: "Limit of 3 routes per email reached. Delete an existing route to monitor a new one.",
+    errorLimitReached: "Route limit reached - delete an existing route to add a new one.",
   },
   flightDrawer: {
     bestDirect: "Best Direct Flight",
@@ -231,6 +232,14 @@ export const en: TranslationDictionary = {
     showingRecords: "Showing {count} captured records.",
     noRecordsFilter: "No records found for the selected filters.",
     displayLabel: "Display:",
+    dropdownSelectRoutes: "Select routes",
+    dropdownSelectAll: "Select all",
+    dropdownDeselectAll: "Deselect all",
+    dropdownAllRoutes: "All routes",
+    dropdownOneSelected: "1 route selected",
+    dropdownSelectedCount: "{selected} of {total} routes selected",
+    dropdownFilterPlaceholder: "Filter routes...",
+    dropdownTargetPrefix: "Target:",
     filterAll: "All",
     filterTarget: "Target Met",
     filterAbove: "Above Target",
@@ -425,6 +434,7 @@ export const en: TranslationDictionary = {
     logoutTooltip: "Sign out on this device",
     emptyStateAnonymousTitle: "Start monitoring flight prices",
     emptyStateAnonymousDesc: "Set up your first flight route and define your target price. We monitor fares automatically and notify you as soon as the price drops!",
+    startSearchingNow: "Start searching now",
     modalProgressiveTitle: "Where should we send your price alerts?",
     modalProgressiveSubtitle: "No passwords. Instant and secure access.",
     modalLoginTitle: "Access Your Routes",
@@ -466,5 +476,11 @@ export const en: TranslationDictionary = {
     completedDesc: "Flight price quotes updated successfully.",
     elapsed: "Elapsed time",
     inProgress: "In progress",
+  },
+  footer: {
+    tagline: "Intelligent real-time automated flight fare monitoring.",
+    betaBadge: "Beta Version",
+    developedBy: "Developed by",
+    allRightsReserved: "All rights reserved.",
   },
 };

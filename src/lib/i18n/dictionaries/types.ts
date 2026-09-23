@@ -65,6 +65,7 @@ export interface TranslationDictionary {
   };
   dashboard: {
     title: string;
+    welcomeTitle: string;
     subtitle: string;
     kpis: {
       monitoredRoutes: string;
@@ -231,6 +232,14 @@ export interface TranslationDictionary {
     showingRecords: string;
     noRecordsFilter: string;
     displayLabel: string;
+    dropdownSelectRoutes: string;
+    dropdownSelectAll: string;
+    dropdownDeselectAll: string;
+    dropdownAllRoutes: string;
+    dropdownOneSelected: string;
+    dropdownSelectedCount: string;
+    dropdownFilterPlaceholder: string;
+    dropdownTargetPrefix: string;
     filterAll: string;
     filterTarget: string;
     filterAbove: string;
@@ -425,6 +434,7 @@ export interface TranslationDictionary {
     logoutTooltip: string;
     emptyStateAnonymousTitle: string;
     emptyStateAnonymousDesc: string;
+    startSearchingNow: string;
     modalProgressiveTitle: string;
     modalProgressiveSubtitle: string;
     modalLoginTitle: string;
@@ -466,5 +476,11 @@ export interface TranslationDictionary {
     completedDesc: string;
     elapsed: string;
     inProgress: string;
+  };
+  footer: {
+    tagline: string;
+    betaBadge: string;
+    developedBy: string;
+    allRightsReserved: string;
   };
 }

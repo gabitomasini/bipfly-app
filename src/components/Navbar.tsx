@@ -46,7 +46,6 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
     { href: "/", label: t.nav.dashboard, icon: Sparkles },
     { href: "/routes", label: t.nav.routes, icon: Plane },
     { href: "/history", label: t.nav.history, icon: BarChart2 },
-    { href: "/settings", label: t.nav.settings, icon: Settings },
     ...(user?.isAdmin ? [{ href: "/logs", label: t.nav.logs, icon: Terminal }] : []),
   ];
 
@@ -61,11 +60,16 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
               className="flex flex-col items-start group focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded-xl py-0.5 pr-2"
               aria-label="BipFly Home"
             >
-              <Logo
-                variant="full"
-                textColor="#0f172a"
-                className="h-7 sm:h-7.5 w-auto group-hover:scale-[1.01] transition-transform origin-left"
-              />
+              <div className="flex items-center gap-1.5">
+                <Logo
+                  variant="full"
+                  textColor="#0f172a"
+                  className="h-7 sm:h-7.5 w-auto group-hover:scale-[1.01] transition-transform origin-left"
+                />
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px] font-extrabold tracking-wider uppercase bg-sky-50 text-sky-700 border border-sky-200/90 shadow-2xs">
+                  Beta
+                </span>
+              </div>
               <span className="text-[10px] sm:text-[10.5px] font-semibold text-slate-500 tracking-tight group-hover:text-slate-700 transition-colors mt-0.5 leading-none pl-0.5 whitespace-nowrap">
                 {t.nav.subtitle}
               </span>
@@ -154,14 +158,6 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
                         <Plane className="w-4 h-4 text-slate-400" />
                         <span>{t.nav.routes}</span>
                       </Link>
-                      <Link
-                        href="/settings"
-                        onClick={() => setIsUserMenuOpen(false)}
-                        className="flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-50 transition-colors"
-                      >
-                        <Settings className="w-4 h-4 text-slate-400" />
-                        <span>{t.nav.settings}</span>
-                      </Link>
                     </div>
 
                     <div className="pt-1 border-t border-slate-100">
@@ -176,6 +172,13 @@ export default function Navbar({ onSearchTriggered }: NavbarProps) {
                         <LogOut className="w-4 h-4 text-rose-500" />
                         <span>{t.auth.logout}</span>
                       </button>
+                    </div>
+
+                    <div className="px-3.5 py-1.5 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium rounded-b-2xl">
+                      <span>BipFly</span>
+                      <span className="font-bold text-[9px] uppercase tracking-wider text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200/80">
+                        Beta v0.1
+                      </span>
                     </div>
                   </div>
                 )}

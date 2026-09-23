@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { ChevronDown, Check, Layers, Plane, CheckSquare, Square, Search } from "lucide-react";
 import { MonitoredRoute } from "@/lib/types";
-import { formatDateBR, formatCurrency } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/context";
 import { ROUTE_COLORS } from "./MultiRoutePriceChart";
 
 interface RouteMultiSelectDropdownProps {
@@ -17,6 +17,7 @@ export default function RouteMultiSelectDropdown({
   selectedIds,
   onChange,
 }: RouteMultiSelectDropdownProps) {
+  const { t, formatDate, formatCurrency, locale } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -67,14 +68,16 @@ export default function RouteMultiSelectDropdown({
 
   // Label do botão principal
   const getButtonLabel = () => {
-    if (routes.length === 0) return "Carregando rotas...";
-    if (allSelected) return `Todas as rotas (${routes.length})`;
-    if (selectedIds.length === 0) return "Selecione as rotas";
+    if (routes.length === 0) return locale === "en" ? "Loading routes..." : "Carregando rotas...";
+    if (allSelected) return `${t.history.dropdownAllRoutes} (${routes.length})`;
+    if (selectedIds.length === 0) return t.history.dropdownSelectRoutes;
     if (selectedIds.length === 1) {
       const r = routes.find((item) => item.id === selectedIds[0]);
-      return r ? `${r.origin} → ${r.destination} (${formatDateBR(r.flightDate)})` : "1 rota selecionada";
+      return r ? `${r.origin} → ${r.destination} (${formatDate(r.flightDate)})` : t.history.dropdownOneSelected;
     }
-    return `${selectedIds.length} de ${routes.length} rotas selecionadas`;
+    return t.history.dropdownSelectedCount
+      .replace("{selected}", String(selectedIds.length))
+      .replace("{total}", String(routes.length));
   };
 
   return (
@@ -119,12 +122,12 @@ export default function RouteMultiSelectDropdown({
                 {allSelected && <Check className="w-3 h-3 stroke-[3]" />}
                 {isIndeterminate && <span className="w-2 h-0.5 bg-indigo-700 rounded-full" />}
               </div>
-              <span>Selecionar Todas ({routes.length})</span>
+              <span>{t.history.dropdownSelectAll} ({routes.length})</span>
             </button>
 
             {selectedIds.length > 0 && selectedIds.length < routes.length && (
               <span className="text-[11px] font-semibold text-indigo-600">
-                {selectedIds.length} ativas
+                {selectedIds.length} {t.history.activeLabel}
               </span>
             )}
           </div>
@@ -135,7 +138,7 @@ export default function RouteMultiSelectDropdown({
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Filtrar rotas..."
+                placeholder={t.history.dropdownFilterPlaceholder}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-indigo-500"
@@ -177,11 +180,11 @@ export default function RouteMultiSelectDropdown({
                         />
                         <span>{route.origin} → {route.destination}</span>
                         <span className="text-slate-400 font-normal text-[11px]">
-                          ({formatDateBR(route.flightDate)})
+                          ({formatDate(route.flightDate)})
                         </span>
                       </div>
                       <div className="text-[11px] text-slate-400 font-medium">
-                        Meta: {formatCurrency(route.targetPrice)}
+                        {t.history.dropdownTargetPrefix} {formatCurrency(route.targetPrice)}
                       </div>
                     </div>
                   </div>
@@ -203,14 +206,14 @@ export default function RouteMultiSelectDropdown({
               onClick={() => onChange(routes.map((r) => r.id))}
               className="text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer"
             >
-              Marcar todas
+              {t.history.dropdownSelectAll}
             </button>
             <button
               type="button"
               onClick={() => onChange([])}
               className="text-slate-500 hover:text-slate-700 font-medium cursor-pointer"
             >
-              Desmarcar todas
+              {t.history.dropdownDeselectAll}
             </button>
           </div>
         </div>

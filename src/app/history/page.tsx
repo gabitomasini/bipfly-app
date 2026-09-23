@@ -175,36 +175,11 @@ function HistoricoContent() {
         if (loadedRoutes.length > 0) {
           if (targetRouteId && loadedRoutes.some((r) => r.id === targetRouteId)) {
             setSelectedRouteIds([targetRouteId]);
-            try {
-              const singleRes = await fetch(`/api/history?route_id=${targetRouteId}`).then((r) => r.json());
-              if (singleRes.success && singleRes.data) {
-                setHistory(singleRes.data);
-              } else {
-                setHistory(initialHistory);
-              }
-            } catch {
-              setHistory(initialHistory);
-            }
-          } else if (loadedRoutes.length === 1) {
-            const singleId = loadedRoutes[0].id;
-            setSelectedRouteIds([singleId]);
-            try {
-              const singleRes = await fetch(`/api/history?route_id=${singleId}`).then((r) => r.json());
-              if (singleRes.success && singleRes.data) {
-                setHistory(singleRes.data);
-              } else {
-                setHistory(initialHistory);
-              }
-            } catch {
-              setHistory(initialHistory);
-            }
           } else {
             setSelectedRouteIds(loadedRoutes.map((r) => r.id));
-            setHistory(initialHistory);
           }
         } else {
           setSelectedRouteIds([]);
-          setHistory([]);
         }
       })
       .catch((err) => {
@@ -213,25 +188,9 @@ function HistoricoContent() {
       .finally(() => setLoading(false));
   }, [searchParams]);
 
-  // Carrega histórico específico quando o usuário altera para exatamente 1 rota
-  const handleSelectRouteIds = async (newIds: number[]) => {
+  // Atualiza rotas selecionadas (sincronizado bidirecionalmente com chips e dropdown)
+  const handleSelectRouteIds = (newIds: number[]) => {
     setSelectedRouteIds(newIds);
-    if (newIds.length === 1) {
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/history?route_id=${newIds[0]}`);
-        const json = await res.json();
-        if (json.success && json.data) {
-          setHistory(json.data);
-        }
-      } catch (err) {
-        console.error("Erro ao carregar histórico da rota:", err);
-      } finally {
-        setLoading(false);
-      }
-    } else {
-      setHistory(allHistory);
-    }
   };
 
   // Reseta página ao mudar filtros de rota ou tamanho da página
@@ -290,7 +249,7 @@ function HistoricoContent() {
       return { totalRecords: 0, minPrice: null, minPriceRecord: null, avgPrice: null };
     }
 
-    const currentHistory = selectedRouteIds.length === 1 ? history : activeSelectedHistory;
+    const currentHistory = activeSelectedHistory;
     const totalRecords = currentHistory.length;
     let minPrice: number | null = null;
     let minPriceRecord: FlightHistoryEntry | null = null;
@@ -311,7 +270,7 @@ function HistoricoContent() {
     const avgPrice = validCount > 0 ? Math.round(sumPrice / validCount) : null;
 
     return { totalRecords, minPrice, minPriceRecord, avgPrice };
-  }, [routes.length, activeSelectedRoutes.length, selectedRouteIds.length, history, activeSelectedHistory]);
+  }, [routes.length, activeSelectedRoutes.length, activeSelectedHistory]);
 
   // Available airlines in history
   const historyAirlines = useMemo(() => {
@@ -470,7 +429,7 @@ function HistoricoContent() {
   };
 
   return (
-    <div className="min-h-screen pb-24 bg-slate-50/70">
+    <div className="min-h-full pb-28 md:pb-14 bg-slate-50/70">
       <Navbar />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6">
@@ -684,9 +643,9 @@ function HistoricoContent() {
               {t.history.selectAllRoutes}
             </button>
           </div>
-        ) : selectedRouteIds.length > 1 ? (
+        ) : selectedRouteIds.length >= 1 ? (
           /* ========================================================== */
-          /* MODO: MÚLTIPLAS ROTAS SELECIONADAS                         */
+          /* MODO: MÚLTIPLAS / ROTA SELECIONADAS                        */
           /* ========================================================== */
           <div className="space-y-6 animate-fadeIn">
             {/* Gráfico Multi-Linhas */}
@@ -710,8 +669,10 @@ function HistoricoContent() {
                 </div>
               ) : (
                 <MultiRoutePriceChart
-                  routes={activeSelectedRoutes}
-                  allHistory={activeSelectedHistory}
+                  routes={routes}
+                  selectedRouteIds={selectedRouteIds}
+                  onSelectedRouteIdsChange={handleSelectRouteIds}
+                  allHistory={allHistory}
                 />
               )}
             </div>

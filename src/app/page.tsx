@@ -35,12 +35,13 @@ import {
   AlertTriangle,
   MoreHorizontal,
   LogIn,
+  Zap,
 } from "lucide-react";
 
 export default function DashboardPage() {
   const { addToast } = useToast();
   const { t, formatCurrency, formatUsdEstimate, formatDate, locale } = useTranslation();
-  const { user, openAuthModal } = useAuth();
+  const { user, isAuthenticated, openAuthModal } = useAuth();
   const { isScanning, activeRouteId, scanSingleRoute, registerRefreshCallback } = useScanning();
   const [routes, setRoutes] = useState<MonitoredRoute[]>([]);
   const [schedulerStatus, setSchedulerStatus] = useState<SchedulerStatus | null>(null);
@@ -219,7 +220,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen pb-24 bg-slate-50/70">
+    <div className="min-h-full pb-28 md:pb-14 bg-slate-50/70">
       <Navbar onSearchTriggered={fetchDashboardData} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6">
@@ -228,33 +229,41 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
-                <span>{t.dashboard.title}</span>
+                <span>{isAuthenticated ? t.dashboard.title : t.dashboard.welcomeTitle}</span>
               </h1>
-              <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              {isAuthenticated && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span>Live</span>
                 </span>
-                <span>Live</span>
-              </span>
+              )}
             </div>
             <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
               {t.dashboard.subtitle}
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                setEditingRoute(null);
-                setIsRouteModalOpen(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs hover:shadow-md transition-all cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>{t.dashboard.table.addRoute}</span>
-            </button>
-          </div>
+          {isAuthenticated && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  if (routes.length >= 3) {
+                    addToast(t.modal.errorLimitReached, "error");
+                    return;
+                  }
+                  setEditingRoute(null);
+                  setIsRouteModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs hover:shadow-md transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>{t.dashboard.table.addRoute}</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* 4 Top KPI Cards */}
@@ -373,13 +382,26 @@ export default function DashboardPage() {
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                   <button
                     onClick={() => {
+                      if (isAuthenticated && routes.length >= 3) {
+                        addToast(t.modal.errorLimitReached, "error");
+                        return;
+                      }
                       setEditingRoute(null);
                       setIsRouteModalOpen(true);
                     }}
                     className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white shadow-md shadow-sky-600/20 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <Plus className="w-4 h-4" />
-                    <span>{t.dashboard.table.addRoute}</span>
+                    {isAuthenticated ? (
+                      <>
+                        <Plus className="w-4 h-4" />
+                        <span>{t.dashboard.table.addRoute}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
+                        <span>{t.auth.startSearchingNow}</span>
+                      </>
+                    )}
                   </button>
                   {!user && (
                     <button
@@ -856,6 +878,7 @@ export default function DashboardPage() {
       <RouteModal
         isOpen={isRouteModalOpen}
         routeToEdit={editingRoute}
+        currentRouteCount={routes.length}
         onClose={() => setIsRouteModalOpen(false)}
         onSuccess={fetchDashboardData}
       />

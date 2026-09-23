@@ -323,10 +323,7 @@ export default function MetricCards({ routes, schedulerStatus, loading = false }
       </div>
 
       {/* 4: Scanning Cycle */}
-      <div
-        onClick={() => router.push("/settings")}
-        className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between"
-      >
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
             {t.dashboard.kpis.avgCycle}
