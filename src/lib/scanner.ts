@@ -1,5 +1,6 @@
 import { findRouteById, listRoutes, recordFlightHistory, getAppSettings, updateRouteScanStatus, findUserById, getHistoryByRoute, updateRouteLastNotified, updateRoute } from "./db";
 import { scrapeGoogleFlights } from "./scrapers/google-flights-scraper";
+import { fetchSerpApiFlights } from "./flight-tracker";
 import { sendNtfyNotification } from "./notifier";
 import { sendDealAlertEmail } from "./email";
 import { FlightOption, MonitoredRoute, ScanResult } from "./types";
@@ -102,12 +103,16 @@ async function executeScanRoute(routeId: number): Promise<ScanResult> {
     route.id
   );
 
+  const settings = await getAppSettings().catch(() => null);
+  const configuredProvider = settings?.searchProvider || "scraper";
+  const serpApiKey = (settings?.serpApiKey || process.env.SERPAPI_API_KEY || "").trim();
+
   let options: FlightOption[] = [];
-  const providerUsed = "Web Scraping Direto (Playwright)";
+  let providerUsed = "Web Scraping Direto (Playwright)";
   let lastError: string | undefined = undefined;
 
-  try {
-    options = await scrapeGoogleFlights(
+  const runScraper = async () => {
+    return await scrapeGoogleFlights(
       route.origin,
       route.destination,
       route.flightDate,
@@ -118,9 +123,69 @@ async function executeScanRoute(routeId: number): Promise<ScanResult> {
       route.children || 0,
       route.infantsInLap || 0
     );
-  } catch (err: any) {
-    lastError = err.message;
-    logger.error("SCRAPER", `Erro no Web Scraper para ${route.origin}→${route.destination}: ${err.message}`, { error: err.stack }, route.id);
+  };
+
+  const runSerpApi = async () => {
+    return await fetchSerpApiFlights(
+      route.origin,
+      route.destination,
+      route.flightDate,
+      route.passengers || 1,
+      serpApiKey,
+      5,
+      route.returnDate,
+      route.tripType,
+      route.children || 0,
+      route.infantsInLap || 0
+    );
+  };
+
+  if (configuredProvider === "serpapi") {
+    if (serpApiKey) {
+      try {
+        options = await runSerpApi();
+        providerUsed = "SerpApi Google Flights";
+      } catch (err: any) {
+        lastError = err.message;
+        logger.warn("SCANNER", `Falha na busca SerpApi (${err.message}). Tentando fallback para Web Scraper...`, undefined, route.id);
+        try {
+          options = await runScraper();
+          providerUsed = "Web Scraping Direto (Playwright) [Fallback]";
+          lastError = undefined;
+        } catch (sErr: any) {
+          lastError = sErr.message;
+        }
+      }
+    } else {
+      logger.warn("SCANNER", "Provedor SerpApi selecionado, mas chave SERPAPI_API_KEY não configurada. Usando Web Scraper...", undefined, route.id);
+      try {
+        options = await runScraper();
+        providerUsed = "Web Scraping Direto (Playwright)";
+      } catch (sErr: any) {
+        lastError = sErr.message;
+      }
+    }
+  } else {
+    // Provedor padrão: Web Scraping Direto (Playwright)
+    try {
+      options = await runScraper();
+      providerUsed = "Web Scraping Direto (Playwright)";
+    } catch (err: any) {
+      lastError = err.message;
+      logger.error("SCRAPER", `Erro no Web Scraper para ${route.origin}→${route.destination}: ${err.message}`, { error: err.stack }, route.id);
+
+      // Fallback automático para SerpApi se chave estiver configurada
+      if (serpApiKey) {
+        logger.info("SCANNER", `Tentando recuperação automática via SerpApi para ${route.origin}→${route.destination}...`, undefined, route.id);
+        try {
+          options = await runSerpApi();
+          providerUsed = "SerpApi Google Flights (Fallback)";
+          lastError = undefined;
+        } catch (apiErr: any) {
+          logger.warn("SCANNER", `Fallback SerpApi também falhou: ${apiErr.message}`, undefined, route.id);
+        }
+      }
+    }
   }
 
   if (options.length === 0) {
@@ -285,7 +350,6 @@ async function executeScanRoute(routeId: number): Promise<ScanResult> {
   }
 
   let notified = false;
-  const settings = await getAppSettings();
 
   // Verificação de datas flexíveis se a rota possuir tolerância configurada
   let recommendedAlternative: {
@@ -381,7 +445,7 @@ async function executeScanRoute(routeId: number): Promise<ScanResult> {
 
     if (allowNotification) {
       // 1. Notificação Push NTFY (se configurado nas opções)
-      if (settings.autoNotify && settings.ntfyTopic) {
+      if (settings?.autoNotify && settings?.ntfyTopic) {
         const ntfySent = await sendNtfyNotification({
           topic: settings.ntfyTopic,
           origin: route.origin,

@@ -116,6 +116,119 @@ async function launchBrowserWithRetry(): Promise<Browser> {
   );
 }
 
+/**
+ * Cria um contexto de navegador Playwright configurado contra detecção de bot e bloqueios regionais
+ */
+async function createStealthContext(browser: Browser) {
+  const isLinux = process.platform === "linux";
+  const userAgent = isLinux
+    ? "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+    : "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
+
+  const context = await browser.newContext({
+    userAgent,
+    locale: "pt-BR",
+    timezoneId: "America/Sao_Paulo",
+    viewport: { width: 1280, height: 800 },
+    extraHTTPHeaders: {
+      "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+      "sec-ch-ua": '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": isLinux ? '"Linux"' : '"macOS"',
+    },
+  });
+
+  // 1. Pré-injeta cookies de consentimento do Google
+  // Evita que servidores em datacenters (como Railway na AWS/GCP nos EUA/Europa) redirecionem para consent.google.com
+  await context.addCookies([
+    {
+      name: "SOCS",
+      value: "CAESHwgDEgk0ODE3NzA3MjQaAnB0IAEaBgiA_LyaBg",
+      domain: ".google.com",
+      path: "/",
+    },
+    {
+      name: "CONSENT",
+      value: "PENDING+999",
+      domain: ".google.com",
+      path: "/",
+    },
+    {
+      name: "SOCS",
+      value: "CAESHwgDEgk0ODE3NzA3MjQaAnB0IAEaBgiA_LyaBg",
+      domain: ".google.com.br",
+      path: "/",
+    },
+    {
+      name: "CONSENT",
+      value: "PENDING+999",
+      domain: ".google.com.br",
+      path: "/",
+    },
+  ]);
+
+  // 2. Oculta sinais de automação (stealth script)
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+    Object.defineProperty(navigator, "plugins", { get: () => [1, 2, 3, 4, 5] });
+    Object.defineProperty(navigator, "languages", { get: () => ["pt-BR", "pt", "en-US", "en"] });
+    (window as any).chrome = { runtime: {} };
+  });
+
+  return context;
+}
+
+/**
+ * Lida com páginas de consentimento externo (consent.google.com) ou banners internos e erros transientes
+ */
+async function handleGoogleConsentAndErrors(page: any): Promise<void> {
+  const currentUrl = page.url();
+
+  // Caso 1: Redirecionamento completo para consent.google.com
+  if (currentUrl.includes("consent.google.com")) {
+    logger.info("SCRAPER", `Detectada página consent.google.com (${currentUrl}). Submetendo consentimento...`);
+    try {
+      const acceptBtn = page.locator(
+        'button:has-text("Accept all"), button:has-text("Aceitar tudo"), button:has-text("I agree"), button:has-text("Concordo"), form[action*="consent"] button, form[action*="save"] button'
+      ).first();
+
+      if (await acceptBtn.isVisible({ timeout: 5000 })) {
+        await Promise.all([
+          page.waitForURL((u: URL) => u.href.includes("travel/flights"), { timeout: 15000 }).catch(() => {}),
+          acceptBtn.click(),
+        ]);
+        logger.info("SCRAPER", `Consentimento aceito. URL atual: ${page.url()}`);
+      }
+    } catch (err: any) {
+      logger.warn("SCRAPER", `Aviso ao processar consentimento externo: ${err.message}`);
+    }
+    return;
+  }
+
+  // Caso 2: Modal ou banner interno de consentimento na própria página do Google Flights
+  try {
+    const consentBtn = page.locator(
+      'button:has-text("Aceitar tudo"), button:has-text("Accept all"), button:has-text("Aceito"), button:has-text("Concordo"), button:has-text("I agree"), button:has-text("Antes de continuar")'
+    ).first();
+    if (await consentBtn.isVisible({ timeout: 2500 })) {
+      await consentBtn.click().catch(() => {});
+      await page.waitForTimeout(500);
+    }
+  } catch {}
+
+  // Caso 3: Intersticial "Algo deu errado / Atualizar" (intermitência do Google Flights)
+  try {
+    const reloadBtn = page.locator(
+      'button:has-text("Atualizar"), button:has-text("Tentar novamente"), button:has-text("Reload"), button:has-text("Retry")'
+    ).first();
+    if (await reloadBtn.isVisible({ timeout: 1500 })) {
+      logger.info("SCRAPER", "Detectado botão 'Atualizar/Tentar novamente'. Recarregando resultados...");
+      await reloadBtn.click().catch(() => {});
+      await page.waitForTimeout(2000);
+    }
+  } catch {}
+}
+
 export async function scrapeGoogleFlights(
   origin: string,
   destination: string,
@@ -165,15 +278,7 @@ export async function scrapeGoogleFlights(
   let browser;
   try {
     browser = await launchBrowserWithRetry();
-
-    const context = await browser.newContext({
-      userAgent:
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-      locale: "pt-BR",
-      timezoneId: "America/Sao_Paulo",
-      viewport: { width: 1024, height: 600 },
-    });
-
+    const context = await createStealthContext(browser);
     const page = await context.newPage();
 
     // Bloqueia imagens, mídias e fontes pesadas para economizar memória
@@ -187,13 +292,8 @@ export async function scrapeGoogleFlights(
 
     await page.goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
 
-    // Aceita popup de cookies se presente
-    try {
-      const consentBtn = page.locator('button:has-text("Aceitar tudo"), button:has-text("Aceito"), button:has-text("Concordo"), button:has-text("I agree"), button:has-text("Accept all"), button:has-text("Antes de continuar")');
-      if (await consentBtn.first().isVisible({ timeout: 2000 })) {
-        await consentBtn.first().click();
-      }
-    } catch {}
+    // Trata popups de consentimento e recargas
+    await handleGoogleConsentAndErrors(page);
 
     // Aguarda que os cartões de voos reais renderizem
     try {
@@ -202,9 +302,13 @@ export async function scrapeGoogleFlights(
           const cards = document.querySelectorAll("li.pIav2d, div.pIav2d, ul.Rk10dc > li");
           return cards.length > 0;
         },
-        { timeout: 16000 }
+        { timeout: 14000 }
       );
-    } catch {}
+    } catch {
+      // Se não renderizou, tenta mais uma vez clicar em "Atualizar" se o Google tiver dado erro transitório
+      await handleGoogleConsentAndErrors(page);
+      await page.waitForTimeout(2000);
+    }
 
     await page.waitForTimeout(1000);
 
@@ -528,6 +632,15 @@ export async function scrapeGoogleFlights(
     uniqueOptions.sort((a, b) => a.price - b.price);
 
     if (uniqueOptions.length === 0) {
+      const currentUrl = page.url();
+      const pageTitle = await page.title().catch(() => "");
+      const isBlocked = currentUrl.includes("/sorry/") || currentUrl.includes("consent.google.com");
+      logger.warn("SCRAPER", `Nenhum voo extraído da página. URL atual: ${currentUrl} | Título: ${pageTitle}`);
+      if (isBlocked) {
+        throw new ScraperError(
+          `Google Flights exigiu verificação de robô ou consentimento nesta requisição (${currentUrl}).`
+        );
+      }
       throw new ScraperError(
         `Nenhum voo encontrado para ${normOrigin} → ${normDestination} nesta data.`
       );
@@ -621,14 +734,7 @@ export async function scrapeGoogleFlightsPriceHistory(
   try {
     browser = await launchBrowserWithRetry();
 
-    const context = await browser.newContext({
-      userAgent:
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-      locale: "pt-BR",
-      timezoneId: "America/Sao_Paulo",
-      viewport: { width: 1024, height: 600 },
-    });
-
+    const context = await createStealthContext(browser);
     const page = await context.newPage();
 
     // Bloqueia mídias e fontes pesadas
@@ -642,13 +748,8 @@ export async function scrapeGoogleFlightsPriceHistory(
 
     await page.goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
 
-    // Aceita popup de cookies se presente
-    try {
-      const consentBtn = page.locator('button:has-text("Aceitar tudo"), button:has-text("Aceito"), button:has-text("Concordo"), button:has-text("I agree")');
-      if (await consentBtn.first().isVisible({ timeout: 2000 })) {
-        await consentBtn.first().click();
-      }
-    } catch {}
+    // Trata popups de consentimento e recargas
+    await handleGoogleConsentAndErrors(page);
 
     // Aguarda carregamento dos dados
     await page.waitForTimeout(2500);
