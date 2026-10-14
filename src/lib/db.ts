@@ -54,183 +54,204 @@ export function getDatabase(): Client {
  * Garante que o schema e todas as tabelas estejam criadas no banco de dados.
  */
 export async function initSchema(db: Client): Promise<void> {
-  // 1. Tabela de Usuários (users)
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS users (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      name        TEXT,
-      email       TEXT NOT NULL COLLATE NOCASE UNIQUE,
-      created_at  TEXT NOT NULL,
-      updated_at  TEXT NOT NULL
-    );
-  `);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);`);
+  const now = new Date().toISOString();
+  await db.batch(
+    [
+      // 1. Tabela de Usuários (users)
+      {
+        sql: `CREATE TABLE IF NOT EXISTS users (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          name        TEXT,
+          email       TEXT NOT NULL COLLATE NOCASE UNIQUE,
+          created_at  TEXT NOT NULL,
+          updated_at  TEXT NOT NULL
+        );`,
+        args: [],
+      },
+      { sql: `CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);`, args: [] },
 
-  // 2. Tabela de Códigos OTP de Autenticação (login_codes)
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS login_codes (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      code        TEXT NOT NULL,
-      expires_at  TEXT NOT NULL,
-      used_at     TEXT,
-      ip_address  TEXT,
-      created_at  TEXT NOT NULL
-    );
-  `);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_login_codes_lookup ON login_codes(user_id, code);`);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_login_codes_user ON login_codes(user_id);`);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_login_codes_created ON login_codes(created_at);`);
+      // 2. Tabela de Códigos OTP de Autenticação (login_codes)
+      {
+        sql: `CREATE TABLE IF NOT EXISTS login_codes (
+          id              INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          code            TEXT NOT NULL,
+          expires_at      TEXT NOT NULL,
+          used_at         TEXT,
+          ip_address      TEXT,
+          failed_attempts INTEGER DEFAULT 0,
+          created_at      TEXT NOT NULL
+        );`,
+        args: [],
+      },
+      { sql: `CREATE INDEX IF NOT EXISTS idx_login_codes_lookup ON login_codes(user_id, code);`, args: [] },
+      { sql: `CREATE INDEX IF NOT EXISTS idx_login_codes_user ON login_codes(user_id);`, args: [] },
+      { sql: `CREATE INDEX IF NOT EXISTS idx_login_codes_created ON login_codes(created_at);`, args: [] },
 
-  // 3. Tabela de Sessões Persistentes (user_sessions)
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS user_sessions (
-      id             INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      session_token  TEXT NOT NULL UNIQUE,
-      expires_at     TEXT NOT NULL,
-      created_at     TEXT NOT NULL,
-      last_seen_at   TEXT NOT NULL
-    );
-  `);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(session_token);`);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);`);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_user_sessions_last_seen ON user_sessions(last_seen_at);`);
+      // 3. Tabela de Sessões Persistentes (user_sessions)
+      {
+        sql: `CREATE TABLE IF NOT EXISTS user_sessions (
+          id             INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          session_token  TEXT NOT NULL UNIQUE,
+          expires_at     TEXT NOT NULL,
+          created_at     TEXT NOT NULL,
+          last_seen_at   TEXT NOT NULL
+        );`,
+        args: [],
+      },
+      { sql: `CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(session_token);`, args: [] },
+      { sql: `CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);`, args: [] },
+      { sql: `CREATE INDEX IF NOT EXISTS idx_user_sessions_last_seen ON user_sessions(last_seen_at);`, args: [] },
 
-  // 4. Tabela de rotas monitoradas (monitored_routes)
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS monitored_routes (
-      id              INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id         INTEGER REFERENCES users(id) ON DELETE CASCADE,
-      origin          TEXT    NOT NULL,
-      destination     TEXT    NOT NULL,
-      flight_date     TEXT    NOT NULL,
-      return_date     TEXT,
-      trip_type       TEXT    NOT NULL DEFAULT 'one_way',
-      passengers      INTEGER NOT NULL DEFAULT 1 CHECK (passengers >= 1),
-      children        INTEGER NOT NULL DEFAULT 0 CHECK (children >= 0),
-      infants_in_lap  INTEGER NOT NULL DEFAULT 0 CHECK (infants_in_lap >= 0),
-      target_price    REAL    NOT NULL CHECK (target_price > 0),
-      interval_hours  INTEGER DEFAULT 12,
-      only_direct     INTEGER NOT NULL DEFAULT 0,
-      flexibility_days INTEGER NOT NULL DEFAULT 0,
-      flexible_weekends INTEGER NOT NULL DEFAULT 0,
-      is_active       INTEGER NOT NULL DEFAULT 1,
-      last_error      TEXT,
-      last_searched_at TEXT,
-      created_at      TEXT    NOT NULL,
-      updated_at      TEXT    NOT NULL
-    );
-  `);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_monitored_routes_active ON monitored_routes(is_active);`);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_monitored_routes_user_id ON monitored_routes(user_id);`);
+      // 4. Tabela de rotas monitoradas (monitored_routes)
+      {
+        sql: `CREATE TABLE IF NOT EXISTS monitored_routes (
+          id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id            INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          origin             TEXT    NOT NULL,
+          destination        TEXT    NOT NULL,
+          flight_date        TEXT    NOT NULL,
+          return_date        TEXT,
+          trip_type          TEXT    NOT NULL DEFAULT 'one_way',
+          passengers         INTEGER NOT NULL DEFAULT 1 CHECK (passengers >= 1),
+          children           INTEGER NOT NULL DEFAULT 0 CHECK (children >= 0),
+          infants_in_lap     INTEGER NOT NULL DEFAULT 0 CHECK (infants_in_lap >= 0),
+          target_price       REAL    NOT NULL CHECK (target_price > 0),
+          interval_hours     INTEGER DEFAULT 12,
+          only_direct        INTEGER NOT NULL DEFAULT 0,
+          flexibility_days   INTEGER NOT NULL DEFAULT 0,
+          flexible_weekends  INTEGER NOT NULL DEFAULT 0,
+          is_active          INTEGER NOT NULL DEFAULT 1,
+          last_error         TEXT,
+          last_searched_at   TEXT,
+          last_notified_at   TEXT,
+          last_notified_price REAL,
+          created_at         TEXT    NOT NULL,
+          updated_at         TEXT    NOT NULL
+        );`,
+        args: [],
+      },
+      { sql: `CREATE INDEX IF NOT EXISTS idx_monitored_routes_active ON monitored_routes(is_active);`, args: [] },
+      { sql: `CREATE INDEX IF NOT EXISTS idx_monitored_routes_user_id ON monitored_routes(user_id);`, args: [] },
 
-  // Migrações incrementais para colunas de flexibilidade de datas
+      // 5. Tabela de histórico de buscas de voos (flight_history)
+      {
+        sql: `CREATE TABLE IF NOT EXISTS flight_history (
+          id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+          searched_at         TEXT    NOT NULL,
+          origin              TEXT    NOT NULL,
+          destination         TEXT    NOT NULL,
+          flight_date         TEXT    NOT NULL,
+          return_date         TEXT,
+          trip_type           TEXT    NOT NULL DEFAULT 'one_way',
+          passengers          INTEGER NOT NULL DEFAULT 1,
+          children            INTEGER NOT NULL DEFAULT 0,
+          infants_in_lap      INTEGER NOT NULL DEFAULT 0,
+          lowest_price        REAL    NOT NULL,
+          currency            TEXT    NOT NULL DEFAULT 'BRL',
+          route_id            INTEGER,
+          airline             TEXT,
+          flight_number       TEXT,
+          departure_time      TEXT,
+          arrival_time        TEXT,
+          stops               INTEGER,
+          duration_minutes    INTEGER,
+          booking_link        TEXT,
+          lowest_direct_price REAL,
+          direct_airline      TEXT,
+          lowest_stop_price   REAL,
+          stop_airline        TEXT,
+          stop_count          INTEGER
+        );`,
+        args: [],
+      },
+      { sql: `CREATE INDEX IF NOT EXISTS idx_flight_history_route_id ON flight_history(route_id);`, args: [] },
+      { sql: `CREATE INDEX IF NOT EXISTS idx_flight_history_searched_at ON flight_history(searched_at);`, args: [] },
+
+      // 6. Tabela de preços brutos / leituras estatísticas (flight_prices)
+      {
+        sql: `CREATE TABLE IF NOT EXISTS flight_prices (
+          id              INTEGER PRIMARY KEY AUTOINCREMENT,
+          origin          TEXT    NOT NULL,
+          destination     TEXT    NOT NULL,
+          departure_date  TEXT    NOT NULL,
+          price           REAL    NOT NULL CHECK (price > 0),
+          recorded_at     TEXT    NOT NULL
+        );`,
+        args: [],
+      },
+      { sql: `CREATE INDEX IF NOT EXISTS idx_flight_prices_lookup ON flight_prices(origin, destination, departure_date);`, args: [] },
+      { sql: `CREATE INDEX IF NOT EXISTS idx_flight_prices_recorded_at ON flight_prices(recorded_at);`, args: [] },
+
+      // 7. Tabela de configurações da aplicação (app_settings)
+      {
+        sql: `CREATE TABLE IF NOT EXISTS app_settings (
+          key         TEXT PRIMARY KEY,
+          value       TEXT NOT NULL,
+          updated_at  TEXT NOT NULL
+        );`,
+        args: [],
+      },
+
+      // 8. Tabela de Logs de Execução e Auditoria (app_logs)
+      {
+        sql: `CREATE TABLE IF NOT EXISTS app_logs (
+          id         INTEGER PRIMARY KEY AUTOINCREMENT,
+          timestamp  TEXT NOT NULL,
+          level      TEXT NOT NULL CHECK (level IN ('INFO', 'SUCCESS', 'WARN', 'ERROR')),
+          category   TEXT NOT NULL,
+          message    TEXT NOT NULL,
+          details    TEXT,
+          route_id   INTEGER
+        );`,
+        args: [],
+      },
+      { sql: `CREATE INDEX IF NOT EXISTS idx_app_logs_timestamp ON app_logs(timestamp);`, args: [] },
+      { sql: `CREATE INDEX IF NOT EXISTS idx_app_logs_level ON app_logs(level);`, args: [] },
+      { sql: `CREATE INDEX IF NOT EXISTS idx_app_logs_category ON app_logs(category);`, args: [] },
+
+      // Inserir valores padrão de configurações caso não existam
+      {
+        sql: `INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)`,
+        args: ["schedule_hours", process.env.SCHEDULE_HOURS || "00:00,12:00", now],
+      },
+      {
+        sql: `INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)`,
+        args: ["search_provider", "scraper", now],
+      },
+      {
+        sql: `INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)`,
+        args: ["serpapi_api_key", process.env.SERPAPI_API_KEY || "", now],
+      },
+      {
+        sql: `INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)`,
+        args: ["ntfy_topic", process.env.NTFY_TOPIC || "radar-passagens", now],
+      },
+      {
+        sql: `INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)`,
+        args: ["auto_notify", "true", now],
+      },
+    ],
+    "write"
+  );
+
+  // Migrações incrementais protegidas (caso colunas não existam em bancos preexistentes)
   try {
     await db.execute("ALTER TABLE monitored_routes ADD COLUMN flexibility_days INTEGER DEFAULT 0;");
-  } catch {
-    // Coluna já existe
-  }
+  } catch {}
   try {
     await db.execute("ALTER TABLE monitored_routes ADD COLUMN flexible_weekends INTEGER DEFAULT 0;");
-  } catch {
-    // Coluna já existe
-  }
-
-  // 5. Tabela de histórico de buscas de voos (flight_history)
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS flight_history (
-      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-      searched_at         TEXT    NOT NULL,
-      origin              TEXT    NOT NULL,
-      destination         TEXT    NOT NULL,
-      flight_date         TEXT    NOT NULL,
-      return_date         TEXT,
-      trip_type           TEXT    NOT NULL DEFAULT 'one_way',
-      passengers          INTEGER NOT NULL DEFAULT 1,
-      children            INTEGER NOT NULL DEFAULT 0,
-      infants_in_lap      INTEGER NOT NULL DEFAULT 0,
-      lowest_price        REAL    NOT NULL,
-      currency            TEXT    NOT NULL DEFAULT 'BRL',
-      route_id            INTEGER,
-      airline             TEXT,
-      flight_number       TEXT,
-      departure_time      TEXT,
-      arrival_time        TEXT,
-      stops               INTEGER,
-      duration_minutes    INTEGER,
-      booking_link        TEXT,
-      lowest_direct_price REAL,
-      direct_airline      TEXT,
-      lowest_stop_price   REAL,
-      stop_airline        TEXT,
-      stop_count          INTEGER
-    );
-  `);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_flight_history_route_id ON flight_history(route_id);`);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_flight_history_searched_at ON flight_history(searched_at);`);
-
-  // 6. Tabela de preços brutos / leituras estatísticas (flight_prices)
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS flight_prices (
-      id              INTEGER PRIMARY KEY AUTOINCREMENT,
-      origin          TEXT    NOT NULL,
-      destination     TEXT    NOT NULL,
-      departure_date  TEXT    NOT NULL,
-      price           REAL    NOT NULL CHECK (price > 0),
-      recorded_at     TEXT    NOT NULL
-    );
-  `);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_flight_prices_lookup ON flight_prices(origin, destination, departure_date);`);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_flight_prices_recorded_at ON flight_prices(recorded_at);`);
-
-  // 7. Tabela de configurações da aplicação (app_settings)
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS app_settings (
-      key         TEXT PRIMARY KEY,
-      value       TEXT NOT NULL,
-      updated_at  TEXT NOT NULL
-    );
-  `);
-
-  // 8. Tabela de Logs de Execução e Auditoria (app_logs)
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS app_logs (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      timestamp  TEXT NOT NULL,
-      level      TEXT NOT NULL CHECK (level IN ('INFO', 'SUCCESS', 'WARN', 'ERROR')),
-      category   TEXT NOT NULL,
-      message    TEXT NOT NULL,
-      details    TEXT,
-      route_id   INTEGER
-    );
-  `);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_app_logs_timestamp ON app_logs(timestamp);`);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_app_logs_level ON app_logs(level);`);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_app_logs_category ON app_logs(category);`);
-
-  // Inserir valores padrão de configurações caso não existam
-  const now = new Date().toISOString();
-  await db.execute({
-    sql: `INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)`,
-    args: ["schedule_hours", process.env.SCHEDULE_HOURS || "00:00,12:00", now],
-  });
-  await db.execute({
-    sql: `INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)`,
-    args: ["search_provider", "scraper", now],
-  });
-  await db.execute({
-    sql: `INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)`,
-    args: ["serpapi_api_key", process.env.SERPAPI_API_KEY || "", now],
-  });
-  await db.execute({
-    sql: `INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)`,
-    args: ["ntfy_topic", process.env.NTFY_TOPIC || "radar-passagens", now],
-  });
-  await db.execute({
-    sql: `INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)`,
-    args: ["auto_notify", "true", now],
-  });
+  } catch {}
+  try {
+    await db.execute("ALTER TABLE monitored_routes ADD COLUMN last_notified_at TEXT;");
+  } catch {}
+  try {
+    await db.execute("ALTER TABLE monitored_routes ADD COLUMN last_notified_price REAL;");
+  } catch {}
+  try {
+    await db.execute("ALTER TABLE login_codes ADD COLUMN failed_attempts INTEGER DEFAULT 0;");
+  } catch {}
 }
 
 export async function ensureInitialized(): Promise<Client> {
@@ -347,6 +368,40 @@ export async function findValidLoginCode(userId: number, code: string): Promise<
   });
   if (res.rows.length === 0) return null;
   return mapLoginCodeRow(res.rows[0]);
+}
+
+export async function findActiveLoginCode(userId: number): Promise<LoginCode | null> {
+  const db = await ensureInitialized();
+  const res = await db.execute({
+    sql: `SELECT * FROM login_codes 
+          WHERE user_id = ? AND used_at IS NULL AND datetime(expires_at) > datetime('now')
+          ORDER BY created_at DESC LIMIT 1`,
+    args: [userId],
+  });
+  if (res.rows.length === 0) return null;
+  return mapLoginCodeRow(res.rows[0]);
+}
+
+export async function incrementLoginCodeFailedAttempts(id: number): Promise<number> {
+  const db = await ensureInitialized();
+  await db.execute({
+    sql: "UPDATE login_codes SET failed_attempts = COALESCE(failed_attempts, 0) + 1 WHERE id = ?",
+    args: [id],
+  });
+  const res = await db.execute({
+    sql: "SELECT failed_attempts FROM login_codes WHERE id = ?",
+    args: [id],
+  });
+  return Number(res.rows[0]?.failed_attempts ?? 1);
+}
+
+export async function invalidateLoginCode(id: number): Promise<void> {
+  const db = await ensureInitialized();
+  const now = new Date().toISOString();
+  await db.execute({
+    sql: "UPDATE login_codes SET used_at = ? WHERE id = ?",
+    args: [now, id],
+  });
 }
 
 export async function markLoginCodeUsed(id: number): Promise<boolean> {
@@ -477,6 +532,7 @@ function mapLoginCodeRow(row: any): LoginCode {
     expiresAt: String(row.expires_at),
     usedAt: row.used_at ? String(row.used_at) : null,
     ipAddress: row.ip_address ? String(row.ip_address) : null,
+    failedAttempts: Number(row.failed_attempts ?? 0),
     createdAt: String(row.created_at),
   };
 }
@@ -848,6 +904,8 @@ function mapRouteRow(row: any): MonitoredRoute {
     isActive: Boolean(row.is_active),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
+    lastNotifiedAt: row.last_notified_at ? String(row.last_notified_at) : null,
+    lastNotifiedPrice: row.last_notified_price !== null && row.last_notified_price !== undefined ? Number(row.last_notified_price) : null,
     userName: row.user_name ? String(row.user_name) : null,
     userEmail: row.user_email ? String(row.user_email) : null,
     latestPrice: row.latest_price !== null && row.latest_price !== undefined ? Number(row.latest_price) : null,
@@ -865,6 +923,15 @@ function mapRouteRow(row: any): MonitoredRoute {
     latestStopCount: row.latest_stop_count !== null && row.latest_stop_count !== undefined ? Number(row.latest_stop_count) : null,
     totalSearches: Number(row.total_searches ?? 0),
   };
+}
+
+export async function updateRouteLastNotified(routeId: number, price: number): Promise<void> {
+  const db = await ensureInitialized();
+  const now = new Date().toISOString();
+  await db.execute({
+    sql: "UPDATE monitored_routes SET last_notified_at = ?, last_notified_price = ?, updated_at = ? WHERE id = ?",
+    args: [now, price, now, routeId],
+  });
 }
 
 export async function updateRouteScanStatus(routeId: number, lastSearchedAt: string, lastError: string | null): Promise<void> {

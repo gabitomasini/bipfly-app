@@ -163,7 +163,7 @@ export function ScanningProvider({ children }: { children: ReactNode }) {
       );
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 35000);
+      const timeoutId = setTimeout(() => controller.abort(), 75000);
 
       try {
         const res = await fetch("/api/search", {

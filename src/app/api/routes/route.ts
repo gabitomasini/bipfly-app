@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listRoutes, createRoute, getOrCreateUser, getUserRouteCount } from "@/lib/db";
+import { listRoutes, createRoute, createUser, findUserByEmail, getUserRouteCount } from "@/lib/db";
 import { getAuthUser, createAndSetSession, isUserAdmin, MAX_ROUTES_PER_USER } from "@/lib/auth";
 import { sendRouteCreatedEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
@@ -43,6 +43,46 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+
+    // 1. Validação imediata dos parâmetros da rota antes de qualquer operação de usuário
+    const origin = body.origin || body.origem;
+    const destination = body.destination || body.destino;
+    const flightDate = body.flightDate || body.data_voo || body.dataVoo;
+    const targetPrice = body.targetPrice !== undefined ? body.targetPrice : (body.preco_limite || body.precoLimite);
+    const passengers = body.passengers !== undefined ? body.passengers : body.passageiros;
+    const intervalHours = body.intervalHours !== undefined ? body.intervalHours : body.intervalo_horas;
+    const returnDate = body.returnDate || body.return_date || null;
+
+    if (!origin || !destination || !flightDate || !targetPrice) {
+      return NextResponse.json(
+        { success: false, error: "Origem, destino, data do voo e preço alvo são obrigatórios." },
+        { status: 400 }
+      );
+    }
+
+    if (origin.trim().toUpperCase() === destination.trim().toUpperCase()) {
+      return NextResponse.json(
+        { success: false, error: "Origem e destino não podem ser o mesmo aeroporto." },
+        { status: 400 }
+      );
+    }
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    if (flightDate < todayStr) {
+      return NextResponse.json(
+        { success: false, error: "A data de partida não pode ser anterior à data de hoje." },
+        { status: 400 }
+      );
+    }
+
+    if (returnDate && returnDate < flightDate) {
+      return NextResponse.json(
+        { success: false, error: "A data de retorno não pode ser anterior à data de partida." },
+        { status: 400 }
+      );
+    }
+
+    // 2. Identificação / Autenticação do Usuário
     let user = await getAuthUser();
 
     // Se o usuário não tiver sessão ativa, verifica progressive profiling (nome e e-mail no payload)
@@ -76,10 +116,30 @@ export async function POST(request: Request) {
         );
       }
 
-      // Cria ou recupera o usuário e estabelece a sessão persistente
-      user = await getOrCreateUser(email.trim().toLowerCase(), name.trim());
+      const cleanEmail = email.trim().toLowerCase();
+      const existingUser = await findUserByEmail(cleanEmail);
+
+      if (existingUser) {
+        // SEGURANÇA: Se a conta já existe, NÃO emitir sessão sem OTP prévio!
+        // Evita account takeover e bypass de privilégios de administrador.
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              locale === "en"
+                ? "This email is already registered. Please log in with your verification code to add routes."
+                : "Este e-mail já está cadastrado. Por favor, faça login com seu código de verificação para adicionar rotas.",
+            requiresAuth: true,
+            emailAlreadyExists: true,
+          },
+          { status: 401 }
+        );
+      }
+
+      // Novo usuário: cadastra com segurança e estabelece a primeira sessão
+      user = await createUser({ email: cleanEmail, name: name.trim() });
       await createAndSetSession(user.id);
-      logger.info("SYSTEM", `Usuário cadastrado/reconhecido via Progressive Profiling: ${user.email}`);
+      logger.info("SYSTEM", `Novo usuário cadastrado via Progressive Profiling: ${user.email}`);
     }
 
     if (!user) {
@@ -89,7 +149,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validação de Limite de Rotas por E-mail (Máximo 3 rotas para usuários comuns)
+    // 3. Validação de Limite de Rotas por E-mail (Máximo 3 rotas para usuários comuns)
     const isAdmin = isUserAdmin(user);
     if (!isAdmin) {
       const currentRouteCount = await getUserRouteCount(user.id);
@@ -114,31 +174,9 @@ export async function POST(request: Request) {
       }
     }
 
-    const origin = body.origin || body.origem;
-    const destination = body.destination || body.destino;
-    const flightDate = body.flightDate || body.data_voo || body.dataVoo;
-    const targetPrice = body.targetPrice !== undefined ? body.targetPrice : (body.preco_limite || body.precoLimite);
-    const passengers = body.passengers !== undefined ? body.passengers : body.passageiros;
-    const intervalHours = body.intervalHours !== undefined ? body.intervalHours : body.intervalo_horas;
-
-    if (!origin || !destination || !flightDate || !targetPrice) {
-      return NextResponse.json(
-        { success: false, error: "Origem, destino, data do voo e preço alvo são obrigatórios." },
-        { status: 400 }
-      );
-    }
-
-    if (origin.trim().toUpperCase() === destination.trim().toUpperCase()) {
-      return NextResponse.json(
-        { success: false, error: "Origem e destino não podem ser o mesmo aeroporto." },
-        { status: 400 }
-      );
-    }
-
     const onlyDirect = body.onlyDirect !== undefined ? Boolean(body.onlyDirect) : Boolean(body.apenas_diretos || body.apenasDiretos);
     const flexibilityDays = body.flexibilityDays !== undefined ? Number(body.flexibilityDays) : (body.flexibility_days !== undefined ? Number(body.flexibility_days) : 0);
     const flexibleWeekends = body.flexibleWeekends !== undefined ? Boolean(body.flexibleWeekends) : Boolean(body.flexible_weekends);
-    const returnDate = body.returnDate || body.return_date || null;
     const tripType = body.tripType || body.trip_type || (returnDate ? "round_trip" : "one_way");
     const children = body.children !== undefined ? Number(body.children) : (body.criancas !== undefined ? Number(body.criancas) : 0);
     const infantsInLap = body.infantsInLap !== undefined ? Number(body.infantsInLap) : (body.infants_in_lap !== undefined ? Number(body.infants_in_lap) : (body.bebes !== undefined ? Number(body.bebes) : 0));

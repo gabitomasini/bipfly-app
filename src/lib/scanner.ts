@@ -1,4 +1,4 @@
-import { findRouteById, listRoutes, recordFlightHistory, getAppSettings, updateRouteScanStatus, findUserById, getHistoryByRoute } from "./db";
+import { findRouteById, listRoutes, recordFlightHistory, getAppSettings, updateRouteScanStatus, findUserById, getHistoryByRoute, updateRouteLastNotified, updateRoute } from "./db";
 import { scrapeGoogleFlights } from "./scrapers/google-flights-scraper";
 import { sendNtfyNotification } from "./notifier";
 import { sendDealAlertEmail } from "./email";
@@ -59,6 +59,39 @@ async function executeScanRoute(routeId: number): Promise<ScanResult> {
       foundOptions: [],
       error: `Rota #${routeId} não encontrada.`,
       searchedAt,
+    };
+  }
+
+  const todayStr = new Date().toISOString().split("T")[0];
+  if (route.flightDate < todayStr) {
+    logger.warn("SCANNER", `Rota #${route.id} com data no passado (${route.flightDate} < ${todayStr}). Busca ignorada e rota desativada.`);
+    await updateRoute(route.id, { isActive: false });
+    return {
+      success: false,
+      routeId: route.id,
+      origin: route.origin,
+      destination: route.destination,
+      flightDate: route.flightDate,
+      lowestPrice: 0,
+      currency: "BRL",
+      targetPrice: route.targetPrice,
+      isBelowTarget: false,
+      isStatisticalDeal: false,
+      anomalyAnalysis: {
+        isDeal: false,
+        dealLevel: "NORMAL",
+        zScore: null,
+        sampleSize: 0,
+        mean: null,
+        stdDev: null,
+        discountPercent: null,
+        message: "A data de partida deste voo já passou.",
+      },
+      notified: false,
+      foundOptions: [],
+      providerUsed: "none",
+      searchedAt,
+      error: "A data de partida deste voo já passou. A rota foi desativada automaticamente.",
     };
   }
 
@@ -323,82 +356,111 @@ async function executeScanRoute(routeId: number): Promise<ScanResult> {
   const shouldNotify = isBelowTarget || isStatisticalDeal || Boolean(recommendedAlternative && recommendedAlternative.price <= route.targetPrice);
 
   if (shouldNotify) {
-    // 1. Notificação Push NTFY (se configurado nas opções)
-    if (settings.autoNotify && settings.ntfyTopic) {
-      const ntfySent = await sendNtfyNotification({
-        topic: settings.ntfyTopic,
-        origin: route.origin,
-        destination: route.destination,
-        flightDate: route.flightDate,
-        price: lowestPrice,
-        targetPrice: route.targetPrice,
-        currency: primaryOption.currency || "BRL",
-        passengers: route.passengers || 1,
-        children: route.children || 0,
-        infantsInLap: route.infantsInLap || 0,
-        airline: primaryOption.airline,
-        flightNumber: primaryOption.flightNumber,
-        departureTime: primaryOption.departureTime,
-        arrivalTime: primaryOption.arrivalTime,
-        stops: primaryOption.stops,
-        bookingLink: primaryOption.bookingLink,
-        anomalyAnalysis,
-        recommendedAlternative,
-      });
-      if (ntfySent) {
-        notified = true;
-        const triggerReason = isStatisticalDeal
-          ? `Anomalia Estatística (${anomalyAnalysis.dealLevel}, Z: ${anomalyAnalysis.zScore})`
-          : `Meta atingida: R$ ${lowestPrice.toFixed(2)} <= R$ ${route.targetPrice.toFixed(2)}`;
-        logger.success(
+    // Debounce / Cooldown de Notificações:
+    // Evita spam de alertas em toda rodada do agendador.
+    // Só envia novo alerta se:
+    // 1. Nunca foi notificado antes, OU
+    // 2. Passaram pelo menos 24 horas desde a última notificação, OU
+    // 3. O preço atual caiu pelo menos 3% em relação ao último preço notificado.
+    let allowNotification = true;
+    if (route.lastNotifiedAt && route.lastNotifiedPrice) {
+      const lastNotifiedTime = new Date(route.lastNotifiedAt).getTime();
+      const hoursSinceLastNotification = (Date.now() - lastNotifiedTime) / (1000 * 60 * 60);
+      const priceDropPercent = ((route.lastNotifiedPrice - lowestPrice) / route.lastNotifiedPrice) * 100;
+
+      if (hoursSinceLastNotification < 24 && priceDropPercent < 3) {
+        allowNotification = false;
+        logger.info(
           "NOTIFICATION",
-          `🚨 Alerta disparado para o tópico '${settings.ntfyTopic}' [${triggerReason}]`,
-          { route: `${route.origin}->${route.destination}`, price: lowestPrice, targetPrice: route.targetPrice, zScore: anomalyAnalysis.zScore },
+          `⏳ Alerta suprimido por cooldown para #${route.id} (${route.origin}→${route.destination}): R$ ${lowestPrice.toFixed(2)} já notificado há ${hoursSinceLastNotification.toFixed(1)}h (queda de ${priceDropPercent.toFixed(1)}% < 3%).`,
+          { lastNotifiedAt: route.lastNotifiedAt, lastNotifiedPrice: route.lastNotifiedPrice, currentPrice: lowestPrice },
           route.id
         );
       }
     }
 
-    // 2. Disparo de E-mail de Alerta para o usuário proprietário da rota
-    if (route.userId) {
-      try {
-        const user = await findUserById(route.userId);
-        if (user && user.email) {
-          const emailSent = await sendDealAlertEmail({
-            email: user.email,
-            name: user.name,
-            origin: route.origin,
-            destination: route.destination,
-            flightDate: route.flightDate,
-            returnDate: route.returnDate || null,
-            price: lowestPrice,
-            targetPrice: route.targetPrice,
-            currency: primaryOption.currency || "BRL",
-            airline: primaryOption.airline,
-            flightNumber: primaryOption.flightNumber,
-            departureTime: primaryOption.departureTime,
-            arrivalTime: primaryOption.arrivalTime,
-            stops: primaryOption.stops,
-            durationMinutes: primaryOption.durationMinutes,
-            bookingLink: primaryOption.bookingLink,
-            passengers: route.passengers || 1,
-            children: route.children || 0,
-            infantsInLap: route.infantsInLap || 0,
-            anomalyAnalysis,
-            recommendedAlternative,
-          });
-          if (emailSent) {
-            notified = true;
-            logger.success(
-              "NOTIFICATION",
-              `🎯 E-mail de alerta enviado para ${user.email} (Rota #${route.id}: R$ ${lowestPrice.toFixed(2)} | Meta R$ ${route.targetPrice.toFixed(2)}${isStatisticalDeal ? ` | ${anomalyAnalysis.dealLevel} Z=${anomalyAnalysis.zScore}` : ""})`,
-              { email: user.email, price: lowestPrice, targetPrice: route.targetPrice, dealLevel: anomalyAnalysis.dealLevel },
-              route.id
-            );
-          }
+    if (allowNotification) {
+      // 1. Notificação Push NTFY (se configurado nas opções)
+      if (settings.autoNotify && settings.ntfyTopic) {
+        const ntfySent = await sendNtfyNotification({
+          topic: settings.ntfyTopic,
+          origin: route.origin,
+          destination: route.destination,
+          flightDate: route.flightDate,
+          price: lowestPrice,
+          targetPrice: route.targetPrice,
+          currency: primaryOption.currency || "BRL",
+          passengers: route.passengers || 1,
+          children: route.children || 0,
+          infantsInLap: route.infantsInLap || 0,
+          airline: primaryOption.airline,
+          flightNumber: primaryOption.flightNumber,
+          departureTime: primaryOption.departureTime,
+          arrivalTime: primaryOption.arrivalTime,
+          stops: primaryOption.stops,
+          bookingLink: primaryOption.bookingLink,
+          anomalyAnalysis,
+          recommendedAlternative,
+        });
+        if (ntfySent) {
+          notified = true;
+          const triggerReason = isStatisticalDeal
+            ? `Anomalia Estatística (${anomalyAnalysis.dealLevel}, Z: ${anomalyAnalysis.zScore})`
+            : `Meta atingida: R$ ${lowestPrice.toFixed(2)} <= R$ ${route.targetPrice.toFixed(2)}`;
+          logger.success(
+            "NOTIFICATION",
+            `🚨 Alerta disparado para o tópico '${settings.ntfyTopic}' [${triggerReason}]`,
+            { route: `${route.origin}->${route.destination}`, price: lowestPrice, targetPrice: route.targetPrice, zScore: anomalyAnalysis.zScore },
+            route.id
+          );
         }
-      } catch (err: any) {
-        logger.error("NOTIFICATION", `Falha ao enviar e-mail de alerta de preço para rota #${route.id}: ${err.message}`);
+      }
+
+      // 2. Disparo de E-mail de Alerta para o usuário proprietário da rota
+      if (route.userId) {
+        try {
+          const user = await findUserById(route.userId);
+          if (user && user.email) {
+            const emailSent = await sendDealAlertEmail({
+              email: user.email,
+              name: user.name,
+              origin: route.origin,
+              destination: route.destination,
+              flightDate: route.flightDate,
+              returnDate: route.returnDate || null,
+              price: lowestPrice,
+              targetPrice: route.targetPrice,
+              currency: primaryOption.currency || "BRL",
+              airline: primaryOption.airline,
+              flightNumber: primaryOption.flightNumber,
+              departureTime: primaryOption.departureTime,
+              arrivalTime: primaryOption.arrivalTime,
+              stops: primaryOption.stops,
+              durationMinutes: primaryOption.durationMinutes,
+              bookingLink: primaryOption.bookingLink,
+              passengers: route.passengers || 1,
+              children: route.children || 0,
+              infantsInLap: route.infantsInLap || 0,
+              anomalyAnalysis,
+              recommendedAlternative,
+            });
+            if (emailSent) {
+              notified = true;
+              logger.success(
+                "NOTIFICATION",
+                `🎯 E-mail de alerta enviado para ${user.email} (Rota #${route.id}: R$ ${lowestPrice.toFixed(2)} | Meta R$ ${route.targetPrice.toFixed(2)}${isStatisticalDeal ? ` | ${anomalyAnalysis.dealLevel} Z=${anomalyAnalysis.zScore}` : ""})`,
+                { email: user.email, price: lowestPrice, targetPrice: route.targetPrice, dealLevel: anomalyAnalysis.dealLevel },
+                route.id
+              );
+            }
+          }
+        } catch (err: any) {
+          logger.error("NOTIFICATION", `Falha ao enviar e-mail de alerta de preço para rota #${route.id}: ${err.message}`);
+        }
+      }
+
+      if (notified) {
+        await updateRouteLastNotified(route.id, lowestPrice);
       }
     }
   }
@@ -422,7 +484,7 @@ async function executeScanRoute(routeId: number): Promise<ScanResult> {
   };
 }
 
-export async function scanAllActiveRoutes(): Promise<{
+export async function scanAllActiveRoutes(options?: { userId?: number }): Promise<{
   totalRoutes: number;
   successes: number;
   alertsTriggered: number;
@@ -433,13 +495,20 @@ export async function scanAllActiveRoutes(): Promise<{
   alertasDisparados?: number;
   resultados?: ScanResult[];
 }> {
-  const activeRoutes = await listRoutes(true);
+  const activeRoutes = await listRoutes({ activeOnly: true, userId: options?.userId });
   logger.info("SCANNER", `Iniciando ciclo de varredura para ${activeRoutes.length} rota(s) ativa(s)...`);
   const results: ScanResult[] = [];
   let successes = 0;
   let alertsTriggered = 0;
+  const today = new Date().toISOString().split("T")[0];
 
   for (const route of activeRoutes) {
+    if (route.flightDate < today) {
+      logger.info("SCANNER", `Rota #${route.id} expirada (${route.flightDate} < ${today}). Desativando automaticamente.`);
+      await updateRoute(route.id, { isActive: false });
+      continue;
+    }
+
     const res = await scanRoute(route.id);
     results.push(res);
     if (res.success) successes++;

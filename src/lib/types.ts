@@ -14,6 +14,7 @@ export interface LoginCode {
   expiresAt: string;
   usedAt?: string | null;
   ipAddress?: string | null;
+  failedAttempts?: number;
   createdAt: string;
 }
 
@@ -45,6 +46,8 @@ export interface MonitoredRoute {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  lastNotifiedAt?: string | null;
+  lastNotifiedPrice?: number | null;
   // User info (optional joined fields)
   userName?: string | null;
   userEmail?: string | null;

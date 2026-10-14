@@ -665,6 +665,9 @@ export async function scrapeGoogleFlightsPriceHistory(
     const points: { date: string; timestampMs: number; price: number; currency: string }[] = [];
     const pattern = /\[\[(\[\d{12,14},\s*\d+\](?:,\s*\[\d{12,14},\s*\d+\])+)\]\]/g;
     const matches = [...scriptsContent.matchAll(pattern)];
+    const now = Date.now();
+    // Limite máximo: no máximo o dia de hoje (+ 24h para tolerância de fuso horário UTC)
+    const maxHistoricalTimestamp = now + 24 * 60 * 60 * 1000;
 
     for (const match of matches) {
       try {
@@ -672,7 +675,8 @@ export async function scrapeGoogleFlightsPriceHistory(
         const rawPoints: [number, number][] = JSON.parse(arrayJson);
           for (const [ts, price] of rawPoints) {
             const d = new Date(ts);
-            if (!isNaN(d.getTime()) && price >= 50 && price <= 300000) {
+            // Ignora timestamps que pertençam a partidas futuras na grade de calendário
+            if (!isNaN(d.getTime()) && price >= 50 && price <= 300000 && ts <= maxHistoricalTimestamp) {
               const unitPrice = Number(price);
               points.push({
                 date: d.toISOString().split("T")[0],
@@ -687,10 +691,10 @@ export async function scrapeGoogleFlightsPriceHistory(
 
     // Deduplica por data e ordena cronologicamente
     const uniqueMap = new Map<string, { date: string; timestampMs: number; price: number; currency: string }>();
-    const cutoffTimestamp = Date.now() - days * 24 * 60 * 60 * 1000;
+    const cutoffTimestamp = now - days * 24 * 60 * 60 * 1000;
 
     for (const p of points) {
-      if (p.timestampMs >= cutoffTimestamp || days >= 120) {
+      if ((p.timestampMs >= cutoffTimestamp || days >= 120) && p.timestampMs <= maxHistoricalTimestamp) {
         uniqueMap.set(p.date, p);
       }
     }
