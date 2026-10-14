@@ -43,6 +43,8 @@ export default function RouteModal({
   const [infantsInLap, setInfantsInLap] = useState(0);
   const [targetPrice, setTargetPrice] = useState("");
   const [onlyDirect, setOnlyDirect] = useState(false);
+  const [flexibilityDays, setFlexibilityDays] = useState<number>(0);
+  const [flexibleWeekends, setFlexibleWeekends] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -59,6 +61,8 @@ export default function RouteModal({
       setChildren(routeToEdit.children || 0);
       setInfantsInLap(routeToEdit.infantsInLap || 0);
       setOnlyDirect(Boolean(routeToEdit.onlyDirect));
+      setFlexibilityDays(routeToEdit.flexibilityDays ?? 0);
+      setFlexibleWeekends(Boolean(routeToEdit.flexibleWeekends));
       setTargetPrice(String(routeToEdit.targetPrice));
     } else {
       const defaultDate = new Date();
@@ -78,6 +82,8 @@ export default function RouteModal({
       setChildren(0);
       setInfantsInLap(0);
       setOnlyDirect(false);
+      setFlexibilityDays(0);
+      setFlexibleWeekends(false);
       setTargetPrice("2500");
     }
     setError(null);
@@ -201,6 +207,8 @@ export default function RouteModal({
         infantsInLap: Number(infantsInLap),
         targetPrice: parsedPrice,
         onlyDirect,
+        flexibilityDays,
+        flexibleWeekends,
         isActive: routeToEdit ? routeToEdit.isActive !== false : true,
         locale,
       };
@@ -405,6 +413,84 @@ export default function RouteModal({
                   align="right"
                   required
                 />
+              </div>
+            )}
+          </div>
+
+          {/* Date Flexibility Section */}
+          <div className="space-y-2 p-3.5 rounded-2xl bg-sky-50/60 border border-sky-200/70 relative z-20">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-sky-600" />
+                <span>{locale === "en" ? "Date Flexibility" : "Flexibilidade de Datas"}</span>
+              </label>
+              <span className="text-[11px] font-bold text-sky-700 bg-white border border-sky-200 px-2 py-0.5 rounded-md shadow-2xs">
+                {flexibilityDays === 0 && !flexibleWeekends
+                  ? (locale === "en" ? "Exact Date" : "Data Exata")
+                  : flexibleWeekends
+                  ? (locale === "en" ? "Weekends" : "Fim de Semana")
+                  : `±${flexibilityDays} ${locale === "en" ? "days" : "dias"}`}
+              </span>
+            </div>
+
+            <p className="text-[11px] text-slate-500 font-medium">
+              {locale === "en"
+                ? "Allow BipFly to search nearby dates and alert you to bargains up to 60% cheaper."
+                : "Permite ao BipFly varrer dias próximos e alertar você sobre promoções até 60% mais baratas."}
+            </p>
+
+            <div className="grid grid-cols-4 gap-1.5 pt-1">
+              {[
+                { label: locale === "en" ? "Exact" : "Exata", value: 0 },
+                { label: "±1 dia", value: 1 },
+                { label: "±2 dias", value: 2 },
+                { label: "±3 dias", value: 3 },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    setFlexibleWeekends(false);
+                    setFlexibilityDays(opt.value);
+                  }}
+                  className={`py-1.5 px-2 rounded-xl text-xs font-bold border transition-all cursor-pointer text-center ${
+                    !flexibleWeekends && flexibilityDays === opt.value
+                      ? "bg-white text-sky-700 border-sky-300 shadow-2xs ring-1 ring-sky-300"
+                      : "bg-white/80 text-slate-600 border-slate-200 hover:border-slate-300 hover:text-slate-900"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            {tripType === "round_trip" && (
+              <div className="pt-2 flex items-center justify-between border-t border-sky-100/80 mt-1">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+                  <span className="text-xs font-semibold text-slate-700">
+                    {locale === "en" ? "Focus on Weekend Trips" : "Focar em Finais de Semana"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextVal = !flexibleWeekends;
+                    setFlexibleWeekends(nextVal);
+                    if (nextVal && flexibilityDays === 0) {
+                      setFlexibilityDays(2);
+                    }
+                  }}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    flexibleWeekends ? "bg-sky-600" : "bg-slate-300"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      flexibleWeekends ? "translate-x-4" : "translate-x-0"
+                    }`}
+                  />
+                </button>
               </div>
             )}
           </div>

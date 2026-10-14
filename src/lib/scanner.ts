@@ -4,8 +4,43 @@ import { sendNtfyNotification } from "./notifier";
 import { sendDealAlertEmail } from "./email";
 import { FlightOption, MonitoredRoute, ScanResult } from "./types";
 import { logger } from "./logger";
+import { fetchMonthMatrixPrices } from "@/services/aviasalesDataService";
+import { getGoogleFlightsUrl } from "./utils";
 
-export async function scanRoute(routeId: number): Promise<ScanResult> {
+// Cache de promessas de varredura ativas por routeId para deduplicação de chamadas concorrentes
+declare global {
+  // eslint-disable-next-line no-var
+  var __inFlightScans: Map<number, Promise<ScanResult>> | undefined;
+}
+
+const inFlightScans: Map<number, Promise<ScanResult>> =
+  global.__inFlightScans || new Map();
+global.__inFlightScans = inFlightScans;
+
+export function isRouteScanning(routeId: number): boolean {
+  return inFlightScans.has(routeId);
+}
+
+export function scanRoute(routeId: number): Promise<ScanResult> {
+  const existing = inFlightScans.get(routeId);
+  if (existing) {
+    logger.info("SCANNER", `Reutilizando varredura em andamento para a rota #${routeId}`);
+    return existing;
+  }
+
+  const scanPromise = (async () => {
+    try {
+      return await executeScanRoute(routeId);
+    } finally {
+      inFlightScans.delete(routeId);
+    }
+  })();
+
+  inFlightScans.set(routeId, scanPromise);
+  return scanPromise;
+}
+
+async function executeScanRoute(routeId: number): Promise<ScanResult> {
   const route = await findRouteById(routeId);
   const searchedAt = new Date().toISOString();
 
@@ -192,7 +227,75 @@ export async function scanRoute(routeId: number): Promise<ScanResult> {
   let notified = false;
   const settings = await getAppSettings();
 
-  if (isBelowTarget) {
+  // Verificação de datas flexíveis se a rota possuir tolerância configurada
+  let recommendedAlternative: {
+    departureDate: string;
+    returnDate?: string | null;
+    price: number;
+    savingsPercent: number;
+    bookingLink?: string;
+  } | undefined = undefined;
+
+  if (route.flexibilityDays && route.flexibilityDays > 0) {
+    try {
+      const month = route.flightDate.slice(0, 7);
+      const calendarPrices = await fetchMonthMatrixPrices({
+        origin: route.origin,
+        destination: route.destination,
+        month,
+        currency: primaryOption.currency || "BRL",
+      });
+
+      const baseDep = route.flightDate;
+      let bestAltPrice = Infinity;
+      let bestAltItem: (typeof calendarPrices)[0] | null = null;
+
+      for (const item of calendarPrices) {
+        if (!item.departureDate || item.departureDate === baseDep) continue;
+        const diffDays = Math.abs(
+          (new Date(item.departureDate).getTime() - new Date(baseDep).getTime()) / (1000 * 60 * 60 * 24)
+        );
+        if (diffDays <= route.flexibilityDays && item.price < lowestPrice) {
+          if (item.price < bestAltPrice) {
+            bestAltPrice = item.price;
+            bestAltItem = item;
+          }
+        }
+      }
+
+      if (bestAltItem && bestAltPrice < lowestPrice) {
+        const savingsPercent = Math.round(((lowestPrice - bestAltPrice) / lowestPrice) * 100);
+        if (savingsPercent >= 5) {
+          recommendedAlternative = {
+            departureDate: bestAltItem.departureDate,
+            returnDate: bestAltItem.returnDate || null,
+            price: bestAltPrice,
+            savingsPercent,
+            bookingLink: getGoogleFlightsUrl(
+              route.origin,
+              route.destination,
+              bestAltItem.departureDate,
+              route.passengers || 1,
+              bestAltItem.returnDate,
+              route.tripType
+            ),
+          };
+          logger.info(
+            "SCANNER",
+            `💡 Data flexível vantajosa detectada para #${route.id}: ${bestAltItem.departureDate} por R$ ${bestAltPrice.toFixed(2)} (-${savingsPercent}%)`,
+            undefined,
+            route.id
+          );
+        }
+      }
+    } catch (err: any) {
+      logger.warn("SCANNER", `Aviso ao consultar datas flexíveis para #${route.id}: ${err.message}`, undefined, route.id);
+    }
+  }
+
+  const shouldNotify = isBelowTarget || Boolean(recommendedAlternative && recommendedAlternative.price <= route.targetPrice);
+
+  if (shouldNotify) {
     // 1. Notificação Push NTFY (se configurado nas opções)
     if (settings.autoNotify && settings.ntfyTopic) {
       const ntfySent = await sendNtfyNotification({
@@ -212,6 +315,7 @@ export async function scanRoute(routeId: number): Promise<ScanResult> {
         arrivalTime: primaryOption.arrivalTime,
         stops: primaryOption.stops,
         bookingLink: primaryOption.bookingLink,
+        recommendedAlternative,
       });
       if (ntfySent) {
         notified = true;
@@ -249,6 +353,7 @@ export async function scanRoute(routeId: number): Promise<ScanResult> {
             passengers: route.passengers || 1,
             children: route.children || 0,
             infantsInLap: route.infantsInLap || 0,
+            recommendedAlternative,
           });
           if (emailSent) {
             notified = true;

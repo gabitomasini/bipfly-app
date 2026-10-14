@@ -42,18 +42,36 @@ const MAX_LAUNCH_RETRIES = 2;
 
 // ── Mutex para garantir que apenas um Chromium roda por vez ──
 let browserLock: Promise<void> = Promise.resolve();
+const SCRAPER_OPERATION_TIMEOUT_MS = 40_000;
 
-async function withBrowserLock<T>(fn: () => Promise<T>): Promise<T> {
+export async function withBrowserLock<T>(
+  fn: () => Promise<T>,
+  timeoutMs: number = SCRAPER_OPERATION_TIMEOUT_MS
+): Promise<T> {
   let releaseLock: () => void;
-  const previousLock = browserLock;
-  browserLock = new Promise<void>((resolve) => {
+  const currentLock = new Promise<void>((resolve) => {
     releaseLock = resolve;
   });
 
-  await previousLock;
+  const previousLock = browserLock;
+  browserLock = currentLock;
+
+  // Garante que a promessa anterior seja aguardada sem travar o pipeline se rejeitar
   try {
-    return await fn();
+    await previousLock;
+  } catch {}
+
+  let timeoutTimer: NodeJS.Timeout | null = null;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutTimer = setTimeout(() => {
+      reject(new ScraperError(`Operação do scraper excedeu o tempo limite de ${Math.round(timeoutMs / 1000)}s.`));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([fn(), timeoutPromise]);
   } finally {
+    if (timeoutTimer) clearTimeout(timeoutTimer);
     releaseLock!();
   }
 }
@@ -171,7 +189,7 @@ export async function scrapeGoogleFlights(
 
     // Aceita popup de cookies se presente
     try {
-      const consentBtn = page.locator('button:has-text("Aceitar tudo"), button:has-text("Aceito"), button:has-text("Concordo"), button:has-text("I agree")');
+      const consentBtn = page.locator('button:has-text("Aceitar tudo"), button:has-text("Aceito"), button:has-text("Concordo"), button:has-text("I agree"), button:has-text("Accept all"), button:has-text("Antes de continuar")');
       if (await consentBtn.first().isVisible({ timeout: 2000 })) {
         await consentBtn.first().click();
       }
@@ -184,7 +202,7 @@ export async function scrapeGoogleFlights(
           const cards = document.querySelectorAll("li.pIav2d, div.pIav2d, ul.Rk10dc > li");
           return cards.length > 0;
         },
-        { timeout: 12000 }
+        { timeout: 16000 }
       );
     } catch {}
 
@@ -203,7 +221,10 @@ export async function scrapeGoogleFlights(
         ).first();
         if (await priceSortOption.isVisible({ timeout: 1500 })) {
           await priceSortOption.click();
-          await page.waitForTimeout(1500);
+          await page.waitForFunction(
+            () => document.querySelectorAll("li.pIav2d, div.pIav2d, ul.Rk10dc > li").length > 0,
+            { timeout: 4000 }
+          ).catch(() => {});
         }
       }
     } catch {}
@@ -261,9 +282,9 @@ export async function scrapeGoogleFlights(
         // 1. Extração do Preço
         let priceText = "";
         
-        // Tenta achar em aria-label com "Reais brasileiros" ou "A partir de"
+        // Tenta achar em aria-label com "Reais brasileiros", "A partir de", etc.
         for (const aria of allArias) {
-          const matchAria = aria.match(/(?:A partir de|por)?\s*([\d\.\,]+)\s*Reais/i);
+          const matchAria = aria.match(/(?:a partir de|por|total|preço)?\s*([\d\.\,]+)\s*(?:Reais|BRL)/i);
           if (matchAria && matchAria[1]) {
             priceText = matchAria[1];
             break;

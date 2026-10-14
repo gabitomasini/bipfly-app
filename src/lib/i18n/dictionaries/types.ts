@@ -202,6 +202,10 @@ export interface TranslationDictionary {
     errorReturnBeforeDeparture: string;
     errorInfantsExceedAdults: string;
     errorLimitReached: string;
+    dateFlexibilityTitle: string;
+    dateFlexibilityDesc: string;
+    exactDate: string;
+    weekendTripFocus: string;
   };
   flightDrawer: {
     bestDirect: string;
@@ -210,6 +214,28 @@ export interface TranslationDictionary {
     directOptions: string;
     stopsOptions: string;
     groupTotal: string;
+    allFilters: string;
+    onlyDirect: string;
+    withStops: string;
+    matrixTab: string;
+    flightOptionsTab: string;
+  };
+  matrix: {
+    title: string;
+    subtitle: string;
+    smartHeatmap: string;
+    exactDate: string;
+    weekends: string;
+    lowestFare: string;
+    greatDeal: string;
+    average: string;
+    higher: string;
+    clickCellHint: string;
+    departure: string;
+    return: string;
+    applyDate: string;
+    dateUpdatedSuccess: string;
+    noData: string;
   };
   history: {
     title: string;
@@ -435,6 +461,7 @@ export interface TranslationDictionary {
     settingsSaved: string;
     testAlertSent: string;
     connError: string;
+    searchTimeout: string;
   };
   auth: {
     login: string;

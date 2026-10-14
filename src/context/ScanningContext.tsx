@@ -102,12 +102,17 @@ export function ScanningProvider({ children }: { children: ReactNode }) {
     setActiveRouteLabel(t.scanning.allRoutes);
     addToast(`${t.toasts.searchStarted} ${t.toasts.searchStartedDesc}`, "info");
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 90000);
+
     try {
       const res = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       const data = await res.json();
 
       if (data.success) {
@@ -128,10 +133,17 @@ export function ScanningProvider({ children }: { children: ReactNode }) {
         addToast(data.error || t.toasts.searchFailed, "error");
         return false;
       }
-    } catch {
-      addToast(t.toasts.connError, "error");
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      if (err.name === "AbortError" || controller.signal.aborted) {
+        addToast(t.toasts.searchTimeout, "info");
+        triggerRefreshCallbacks();
+      } else {
+        addToast(t.toasts.connError, "error");
+      }
       return false;
     } finally {
+      clearTimeout(timeoutId);
       setIsScanning(false);
       setActiveRouteId(null);
       setActiveRouteLabel(null);
@@ -150,12 +162,17 @@ export function ScanningProvider({ children }: { children: ReactNode }) {
         "info"
       );
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 35000);
+
       try {
         const res = await fetch("/api/search", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ routeId }),
+          signal: controller.signal,
         });
+        clearTimeout(timeoutId);
         const data = await res.json();
 
         if (data.success) {
@@ -178,10 +195,17 @@ export function ScanningProvider({ children }: { children: ReactNode }) {
           triggerRefreshCallbacks();
           return false;
         }
-      } catch {
-        addToast(t.toasts.connError, "error");
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        if (err.name === "AbortError" || controller.signal.aborted) {
+          addToast(t.toasts.searchTimeout, "info");
+          triggerRefreshCallbacks();
+        } else {
+          addToast(t.toasts.connError, "error");
+        }
         return false;
       } finally {
+        clearTimeout(timeoutId);
         setIsScanning(false);
         setActiveRouteId(null);
         setActiveRouteLabel(null);

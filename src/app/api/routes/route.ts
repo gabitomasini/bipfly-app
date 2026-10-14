@@ -4,7 +4,6 @@ import { getAuthUser, createAndSetSession, isUserAdmin, MAX_ROUTES_PER_USER } fr
 import { sendRouteCreatedEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
 import { validateFullName, validateEmail } from "@/lib/validation";
-import { scanRoute } from "@/lib/scanner";
 
 export const dynamic = "force-dynamic";
 
@@ -137,6 +136,8 @@ export async function POST(request: Request) {
     }
 
     const onlyDirect = body.onlyDirect !== undefined ? Boolean(body.onlyDirect) : Boolean(body.apenas_diretos || body.apenasDiretos);
+    const flexibilityDays = body.flexibilityDays !== undefined ? Number(body.flexibilityDays) : (body.flexibility_days !== undefined ? Number(body.flexibility_days) : 0);
+    const flexibleWeekends = body.flexibleWeekends !== undefined ? Boolean(body.flexibleWeekends) : Boolean(body.flexible_weekends);
     const returnDate = body.returnDate || body.return_date || null;
     const tripType = body.tripType || body.trip_type || (returnDate ? "round_trip" : "one_way");
     const children = body.children !== undefined ? Number(body.children) : (body.criancas !== undefined ? Number(body.criancas) : 0);
@@ -155,6 +156,8 @@ export async function POST(request: Request) {
       targetPrice: Number(targetPrice),
       intervalHours: Number(intervalHours) || 12,
       onlyDirect,
+      flexibilityDays,
+      flexibleWeekends,
     });
 
     const cookieHeader = request.headers.get("cookie") || "";
@@ -181,11 +184,6 @@ export async function POST(request: Request) {
       locale: detectedLocale,
     }).catch((err) => {
       logger.error("NOTIFICATION", `Falha no disparo do e-mail de confirmação da rota #${id}: ${err.message}`);
-    });
-
-    // Dispara a busca inicial de preços em background imediatamente
-    scanRoute(id).catch((err) => {
-      logger.error("SCANNER", `Falha na busca inicial automática para a rota #${id}: ${err.message}`);
     });
 
     return NextResponse.json(

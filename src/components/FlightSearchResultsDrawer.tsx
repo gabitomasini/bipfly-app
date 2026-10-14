@@ -1,26 +1,42 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { X, Clock, CheckCircle2, ExternalLink, Plane, Layers, Sparkles } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { X, Clock, CheckCircle2, ExternalLink, Plane, Layers, Sparkles, Calendar } from "lucide-react";
 import { FlightOption, MonitoredRoute } from "@/lib/types";
 import { formatDuration, getAirportName, getGoogleFlightsUrl } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import { useModalBehavior } from "@/hooks/useModalBehavior";
+import { useToast } from "@/components/Toast";
+import PriceMatrixHeatmap from "./PriceMatrixHeatmap";
 
 interface FlightSearchResultsDrawerProps {
   isOpen: boolean;
   route: MonitoredRoute | null;
   options: FlightOption[];
+  initialTab?: "results" | "matrix";
   onClose: () => void;
+  onRouteUpdated?: () => void;
 }
 
 export default function FlightSearchResultsDrawer({
   isOpen,
   route,
   options,
+  initialTab,
   onClose,
+  onRouteUpdated,
 }: FlightSearchResultsDrawerProps) {
   const { t, formatCurrency, formatUsdEstimate, formatDate, locale } = useTranslation();
+  const { addToast } = useToast();
+  const [activeTab, setActiveTab] = useState<"results" | "matrix">(
+    initialTab || (options.length === 0 ? "matrix" : "results")
+  );
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab(initialTab || (options.length === 0 ? "matrix" : "results"));
+    }
+  }, [isOpen, initialTab, options.length]);
   const [filterType, setFilterType] = useState<"all" | "direct" | "stops">("all");
   const { overlayProps, containerRef } = useModalBehavior({
     isOpen,
@@ -104,8 +120,80 @@ export default function FlightSearchResultsDrawer({
           </button>
         </div>
 
-        {/* Top Highlight Cards: Best Direct vs Lowest with Stops */}
-        {options.length > 0 && (
+        {/* Navigation Tabs (Resultados vs Matriz de Datas) */}
+        <div className="px-5 pt-2.5 pb-0 bg-slate-50/70 border-b border-slate-200/80 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab("results")}
+            className={`pb-2.5 px-3 font-bold text-xs flex items-center gap-1.5 border-b-2 transition-all cursor-pointer ${
+              activeTab === "results"
+                ? "border-sky-600 text-sky-700"
+                : "border-transparent text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <Plane className="w-3.5 h-3.5" />
+            <span>{locale === "en" ? `Flight Options (${options.length})` : `Opções de Voo (${options.length})`}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("matrix")}
+            className={`pb-2.5 px-3 font-bold text-xs flex items-center gap-1.5 border-b-2 transition-all cursor-pointer ${
+              activeTab === "matrix"
+                ? "border-sky-600 text-sky-700"
+                : "border-transparent text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            <span>{locale === "en" ? "Flexible Date Matrix" : "Matriz de Datas Flexíveis"}</span>
+            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-md">
+              {locale === "en" ? "Deals" : "Economia"}
+            </span>
+          </button>
+        </div>
+
+        {activeTab === "matrix" ? (
+          <div className="p-4 flex-1 overflow-y-auto">
+            <PriceMatrixHeatmap
+              origin={origin}
+              destination={destination}
+              baseDepartureDate={flightDate}
+              baseReturnDate={route.returnDate}
+              flexibilityDays={route.flexibilityDays ?? 2}
+              flexibleWeekends={Boolean(route.flexibleWeekends)}
+              onSelectDates={async (newDep, newRet) => {
+                try {
+                  const res = await fetch(`/api/routes/${route.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      flightDate: newDep,
+                      returnDate: newRet || null,
+                    }),
+                  });
+                  const json = await res.json();
+                  if (json.success) {
+                    addToast(
+                      locale === "en"
+                        ? "Route flight dates updated successfully!"
+                        : "Datas da rota atualizadas com sucesso!",
+                      "success"
+                    );
+                    onRouteUpdated?.();
+                    onClose();
+                  } else {
+                    addToast(json.error || "Erro ao atualizar rota.", "error");
+                  }
+                } catch (err: any) {
+                  addToast(err.message || "Erro ao atualizar rota.", "error");
+                }
+              }}
+            />
+          </div>
+        ) : (
+          <>
+            {/* Top Highlight Cards: Best Direct vs Lowest with Stops */}
+            {options.length > 0 && (
           <div className="p-4 pb-0 bg-slate-50/40 border-b border-slate-100">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {/* Best Direct Flight */}
@@ -356,6 +444,8 @@ export default function FlightSearchResultsDrawer({
             })
           )}
         </div>
+        </>
+        )}
 
         {/* Footer */}
         <div className="p-4 border-t border-slate-100 bg-slate-50/70 flex justify-end">

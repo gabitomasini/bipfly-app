@@ -15,6 +15,13 @@ export async function sendNtfyNotification(params: {
   arrivalTime?: string | null;
   stops?: number | null;
   bookingLink?: string | null;
+  recommendedAlternative?: {
+    departureDate: string;
+    returnDate?: string | null;
+    price: number;
+    savingsPercent: number;
+    bookingLink?: string;
+  };
 }): Promise<boolean> {
   const { topic, origin, destination, flightDate, price, targetPrice, currency = "BRL" } = params;
 
@@ -61,6 +68,16 @@ export async function sendNtfyNotification(params: {
 
   if (params.stops !== undefined && params.stops !== null) {
     lines.push(`🔄 Escalas: ${params.stops === 0 ? "Voo Direto" : `${params.stops} parada(s)`}`);
+  }
+
+  if (params.recommendedAlternative) {
+    const alt = params.recommendedAlternative;
+    const formattedAlt = new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency,
+    }).format(alt.price);
+    const dateDesc = alt.returnDate ? `${alt.departureDate} a ${alt.returnDate}` : alt.departureDate;
+    lines.push(`💡 Dica de Data Flexível: Em ${dateDesc} a tarifa cai para ${formattedAlt} (-${alt.savingsPercent}%)!`);
   }
 
   lines.push(`\n⚡ Monitorado pelo BipFly. Clique para comprar ou conferir!`);

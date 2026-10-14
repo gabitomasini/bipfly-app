@@ -54,26 +54,30 @@ export async function PATCH(
     const infantsInLap = body.infantsInLap !== undefined ? Number(body.infantsInLap) : (body.infants_in_lap !== undefined ? Number(body.infants_in_lap) : (body.bebes !== undefined ? Number(body.bebes) : undefined));
     const intervalHours = body.intervalHours !== undefined ? body.intervalHours : body.intervalo_horas;
     const onlyDirect = body.onlyDirect !== undefined ? Boolean(body.onlyDirect) : (body.apenas_diretos !== undefined ? Boolean(body.apenas_diretos) : undefined);
+    const flexibilityDays = body.flexibilityDays !== undefined ? Number(body.flexibilityDays) : (body.flexibility_days !== undefined ? Number(body.flexibility_days) : undefined);
+    const flexibleWeekends = body.flexibleWeekends !== undefined ? Boolean(body.flexibleWeekends) : (body.flexible_weekends !== undefined ? Boolean(body.flexible_weekends) : undefined);
     const isActive = body.isActive !== undefined ? body.isActive : body.ativo;
 
     const ok = await updateRoute(
-      routeId,
-      {
-        origin,
-        destination,
-        flightDate,
-        returnDate,
-        tripType,
-        targetPrice: targetPrice !== undefined ? Number(targetPrice) : undefined,
-        passengers: passengers !== undefined ? Number(passengers) : undefined,
-        children: children !== undefined && !isNaN(children) ? children : undefined,
-        infantsInLap: infantsInLap !== undefined && !isNaN(infantsInLap) ? infantsInLap : undefined,
-        intervalHours: intervalHours !== undefined ? Number(intervalHours) : undefined,
-        onlyDirect,
-        isActive,
-      },
-      user.id
-    );
+       routeId,
+       {
+         origin,
+         destination,
+         flightDate,
+         returnDate,
+         tripType,
+         targetPrice: targetPrice !== undefined ? Number(targetPrice) : undefined,
+         passengers: passengers !== undefined ? Number(passengers) : undefined,
+         children: children !== undefined && !isNaN(children) ? children : undefined,
+         infantsInLap: infantsInLap !== undefined && !isNaN(infantsInLap) ? infantsInLap : undefined,
+         intervalHours: intervalHours !== undefined ? Number(intervalHours) : undefined,
+         onlyDirect,
+         flexibilityDays,
+         flexibleWeekends,
+         isActive,
+       },
+       user.id
+     );
 
     if (!ok) {
       return NextResponse.json({ success: false, error: "Falha ao atualizar rota ou rota não encontrada." }, { status: 400 });

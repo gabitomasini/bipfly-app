@@ -35,6 +35,7 @@ import {
   AlertTriangle,
   Clock,
   LogIn,
+  RefreshCw,
 } from "lucide-react";
 
 type SortOption = "date_asc" | "date_desc" | "price_asc" | "price_desc" | "discount_desc" | "route";
@@ -85,7 +86,7 @@ function RotasContent() {
     }
   }, [addToast, t.toasts.connError]);
 
-  const { registerRefreshCallback } = useScanning();
+  const { registerRefreshCallback, isScanning, activeRouteId } = useScanning();
 
   useEffect(() => {
     fetchRoutes();
@@ -791,7 +792,12 @@ function RotasContent() {
                       </div>
                     ) : (
                       <div className="flex items-center justify-between sm:flex-col sm:items-end gap-1 shrink-0 pt-2.5 sm:pt-0 border-t border-slate-200/70 sm:border-0">
-                        {group.routes.some((r) => r.lastError) ? (
+                        {group.routes.some((r) => isScanning && (activeRouteId === r.id || activeRouteId === null)) ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-300 animate-pulse">
+                            <RefreshCw className="w-3 h-3 text-sky-600 animate-spin shrink-0" />
+                            <span>{locale === "en" ? "Scanning..." : "Buscando..."}</span>
+                          </span>
+                        ) : group.routes.some((r) => r.lastError) ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
                             <AlertTriangle className="w-3 h-3 text-amber-600" />
                             <span>{locale === "en" ? "No flights found" : "Sem vôos no trecho"}</span>
@@ -825,6 +831,10 @@ function RotasContent() {
                             setLiveDrawerRoute(r);
                             setLiveOptions(opts);
                           }}
+                          onViewMatrix={(r) => {
+                            setLiveDrawerRoute(r);
+                            setLiveOptions([]);
+                          }}
                           onRefreshList={fetchRoutes}
                         />
                       ))}
@@ -853,6 +863,10 @@ function RotasContent() {
                   setLiveDrawerRoute(r);
                   setLiveOptions(opts);
                 }}
+                onViewMatrix={(r) => {
+                  setLiveDrawerRoute(r);
+                  setLiveOptions([]);
+                }}
                 onRefreshList={fetchRoutes}
               />
             ))}
@@ -880,6 +894,7 @@ function RotasContent() {
         route={liveDrawerRoute}
         options={liveOptions}
         onClose={() => setLiveDrawerRoute(null)}
+        onRouteUpdated={fetchRoutes}
       />
 
       <ConfirmDialog

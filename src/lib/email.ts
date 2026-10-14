@@ -333,6 +333,13 @@ export interface SendDealAlertEmailParams {
   passengers?: number;
   children?: number;
   infantsInLap?: number;
+  recommendedAlternative?: {
+    departureDate: string;
+    returnDate?: string | null;
+    price: number;
+    savingsPercent: number;
+    bookingLink?: string;
+  };
   locale?: "en" | "pt" | string;
 }
 
@@ -359,6 +366,7 @@ export async function sendDealAlertEmail(params: SendDealAlertEmailParams): Prom
     passengers,
     children,
     infantsInLap,
+    recommendedAlternative,
     locale: rawLocale,
   } = params;
 
@@ -405,6 +413,10 @@ export async function sendDealAlertEmail(params: SendDealAlertEmailParams): Prom
 
   const actionUrl = bookingLink || `https://www.google.com/travel/flights`;
 
+  const altNote = recommendedAlternative
+    ? `\n💡 ${isEn ? "Flexible Date Tip" : "Dica de Data Flexível"}: ${recommendedAlternative.departureDate}${recommendedAlternative.returnDate ? ` - ${recommendedAlternative.returnDate}` : ""} ${isEn ? "drops price to" : "custa apenas"} ${new Intl.NumberFormat(numLocale, { style: "currency", currency }).format(recommendedAlternative.price)} (-${recommendedAlternative.savingsPercent}%)!\n`
+    : "";
+
   const plainText = isEn
     ? `
 ${greeting}
@@ -416,7 +428,7 @@ ${greeting}
 🎯 Your Target: ${formattedTarget} per person ${discountPercent > 0 ? `(${discountPercent}% below your target!)` : ""}
 ✈️ Airline: ${airline || "Available Airline"}${flightNumber ? ` (${flightNumber})` : ""} • ${stopsText}
 ${departureTime ? `⏰ Departure: ${departureTime}` : ""}${arrivalTime ? ` • Arrival: ${arrivalTime}` : ""}
-
+${altNote}
 Book now before prices change:
 ${actionUrl}
 `.trim()
@@ -430,7 +442,7 @@ ${greeting}
 🎯 Sua Meta: ${formattedTarget} por pessoa ${discountPercent > 0 ? `(${discountPercent}% abaixo da sua meta!)` : ""}
 ✈️ Companhia: ${airline || "Companhia Aérea"}${flightNumber ? ` (${flightNumber})` : ""} • ${stopsText}
 ${departureTime ? `⏰ Saída: ${departureTime}` : ""}${arrivalTime ? ` • Chegada: ${arrivalTime}` : ""}
-
+${altNote}
 Acesse o link abaixo para visualizar e garantir sua passagem:
 ${actionUrl}
 `.trim();
@@ -483,6 +495,17 @@ ${actionUrl}
                   </div>
                   ${totalPax > 1 ? `<div style="margin-top: 6px; color: #475569; font-size: 12px;">Total estimado (${totalPax} passageiros): <strong>${formattedTotal}</strong></div>` : ""}
                 </div>
+
+                ${recommendedAlternative ? `
+                <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 14px 18px; margin: 16px 0; text-align: left;">
+                  <strong style="color: #1e40af; font-size: 13px; display: block; margin-bottom: 2px;">
+                    💡 ${isEn ? "Flexible Date Tip" : "Dica de Data Flexível"}
+                  </strong>
+                  <span style="color: #1e3a8a; font-size: 13px; line-height: 1.4;">
+                    ${isEn ? "Traveling on" : "Viajar em"} <strong>${recommendedAlternative.departureDate}${recommendedAlternative.returnDate ? ` (${recommendedAlternative.returnDate})` : ""}</strong> ${isEn ? "drops price to" : "custa apenas"} <strong>${new Intl.NumberFormat(numLocale, { style: "currency", currency }).format(recommendedAlternative.price)}</strong> (${recommendedAlternative.savingsPercent}% ${isEn ? "cheaper" : "mais barato"})!
+                  </span>
+                </div>
+                ` : ""}
 
                 <!-- Detalhes do Voo -->
                 <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin: 20px 0;">

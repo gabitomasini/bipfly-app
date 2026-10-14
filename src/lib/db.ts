@@ -113,6 +113,8 @@ export async function initSchema(db: Client): Promise<void> {
       target_price    REAL    NOT NULL CHECK (target_price > 0),
       interval_hours  INTEGER DEFAULT 12,
       only_direct     INTEGER NOT NULL DEFAULT 0,
+      flexibility_days INTEGER NOT NULL DEFAULT 0,
+      flexible_weekends INTEGER NOT NULL DEFAULT 0,
       is_active       INTEGER NOT NULL DEFAULT 1,
       last_error      TEXT,
       last_searched_at TEXT,
@@ -122,6 +124,18 @@ export async function initSchema(db: Client): Promise<void> {
   `);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_monitored_routes_active ON monitored_routes(is_active);`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_monitored_routes_user_id ON monitored_routes(user_id);`);
+
+  // Migrações incrementais para colunas de flexibilidade de datas
+  try {
+    await db.execute("ALTER TABLE monitored_routes ADD COLUMN flexibility_days INTEGER DEFAULT 0;");
+  } catch {
+    // Coluna já existe
+  }
+  try {
+    await db.execute("ALTER TABLE monitored_routes ADD COLUMN flexible_weekends INTEGER DEFAULT 0;");
+  } catch {
+    // Coluna já existe
+  }
 
   // 5. Tabela de histórico de buscas de voos (flight_history)
   await db.execute(`
@@ -600,6 +614,8 @@ export async function createRoute(data: {
   targetPrice: number;
   intervalHours?: number;
   onlyDirect?: boolean;
+  flexibilityDays?: number;
+  flexibleWeekends?: boolean;
 }): Promise<number> {
   const db = await ensureInitialized();
   const now = new Date().toISOString();
@@ -609,8 +625,8 @@ export async function createRoute(data: {
   const res = await db.execute({
     sql: `
       INSERT INTO monitored_routes (
-        user_id, origin, destination, flight_date, return_date, trip_type, passengers, children, infants_in_lap, target_price, interval_hours, only_direct, is_active, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+        user_id, origin, destination, flight_date, return_date, trip_type, passengers, children, infants_in_lap, target_price, interval_hours, only_direct, flexibility_days, flexible_weekends, is_active, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
     `,
     args: [
       data.userId,
@@ -625,6 +641,8 @@ export async function createRoute(data: {
       data.targetPrice,
       data.intervalHours || 12,
       data.onlyDirect ? 1 : 0,
+      data.flexibilityDays ?? 0,
+      data.flexibleWeekends ? 1 : 0,
       now,
       now,
     ],
@@ -656,6 +674,8 @@ export async function updateRoute(
     targetPrice: number;
     intervalHours: number;
     onlyDirect: boolean;
+    flexibilityDays: number;
+    flexibleWeekends: boolean;
     isActive: boolean;
   }>,
   userId?: number
@@ -719,6 +739,14 @@ export async function updateRoute(
   if (data.onlyDirect !== undefined) {
     fields.push("only_direct = ?");
     values.push(data.onlyDirect ? 1 : 0);
+  }
+  if (data.flexibilityDays !== undefined) {
+    fields.push("flexibility_days = ?");
+    values.push(data.flexibilityDays);
+  }
+  if (data.flexibleWeekends !== undefined) {
+    fields.push("flexible_weekends = ?");
+    values.push(data.flexibleWeekends ? 1 : 0);
   }
   if (data.isActive !== undefined) {
     fields.push("is_active = ?");
@@ -815,6 +843,8 @@ function mapRouteRow(row: any): MonitoredRoute {
     targetPrice: Number(row.target_price),
     intervalHours: Number(row.interval_hours ?? 12),
     onlyDirect: Boolean(row.only_direct),
+    flexibilityDays: Number(row.flexibility_days ?? 0),
+    flexibleWeekends: Boolean(row.flexible_weekends),
     isActive: Boolean(row.is_active),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),

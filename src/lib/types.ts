@@ -40,6 +40,8 @@ export interface MonitoredRoute {
   targetPrice: number;
   intervalHours?: number;
   onlyDirect?: boolean;
+  flexibilityDays?: number; // 0, 1, 2, 3
+  flexibleWeekends?: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -235,5 +237,38 @@ export interface ScanResult {
   foundOptions: FlightOption[];
   providerUsed?: string;
   searchedAt: string;
+  error?: string;
+}
+
+export interface PriceMatrixCell {
+  departureDate: string; // YYYY-MM-DD
+  returnDate?: string | null; // YYYY-MM-DD
+  price: number | null;
+  currency: string;
+  isBaseDate: boolean;
+  percentile: number; // 0 (cheapest) to 1 (most expensive)
+  airline?: string | null;
+  flightNumber?: string | null;
+  stops?: number | null;
+  isCheapest: boolean;
+  bookingLink?: string | null;
+}
+
+export interface PriceMatrixResponse {
+  success: boolean;
+  origin: string;
+  destination: string;
+  baseDepartureDate: string;
+  baseReturnDate?: string | null;
+  flexibilityDays: number;
+  flexibleWeekends: boolean;
+  departureDates: string[];
+  returnDates: string[];
+  cells: PriceMatrixCell[];
+  minPrice: number | null;
+  maxPrice: number | null;
+  cheapestCell: PriceMatrixCell | null;
+  basePrice: number | null;
+  currency: string;
   error?: string;
 }

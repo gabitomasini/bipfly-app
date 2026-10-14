@@ -36,6 +36,7 @@ import {
   MoreHorizontal,
   LogIn,
   Zap,
+  Grid3X3,
 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -564,7 +565,12 @@ export default function DashboardPage() {
 
                           {/* Coluna 3: STATUS */}
                           <td className="py-3.5 px-3 sm:px-4 text-center whitespace-nowrap align-middle">
-                            {!hasPrice ? (
+                            {isSearchingThis ? (
+                              <span className="inline-flex items-center justify-center gap-1.5 w-[135px] py-1 rounded-full text-[11px] font-bold bg-sky-50 text-sky-700 border border-sky-300 shadow-2xs animate-pulse">
+                                <RefreshCw className="w-3 h-3 text-sky-600 animate-spin shrink-0" />
+                                <span className="truncate">{locale === "en" ? "Scanning..." : "Buscando..."}</span>
+                              </span>
+                            ) : !hasPrice ? (
                               route.lastError ? (
                                 <Tooltip content={route.lastError}>
                                   <span className="inline-flex items-center justify-center gap-1.5 w-[135px] py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs cursor-help">
@@ -756,6 +762,11 @@ export default function DashboardPage() {
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-500">
                               {t.dashboard.table.paused}
                             </span>
+                          ) : isSearchingThis ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-300 animate-pulse">
+                              <RefreshCw className="w-2.5 h-2.5 text-sky-600 animate-spin" />
+                              <span>{locale === "en" ? "Scanning..." : "Buscando..."}</span>
+                            </span>
                           ) : !hasPrice ? (
                             route.lastError ? (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
@@ -844,6 +855,18 @@ export default function DashboardPage() {
                               <BarChart2 className="w-3.5 h-3.5" />
                             </button>
                           </Tooltip>
+                          <Tooltip content={locale === "en" ? "Date Price Matrix (Heatmap)" : "Matriz de Tarifas por Data (Heatmap)"}>
+                            <button
+                              onClick={() => {
+                                setLiveDrawerRoute(route);
+                                setLiveOptions([]);
+                              }}
+                              className="p-1.5 rounded-lg text-emerald-600 bg-emerald-50 border border-emerald-200 hover:text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
+                              aria-label={locale === "en" ? "Date Price Matrix" : "Matriz de Tarifas por Data"}
+                            >
+                              <Grid3X3 className="w-3.5 h-3.5" />
+                            </button>
+                          </Tooltip>
                           <Tooltip content={t.dashboard.table.deleteRoute}>
                             <button
                               onClick={() => setRouteToDelete(route)}
@@ -894,6 +917,7 @@ export default function DashboardPage() {
         route={liveDrawerRoute}
         options={liveOptions}
         onClose={() => setLiveDrawerRoute(null)}
+        onRouteUpdated={fetchDashboardData}
       />
 
       <ConfirmDialog

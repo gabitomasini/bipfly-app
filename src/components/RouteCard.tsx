@@ -19,6 +19,7 @@ import {
   AlertCircle,
   AlertTriangle,
   Clock,
+  Grid3X3,
 } from "lucide-react";
 import { MonitoredRoute, FlightOption } from "@/lib/types";
 import { getGoogleFlightsUrl } from "@/lib/utils";
@@ -35,6 +36,7 @@ interface RouteCardProps {
   onToggleActive: (id: number, currentActive: boolean) => void;
   onViewHistory: (route: MonitoredRoute) => void;
   onViewLiveResults?: (route: MonitoredRoute, options: FlightOption[]) => void;
+  onViewMatrix?: (route: MonitoredRoute) => void;
   onRefreshList: () => void;
   isInsideGroup?: boolean;
 }
@@ -46,6 +48,7 @@ export default function RouteCard({
   onToggleActive,
   onViewHistory,
   onViewLiveResults,
+  onViewMatrix,
   onRefreshList,
   isInsideGroup = false,
 }: RouteCardProps) {
@@ -371,6 +374,11 @@ export default function RouteCard({
                           : `Monitoramento pausado em ${formatDateTime(route.updatedAt)}`}
                       </span>
                     </div>
+                  ) : isCardSearching ? (
+                    <div className="flex items-center gap-1.5 text-[11px] text-sky-400">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-sky-400 shrink-0" />
+                      <span>{locale === "en" ? "Scanning flight prices in real-time..." : "Consultando tarifas em tempo real..."}</span>
+                    </div>
                   ) : !hasPrice ? (
                     route.lastError ? (
                       <div className="flex items-start gap-1.5 text-[11px] max-w-xs text-left">
@@ -408,6 +416,8 @@ export default function RouteCard({
                   className={`inline-flex items-center justify-center w-5 h-5 rounded-full cursor-help transition-all hover:scale-110 shadow-2xs ${
                     !route.isActive
                       ? "bg-amber-50 text-amber-600 border border-amber-200"
+                      : isCardSearching
+                      ? "bg-sky-50 text-sky-600 border border-sky-300"
                       : !hasPrice
                       ? route.lastError
                         ? "bg-amber-100 text-amber-800 border border-amber-300"
@@ -420,6 +430,8 @@ export default function RouteCard({
                 >
                   {!route.isActive ? (
                     <Pause className="w-3 h-3 text-amber-600" />
+                  ) : isCardSearching ? (
+                    <RefreshCw className="w-3 h-3 text-sky-600 animate-spin" />
                   ) : !hasPrice ? (
                     route.lastError ? (
                       <AlertTriangle className="w-3 h-3 text-amber-700" />
@@ -480,6 +492,23 @@ export default function RouteCard({
               </button>
             </Tooltip>
 
+            {/* Secondary: Date Price Matrix */}
+            <Tooltip content={locale === "en" ? "Date Price Matrix (Heatmap)" : "Matriz de Tarifas por Data (Heatmap)"}>
+              <button
+                onClick={() => {
+                  if (onViewMatrix) {
+                    onViewMatrix(route);
+                  } else if (onViewLiveResults) {
+                    onViewLiveResults(route, []);
+                  }
+                }}
+                className="inline-flex items-center justify-center h-9 w-9 rounded-xl text-emerald-600 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-700 border border-emerald-200 transition-all cursor-pointer shrink-0"
+                aria-label={locale === "en" ? "Date Price Matrix" : "Matriz de Tarifas por Data"}
+              >
+                <Grid3X3 className="w-4 h-4 text-emerald-600" />
+              </button>
+            </Tooltip>
+
             {/* More Options Dropdown */}
             <div className="relative flex items-center shrink-0" ref={menuRef}>
               <Tooltip content={locale === "en" ? "More options" : "Mais opções"}>
@@ -494,6 +523,21 @@ export default function RouteCard({
 
               {isMenuOpen && (
                 <div className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 py-1.5 text-xs animate-fadeIn">
+                  <button
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      if (onViewMatrix) {
+                        onViewMatrix(route);
+                      } else if (onViewLiveResults) {
+                        onViewLiveResults(route, []);
+                      }
+                    }}
+                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium cursor-pointer"
+                  >
+                    <Grid3X3 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{locale === "en" ? "Date Price Matrix" : "Matriz de Tarifas por Data"}</span>
+                  </button>
+
                   <button
                     onClick={handleBackfillHistory}
                     disabled={isBackfilling}
