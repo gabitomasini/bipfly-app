@@ -325,22 +325,51 @@ export async function scrapeGoogleFlights(
 
         // 3. Duração
         let durMinutes = 0;
-        const durMatch = (ariaCombined + " " + fullText).match(/Duração total:\s*(\d+)\s*h(?:\s*(\d+)\s*min)?/i) ||
-                         (fullText).match(/(\d+)\s*h(?:\s*(\d+)\s*min)?/);
-        if (durMatch) {
-          durMinutes = parseInt(durMatch[1], 10) * 60 + (parseInt(durMatch[2], 10) || 0);
+
+        // 3.1 Elemento dedicado de duração no cartão (.pIavfa, aria-label com duração)
+        const durationEl = card.querySelector('[aria-label*="uração" i], [aria-label*="uration" i], .pIavfa, [data-duration]');
+        if (durationEl) {
+          const elAria = durationEl.getAttribute("aria-label") || "";
+          const elText = durationEl.textContent || "";
+          const m = (elAria + " " + elText).match(/(\d+)\s*(?:h|hr|horas?)\s*(?:(\d+)\s*(?:m|min|minutos?))?/i);
+          if (m) {
+            durMinutes = parseInt(m[1], 10) * 60 + (parseInt(m[2], 10) || 0);
+          }
+        }
+
+        // 3.2 Busca explícita por 'Duração total' ou 'Total duration'
+        if (!durMinutes) {
+          const explicitMatch = (ariaCombined + " " + fullText).match(
+            /(?:Duração total|Total duration|Duração|Duration):\s*(\d+)\s*(?:h|hr|horas?)\s*(?:(\d+)\s*(?:m|min|minutos?))?/i
+          );
+          if (explicitMatch) {
+            durMinutes = parseInt(explicitMatch[1], 10) * 60 + (parseInt(explicitMatch[2], 10) || 0);
+          }
+        }
+
+        // 3.3 Fallback: remove textos de conexões/escalas para não pegar tempo de escala por engano
+        if (!durMinutes) {
+          const textWithoutLayovers = (ariaCombined + " " + fullText)
+            .replace(/(?:escala|parada|conexão|layover|stop)\s*(?:de|em|in)?\s*\d+\s*(?:h|hr|horas?)\s*(?:\d+\s*(?:m|min|minutos?))?/gi, "")
+            .replace(/\d+\s*(?:h|hr|horas?)\s*(?:\d+\s*(?:m|min|minutos?))?\s*(?:de\s+)?(?:escala|parada|conexão|layover|stop)/gi, "");
+
+          const durMatch = textWithoutLayovers.match(/(\d+)\s*(?:h|hr|horas?)\s*(?:(\d+)\s*(?:m|min|minutos?))?/i);
+          if (durMatch) {
+            durMinutes = parseInt(durMatch[1], 10) * 60 + (parseInt(durMatch[2], 10) || 0);
+          }
         }
 
         // 4. Escalas
-        let stops = 0;
-        if (/sem escalas/i.test(ariaCombined) || /voo direto/i.test(ariaCombined) || /sem escalas/i.test(fullText)) {
+        let stops: number | null = null;
+        const stopText = `${ariaCombined} ${fullText}`;
+
+        if (/\b(?:sem escalas|voo direto|direto|nonstop|non-stop|direct)\b/i.test(stopText)) {
           stops = 0;
-        } else if (/1 parada/i.test(ariaCombined) || /1 escala/i.test(ariaCombined) || /1 parada/i.test(fullText)) {
-          stops = 1;
-        } else if (/2 paradas/i.test(ariaCombined) || /2 escalas/i.test(ariaCombined) || /2 paradas/i.test(fullText)) {
-          stops = 2;
-        } else if (/3 paradas/i.test(ariaCombined) || /3 escalas/i.test(ariaCombined) || /3 paradas/i.test(fullText)) {
-          stops = 3;
+        } else {
+          const stopNumMatch = stopText.match(/\b(\d+)\s*(?:parada|escala|stop)s?\b/i);
+          if (stopNumMatch) {
+            stops = parseInt(stopNumMatch[1], 10);
+          }
         }
 
         // 5. Companhia Aérea
@@ -504,7 +533,32 @@ export async function scrapeGoogleFlights(
       );
     }
 
-    const finalTop = uniqueOptions.slice(0, topN);
+    // Se topN for especificado, garante a preservação das melhores opções diretas e com conexões
+    let finalTop: FlightOption[];
+    if (topN && topN > 0 && uniqueOptions.length > topN) {
+      const directs = uniqueOptions.filter((o) => o.stops === 0);
+      const withStops = uniqueOptions.filter((o) => typeof o.stops === "number" && o.stops > 0);
+      const unverified = uniqueOptions.filter((o) => o.stops === null || o.stops === undefined);
+
+      const generalSlice = uniqueOptions.slice(0, topN);
+      const directSlice = directs.slice(0, topN);
+      const stopsSlice = withStops.slice(0, topN);
+
+      // Combina e desduplica preservando os menores preços diretos e com conexões
+      const combined = [...generalSlice, ...directSlice, ...stopsSlice, ...unverified];
+      const seenKeys = new Set<string>();
+      finalTop = [];
+      for (const opt of combined) {
+        const k = `${opt.price}-${opt.airline}-${opt.departureTime || ""}-${opt.stops ?? "u"}`;
+        if (!seenKeys.has(k)) {
+          seenKeys.add(k);
+          finalTop.push(opt);
+        }
+      }
+      finalTop.sort((a, b) => a.price - b.price);
+    } else {
+      finalTop = uniqueOptions;
+    }
 
     logger.success(
       "SCRAPER",

@@ -1,10 +1,19 @@
 import { NextResponse } from "next/server";
 import { scrapeGoogleFlights } from "@/lib/scrapers/google-flights-scraper";
+import { getAuthUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: "Autenticação necessária para executar buscas de teste." },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json().catch(() => ({}));
     const origin = body.origin || body.origem || "GRU";
     const destination = body.destination || body.destino || "MIA";

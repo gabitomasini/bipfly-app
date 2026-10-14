@@ -1,11 +1,27 @@
 import { NextResponse } from "next/server";
 import { sendNtfyNotification } from "@/lib/notifier";
 import { getAppSettings } from "@/lib/db";
+import { getAuthUser, isUserAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: "Autenticação necessária." },
+        { status: 401 }
+      );
+    }
+
+    if (!isUserAdmin(user)) {
+      return NextResponse.json(
+        { success: false, error: "Apenas administradores podem disparar notificações de teste." },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json().catch(() => ({}));
     const settings = await getAppSettings();
     const topic = body.topic || body.topico || settings.ntfyTopic;

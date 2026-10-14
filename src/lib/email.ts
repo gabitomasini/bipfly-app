@@ -1,5 +1,6 @@
 import { recordLog } from "./db";
 import { logger } from "./logger";
+import { PriceAnalysisResult } from "./types";
 
 export interface SendOtpEmailParams {
   email: string;
@@ -333,6 +334,7 @@ export interface SendDealAlertEmailParams {
   passengers?: number;
   children?: number;
   infantsInLap?: number;
+  anomalyAnalysis?: PriceAnalysisResult;
   recommendedAlternative?: {
     departureDate: string;
     returnDate?: string | null;
@@ -366,6 +368,7 @@ export async function sendDealAlertEmail(params: SendDealAlertEmailParams): Prom
     passengers,
     children,
     infantsInLap,
+    anomalyAnalysis,
     recommendedAlternative,
     locale: rawLocale,
   } = params;
@@ -407,11 +410,27 @@ export async function sendDealAlertEmail(params: SendDealAlertEmailParams): Prom
     ? Math.round(((targetPrice - price) / targetPrice) * 100)
     : 0;
 
-  const subject = isEn
+  let subject = isEn
     ? `🎯 DEAL ALERT: ${origin} to ${destination} is now ${formattedPrice} (Target: ${formattedTarget})!`
     : `🎯 ALERTA DE PREÇO: ${origin} para ${destination} atingiu ${formattedPrice} (Sua meta: ${formattedTarget})!`;
 
+  if (anomalyAnalysis?.isDeal) {
+    if (anomalyAnalysis.dealLevel === "IMPERDIVEL") {
+      subject = isEn
+        ? `🔥 UNMISSABLE DEAL: ${origin} to ${destination} dropped to ${formattedPrice} (Z-Score: ${anomalyAnalysis.zScore})!`
+        : `🔥 ANOMALIA IMPERDÍVEL: ${origin} para ${destination} caiu para ${formattedPrice} (Z-Score: ${anomalyAnalysis.zScore})!`;
+    } else {
+      subject = isEn
+        ? `✨ STATISTICAL OPPORTUNITY: ${origin} to ${destination} is now ${formattedPrice} (Z-Score: ${anomalyAnalysis.zScore})!`
+        : `✨ OPORTUNIDADE ESTATÍSTICA: ${origin} para ${destination} atingiu ${formattedPrice} (Z-Score: ${anomalyAnalysis.zScore})!`;
+    }
+  }
+
   const actionUrl = bookingLink || `https://www.google.com/travel/flights`;
+
+  const anomalyNote = anomalyAnalysis?.isDeal
+    ? `\n📊 ${anomalyAnalysis.message}\n`
+    : "";
 
   const altNote = recommendedAlternative
     ? `\n💡 ${isEn ? "Flexible Date Tip" : "Dica de Data Flexível"}: ${recommendedAlternative.departureDate}${recommendedAlternative.returnDate ? ` - ${recommendedAlternative.returnDate}` : ""} ${isEn ? "drops price to" : "custa apenas"} ${new Intl.NumberFormat(numLocale, { style: "currency", currency }).format(recommendedAlternative.price)} (-${recommendedAlternative.savingsPercent}%)!\n`
@@ -421,28 +440,28 @@ export async function sendDealAlertEmail(params: SendDealAlertEmailParams): Prom
     ? `
 ${greeting}
 
-🎉 Great news! We found a flight within your target price!
+🎉 Great news! We found a flight deal for your route!
 
 📍 Route: ${routeDesc}
 💰 Price Found: ${formattedPrice} per person${totalPax > 1 ? ` (Total for ${totalPax} passengers: ${formattedTotal})` : ""}
 🎯 Your Target: ${formattedTarget} per person ${discountPercent > 0 ? `(${discountPercent}% below your target!)` : ""}
 ✈️ Airline: ${airline || "Available Airline"}${flightNumber ? ` (${flightNumber})` : ""} • ${stopsText}
 ${departureTime ? `⏰ Departure: ${departureTime}` : ""}${arrivalTime ? ` • Arrival: ${arrivalTime}` : ""}
-${altNote}
+${anomalyNote}${altNote}
 Book now before prices change:
 ${actionUrl}
 `.trim()
     : `
 ${greeting}
 
-🎉 Ótima notícia! Encontramos passagens dentro da sua meta de preço!
+🎉 Ótima notícia! Encontramos uma oferta de voo para a sua rota!
 
 📍 Rota: ${routeDesc}
 💰 Preço Encontrado: ${formattedPrice} por pessoa${totalPax > 1 ? ` (Total para ${totalPax} passageiros: ${formattedTotal})` : ""}
 🎯 Sua Meta: ${formattedTarget} por pessoa ${discountPercent > 0 ? `(${discountPercent}% abaixo da sua meta!)` : ""}
 ✈️ Companhia: ${airline || "Companhia Aérea"}${flightNumber ? ` (${flightNumber})` : ""} • ${stopsText}
 ${departureTime ? `⏰ Saída: ${departureTime}` : ""}${arrivalTime ? ` • Chegada: ${arrivalTime}` : ""}
-${altNote}
+${anomalyNote}${altNote}
 Acesse o link abaixo para visualizar e garantir sua passagem:
 ${actionUrl}
 `.trim();
@@ -471,13 +490,13 @@ ${actionUrl}
               </div>
 
               <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 28px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
-                <div style="display: inline-block; background-color: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; font-weight: 800; font-size: 12px; padding: 4px 10px; border-radius: 20px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">
-                  ${isEn ? "🎯 Target Price Reached" : "🎯 Meta de Preço Atingida"}
+                <div style="display: inline-block; background-color: ${anomalyAnalysis?.isDeal ? (anomalyAnalysis.dealLevel === "IMPERDIVEL" ? "#fef2f2" : "#fefce8") : "#ecfdf5"}; border: 1px solid ${anomalyAnalysis?.isDeal ? (anomalyAnalysis.dealLevel === "IMPERDIVEL" ? "#fecaca" : "#fef08a") : "#a7f3d0"}; color: ${anomalyAnalysis?.isDeal ? (anomalyAnalysis.dealLevel === "IMPERDIVEL" ? "#991b1b" : "#854d0e") : "#065f46"}; font-weight: 800; font-size: 12px; padding: 4px 10px; border-radius: 20px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">
+                  ${anomalyAnalysis?.isDeal ? (anomalyAnalysis.dealLevel === "IMPERDIVEL" ? (isEn ? "🔥 Unmissable Deal Detected" : "🔥 Anomalia Imperdível Detectada") : (isEn ? "✨ Statistical Opportunity" : "✨ Oportunidade Estatística")) : (isEn ? "🎯 Target Price Reached" : "🎯 Meta de Preço Atingida")}
                 </div>
                 
                 <h2 style="color: #0f172a; margin: 0 0 10px 0; font-size: 22px; font-weight: 800;">${greeting}</h2>
                 <p style="color: #475569; font-size: 15px; margin: 0 0 20px 0; line-height: 1.5;">
-                  ${isEn ? "Great news! We found a flight deal matching your target criteria:" : "Ótima notícia! Encontramos uma oferta dentro da meta que você definiu:"}
+                  ${isEn ? "Great news! We found a flight deal for your monitored route:" : "Ótima notícia! Encontramos uma oferta de voo para a sua rota monitorada:"}
                 </p>
 
                 <!-- Box Destaque de Preço -->
@@ -495,6 +514,22 @@ ${actionUrl}
                   </div>
                   ${totalPax > 1 ? `<div style="margin-top: 6px; color: #475569; font-size: 12px;">Total estimado (${totalPax} passageiros): <strong>${formattedTotal}</strong></div>` : ""}
                 </div>
+
+                ${anomalyAnalysis?.isDeal ? `
+                <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 14px 18px; margin: 16px 0; text-align: left;">
+                  <strong style="color: #92400e; font-size: 13px; display: block; margin-bottom: 2px;">
+                    📊 ${isEn ? "Statistical Opportunity (Z-Score & Bessel)" : "Inteligência Tarifária (Z-Score & Bessel)"}: ${anomalyAnalysis.dealLevel === "IMPERDIVEL" ? (isEn ? "UNMISSABLE DEAL" : "ANOMALIA IMPERDÍVEL") : (isEn ? "OPPORTUNITY" : "OPORTUNIDADE")}
+                  </strong>
+                  <span style="color: #78350f; font-size: 13px; line-height: 1.4; display: block;">
+                    ${anomalyAnalysis.message}
+                  </span>
+                  ${anomalyAnalysis.mean ? `
+                  <div style="margin-top: 6px; font-size: 12px; color: #b45309;">
+                    ${isEn ? "Historical average" : "Média histórica"}: <strong>${new Intl.NumberFormat(numLocale, { style: "currency", currency }).format(anomalyAnalysis.mean)}</strong> • Z-Score: <strong>${anomalyAnalysis.zScore}</strong>
+                  </div>
+                  ` : ""}
+                </div>
+                ` : ""}
 
                 ${recommendedAlternative ? `
                 <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 14px 18px; margin: 16px 0; text-align: left;">

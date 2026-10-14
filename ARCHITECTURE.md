@@ -38,44 +38,47 @@ O cerne da engenharia do BipFly reside em sua arquitetura de ingestão híbrida,
 
 ```mermaid
 flowchart TD
-    User([Usuário / Cron Trigger]) --> Orchestrator[Orquestrador de Busca / Scanner]
+    User([Usuário / Agendador Cron]) --> Orchestrator[Orquestrador de Varredura / Scanner]
     
-    subgraph Ingestao_Hibrida [Pipeline Híbrido Concorrente]
-        Orchestrator -->|Promise.allSettled| P1[Playwright Scraper / Google Flights]
-        Orchestrator -->|Promise.allSettled| P2[Travelpayouts / Aviasales Data API]
-        Orchestrator -.->|Fallback de Cota| P3[SerpApi Engine]
+    subgraph Ingestao_Rotas [Inspeção de Rotas Monitoradas]
+        Orchestrator --> Mutex[Browser Mutex Lock]
+        Mutex --> Chromium[(Chromium Headless)]
+        Chromium --> ScrapedData[DOM Parsing, Duração & Classificação de Paradas]
     end
 
-    P1 -->|Tarifa em Tempo Real| Mutex[Browser Mutex Lock]
-    Mutex --> Chromium[(Chromium Headless)]
-    Chromium --> ScrapedData[DOM Parsing & Regex Preço]
+    subgraph Calendario_Flexivel [Pipeline de Datas Flexíveis e Afiliados]
+        Orchestrator -.->|Matriz de Preços Mensal| P2[Travelpayouts / Aviasales Data API]
+        P2 --> NextCache[Next.js Data Cache / ISR: 3600s]
+        NextCache --> AltDates[Sugestões de Datas Alternativas]
+    end
 
-    P2 -->|Tendência 30/60/120 Dias| NextCache[Next.js Data Cache / ISR: 3600s]
-    NextCache --> HistData[Histórico Agregado de Mercado]
-
-    ScrapedData --> Aggregator[Normalizador de Dados & DTO]
-    HistData --> Aggregator
+    ScrapedData --> DB[(LibSQL / Turso Cloud / SQLite)]
+    DB --> RouteHistory[Histórico de Preços da Rota]
     
-    Aggregator --> AnomalyDetector[Detector de Anomalias: Z-Score & Bessel]
-    AnomalyDetector --> DB[(LibSQL / Turso / SQLite)]
+    ScrapedData --> AnomalyDetector[Detector de Anomalias: Z-Score & Bessel N-1]
+    RouteHistory --> AnomalyDetector
+    AltDates --> AnomalyDetector
+    
     AnomalyDetector --> Notifier[Serviço Notificador: NTFY + SMTP Resend]
 ```
 
 ### 2.1. Ingestão em Tempo Real: Web Scraping com Playwright
 - **Motor:** Playwright executando Chromium no modo headless otimizado.
 - **Localização:** `src/lib/scrapers/google-flights-scraper.ts` e `src/lib/scanner.ts`.
-- **Estratégia de Scraping:**
+- **Estratégia de Scraping e Classificação:**
   - Gera URLs diretas de busca do Google Flights contendo parâmetros IATA normalizados, moeda em BRL (`curr=BRL`) e localização brasileira (`hl=pt-BR`).
   - Aguarda o carregamento dos seletores essenciais de listagem de voos com tempos limites estritos.
-  - Extrai simultaneamente tarifas, companhias aéreas operadoras, horários de partida/chegada, tempo total de voo, número de escalas e links diretos de reserva.
+  - Extrai simultaneamente tarifas, companhias aéreas operadoras, horários de partida/chegada, tempo total de voo (ignorando tempos de conexão intermediários) e número de escalas (com validação estrita sem fallback falso para direto).
+  - Preserva os pools de voos diretos e com escalas antes da limitação por menor preço, garantindo que rotas configuradas como `onlyDirect` não sofram falso negativo.
   - Implementa algoritmo customizado de parsing de moeda (`parseBrazilianPrice`), capaz de tratar variações de pontuação decimal e milhar (padrão brasileiro `1.299,00` vs americano `1,299.00`).
 
-### 2.2. Ingestão Histórica: Aviasales / Travelpayouts Data API
-- **Endpoint:** `https://api.travelpayouts.com/v2/prices/latest`
-- **Finalidade:** Fornecer dispersão e tendências de preço dos últimos 30 a 120 dias sem onerar o scraper em tempo real com dezenas de requisições retrospectivas.
+### 2.2. Ingestão de Tendências e Calendário: Aviasales / Travelpayouts Data API
+- **Endpoint:** `https://api.travelpayouts.com/v2/prices/month-matrix`
+- **Finalidade:** Alimentar a matriz de datas flexíveis (`/api/flights/matrix`) e identificar datas alternativas vantajosas sem sobrecarregar o scraper de tempo real com dezenas de páginas consecutivas.
 - **Estratégia de Cache e Cota:**
   - Utiliza o motor de cache nativo do Next.js via Fetch com ISR: `{ next: { revalidate: 3600 } }`.
   - Garante resposta sub-100ms para consultas repetidas na mesma rota, respeitando os rate limits do parceiro de dados.
+- **Monetização e Rastreamento:** Integração de deep links monetizados com ID de afiliado (`marker=780599`) e script Travelpayouts Drive no layout raiz.
 
 ### 2.3. Resiliência, Isolamento e Fallback Strategy
 1. **Execução Concorrente com `Promise.allSettled`:**

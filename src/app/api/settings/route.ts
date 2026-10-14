@@ -1,11 +1,27 @@
 import { NextResponse } from "next/server";
 import { getAppSettings, saveAppSettings } from "@/lib/db";
 import { restartScheduler } from "@/lib/scheduler";
+import { getAuthUser, isUserAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: "Autenticação necessária." },
+        { status: 401 }
+      );
+    }
+
+    if (!isUserAdmin(user)) {
+      return NextResponse.json(
+        { success: false, error: "Acesso não autorizado às configurações do sistema." },
+        { status: 403 }
+      );
+    }
+
     const settings = await getAppSettings();
     return NextResponse.json({
       success: true,
@@ -22,6 +38,21 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: "Autenticação necessária." },
+        { status: 401 }
+      );
+    }
+
+    if (!isUserAdmin(user)) {
+      return NextResponse.json(
+        { success: false, error: "Apenas administradores podem alterar configurações do sistema." },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
 
     const scheduleHours = body.scheduleHours || body.schedule_hours;

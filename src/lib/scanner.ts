@@ -1,4 +1,4 @@
-import { findRouteById, listRoutes, recordFlightHistory, getAppSettings, updateRouteScanStatus, findUserById } from "./db";
+import { findRouteById, listRoutes, recordFlightHistory, getAppSettings, updateRouteScanStatus, findUserById, getHistoryByRoute } from "./db";
 import { scrapeGoogleFlights } from "./scrapers/google-flights-scraper";
 import { sendNtfyNotification } from "./notifier";
 import { sendDealAlertEmail } from "./email";
@@ -6,6 +6,7 @@ import { FlightOption, MonitoredRoute, ScanResult } from "./types";
 import { logger } from "./logger";
 import { fetchMonthMatrixPrices } from "@/services/aviasalesDataService";
 import { getGoogleFlightsUrl } from "./utils";
+import { analyzeFlightPrice } from "./stats/flight-anomaly-detector";
 
 // Cache de promessas de varredura ativas por routeId para deduplicação de chamadas concorrentes
 declare global {
@@ -112,8 +113,8 @@ async function executeScanRoute(routeId: number): Promise<ScanResult> {
   }
 
   // Segrega voos diretos e com conexões
-  const directOptions = options.filter((o) => (o.stops ?? 0) === 0).sort((a, b) => a.price - b.price);
-  const stopsOptions = options.filter((o) => (o.stops ?? 0) > 0).sort((a, b) => a.price - b.price);
+  const directOptions = options.filter((o) => o.stops === 0).sort((a, b) => a.price - b.price);
+  const stopsOptions = options.filter((o) => typeof o.stops === "number" && o.stops > 0).sort((a, b) => a.price - b.price);
 
   const bestDirect = directOptions[0] || null;
   const bestWithStops = stopsOptions[0] || null;
@@ -224,6 +225,32 @@ async function executeScanRoute(routeId: number): Promise<ScanResult> {
     route.id
   );
 
+  // Avaliação estatística de anomalia tarifária com correção de Bessel (N - 1)
+  const history = await getHistoryByRoute(route.id, 60);
+  const anomalyAnalysis = analyzeFlightPrice(
+    route.origin,
+    route.destination,
+    route.flightDate,
+    lowestPrice,
+    history
+  );
+  const isStatisticalDeal = anomalyAnalysis.isDeal;
+
+  if (isStatisticalDeal) {
+    logger.info(
+      "SCANNER",
+      `📊 Anomalia Estatística [${anomalyAnalysis.dealLevel}] detectada para #${route.id} (${route.origin}→${route.destination}): Z-Score ${anomalyAnalysis.zScore}, Desconto ~${anomalyAnalysis.discountPercent}% em relação à média R$ ${anomalyAnalysis.mean?.toFixed(2)}`,
+      {
+        zScore: anomalyAnalysis.zScore,
+        mean: anomalyAnalysis.mean,
+        stdDev: anomalyAnalysis.stdDev,
+        dealLevel: anomalyAnalysis.dealLevel,
+        sampleSize: anomalyAnalysis.sampleSize,
+      },
+      route.id
+    );
+  }
+
   let notified = false;
   const settings = await getAppSettings();
 
@@ -293,7 +320,7 @@ async function executeScanRoute(routeId: number): Promise<ScanResult> {
     }
   }
 
-  const shouldNotify = isBelowTarget || Boolean(recommendedAlternative && recommendedAlternative.price <= route.targetPrice);
+  const shouldNotify = isBelowTarget || isStatisticalDeal || Boolean(recommendedAlternative && recommendedAlternative.price <= route.targetPrice);
 
   if (shouldNotify) {
     // 1. Notificação Push NTFY (se configurado nas opções)
@@ -315,14 +342,18 @@ async function executeScanRoute(routeId: number): Promise<ScanResult> {
         arrivalTime: primaryOption.arrivalTime,
         stops: primaryOption.stops,
         bookingLink: primaryOption.bookingLink,
+        anomalyAnalysis,
         recommendedAlternative,
       });
       if (ntfySent) {
         notified = true;
+        const triggerReason = isStatisticalDeal
+          ? `Anomalia Estatística (${anomalyAnalysis.dealLevel}, Z: ${anomalyAnalysis.zScore})`
+          : `Meta atingida: R$ ${lowestPrice.toFixed(2)} <= R$ ${route.targetPrice.toFixed(2)}`;
         logger.success(
           "NOTIFICATION",
-          `🚨 Alerta de preço disparado para o tópico '${settings.ntfyTopic}': R$ ${lowestPrice.toFixed(2)} <= R$ ${route.targetPrice.toFixed(2)}`,
-          { route: `${route.origin}->${route.destination}`, price: lowestPrice, targetPrice: route.targetPrice },
+          `🚨 Alerta disparado para o tópico '${settings.ntfyTopic}' [${triggerReason}]`,
+          { route: `${route.origin}->${route.destination}`, price: lowestPrice, targetPrice: route.targetPrice, zScore: anomalyAnalysis.zScore },
           route.id
         );
       }
@@ -353,14 +384,15 @@ async function executeScanRoute(routeId: number): Promise<ScanResult> {
             passengers: route.passengers || 1,
             children: route.children || 0,
             infantsInLap: route.infantsInLap || 0,
+            anomalyAnalysis,
             recommendedAlternative,
           });
           if (emailSent) {
             notified = true;
             logger.success(
               "NOTIFICATION",
-              `🎯 E-mail de alerta de preço enviado para ${user.email} (Rota #${route.id}: R$ ${lowestPrice.toFixed(2)} <= Meta R$ ${route.targetPrice.toFixed(2)})`,
-              { email: user.email, price: lowestPrice, targetPrice: route.targetPrice },
+              `🎯 E-mail de alerta enviado para ${user.email} (Rota #${route.id}: R$ ${lowestPrice.toFixed(2)} | Meta R$ ${route.targetPrice.toFixed(2)}${isStatisticalDeal ? ` | ${anomalyAnalysis.dealLevel} Z=${anomalyAnalysis.zScore}` : ""})`,
+              { email: user.email, price: lowestPrice, targetPrice: route.targetPrice, dealLevel: anomalyAnalysis.dealLevel },
               route.id
             );
           }
@@ -381,6 +413,8 @@ async function executeScanRoute(routeId: number): Promise<ScanResult> {
     currency: primaryOption.currency || "BRL",
     targetPrice: route.targetPrice,
     isBelowTarget,
+    isStatisticalDeal,
+    anomalyAnalysis,
     notified,
     foundOptions: options,
     providerUsed,

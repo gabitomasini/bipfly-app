@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSchedulerStatus, restartScheduler, triggerImmediateScan } from "@/lib/scheduler";
+import { getAuthUser, isUserAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,21 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: "Autenticação necessária para gerenciar o scheduler." },
+        { status: 401 }
+      );
+    }
+
+    if (!isUserAdmin(user)) {
+      return NextResponse.json(
+        { success: false, error: "Apenas administradores podem executar ou reiniciar o agendador." },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json().catch(() => ({}));
     const { action } = body;
 

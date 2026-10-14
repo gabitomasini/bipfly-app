@@ -44,11 +44,11 @@ export default function FlightSearchResultsDrawer({
   });
 
   const directOptions = useMemo(
-    () => options.filter((o) => (o.stops ?? 0) === 0).sort((a, b) => a.price - b.price),
+    () => options.filter((o) => o.stops === 0).sort((a, b) => a.price - b.price),
     [options]
   );
   const stopsOptions = useMemo(
-    () => options.filter((o) => (o.stops ?? 0) > 0).sort((a, b) => a.price - b.price),
+    () => options.filter((o) => typeof o.stops === "number" && o.stops > 0).sort((a, b) => a.price - b.price),
     [options]
   );
 

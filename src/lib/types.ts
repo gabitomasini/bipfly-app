@@ -128,7 +128,7 @@ export interface FlightOption {
   departureTime?: string;
   arrivalTime?: string;
   durationMinutes?: number;
-  stops?: number;
+  stops?: number | null;
   provider?: string;
   bookingLink?: string;
 }
@@ -233,6 +233,8 @@ export interface ScanResult {
   currency?: string;
   targetPrice: number;
   isBelowTarget: boolean;
+  isStatisticalDeal?: boolean;
+  anomalyAnalysis?: PriceAnalysisResult;
   notified: boolean;
   foundOptions: FlightOption[];
   providerUsed?: string;

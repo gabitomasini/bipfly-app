@@ -1,3 +1,5 @@
+import { PriceAnalysisResult } from "./types";
+
 export async function sendNtfyNotification(params: {
   topic: string;
   origin: string;
@@ -15,6 +17,7 @@ export async function sendNtfyNotification(params: {
   arrivalTime?: string | null;
   stops?: number | null;
   bookingLink?: string | null;
+  anomalyAnalysis?: PriceAnalysisResult;
   recommendedAlternative?: {
     departureDate: string;
     returnDate?: string | null;
@@ -42,13 +45,34 @@ export async function sendNtfyNotification(params: {
     currency,
   }).format(targetPrice);
 
-  const title = `🚨 Passagem em Alerta: ${origin} ✈️ ${destination} por ${formattedPrice}/pess.`;
+  let title = `🚨 Passagem em Alerta: ${origin} ✈️ ${destination} por ${formattedPrice}/pess.`;
+  const tags = ["airplane", "moneybag", "rotating_light"];
+
+  if (params.anomalyAnalysis?.isDeal) {
+    if (params.anomalyAnalysis.dealLevel === "IMPERDIVEL") {
+      title = `🔥 Preço Anômalo IMPERDÍVEL: ${origin} ✈️ ${destination} por ${formattedPrice}/pess.`;
+      tags.unshift("fire");
+    } else {
+      title = `✨ Oportunidade Tarifária: ${origin} ✈️ ${destination} por ${formattedPrice}/pess.`;
+      tags.unshift("sparkles");
+    }
+  }
 
   const lines = [
     `🎯 Meta por pessoa: ${formattedTarget}`,
     `📅 Data do Voo: ${flightDate}`,
     `💰 Menor Preço Encontrado: ${formattedPrice} / pessoa`,
   ];
+
+  if (params.anomalyAnalysis?.isDeal) {
+    const anom = params.anomalyAnalysis;
+    const badge = anom.dealLevel === "IMPERDIVEL" ? "🔥 IMPERDÍVEL" : "✨ OPORTUNIDADE";
+    lines.push(`📊 Análise Estatística: ${badge} (Z-Score: ${anom.zScore})`);
+    if (anom.mean) {
+      const formattedMean = new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(anom.mean);
+      lines.push(`📉 Média histórica: ${formattedMean} (${anom.discountPercent}% abaixo da média)`);
+    }
+  }
 
   if (totalPax > 1) {
     const totalGroup = new Intl.NumberFormat("pt-BR", {
@@ -90,7 +114,7 @@ export async function sendNtfyNotification(params: {
       title,
       message: body,
       priority: 4, // 4 = high
-      tags: ["airplane", "moneybag", "rotating_light"],
+      tags,
     };
 
     if (params.bookingLink) {

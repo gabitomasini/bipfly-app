@@ -39,26 +39,27 @@ The solution was built with strict modularity, concurrency control, and fault to
 
 ```mermaid
 flowchart TD
-    User([User / Cron Trigger]) --> Orchestrator[Scan Orchestrator / Scanner Engine]
+    User([User / Scheduler Trigger]) --> Orchestrator[Scan Orchestrator / Scanner Engine]
     
-    subgraph Hybrid_Pipeline [Concurrent Hybrid Ingestion Pipeline]
-        Orchestrator -->|Promise.allSettled| P1[Playwright Scraper / Google Flights]
-        Orchestrator -->|Promise.allSettled| P2[Travelpayouts / Aviasales Data API]
-        Orchestrator -.->|Dynamic Fallback| P3[SerpApi Engine]
+    subgraph Route_Inspection [Live Route Scraping & Validation]
+        Orchestrator --> Mutex[Browser Mutex Lock]
+        Mutex --> Chromium[(Optimized Headless Chromium)]
+        Chromium --> ScrapedData[DOM Parsing, Duration & Stop Classifier]
     end
 
-    P1 -->|Live Scraped Fare| Mutex[Browser Mutex Lock]
-    Mutex --> Chromium[(Optimized Headless Chromium)]
-    Chromium --> ScrapedData[DOM Parsing & Currency Regex]
+    subgraph Flexible_Calendar [Flexible Dates & Matrix Pipeline]
+        Orchestrator -.->|Flexible Dates Matrix| P2[Travelpayouts / Aviasales Data API]
+        P2 --> NextCache[Next.js Data Cache / ISR: 3600s]
+        NextCache --> AltDates[Recommended Alternative Dates]
+    end
 
-    P2 -->|30/60/120-Day Trend| NextCache[Next.js Data Cache / ISR: 3600s]
-    NextCache --> HistData[Aggregated Historical Market Data]
-
-    ScrapedData --> Aggregator[Data Normalizer & DTO Layer]
-    HistData --> Aggregator
+    ScrapedData --> DB[(LibSQL / Turso Cloud / SQLite)]
+    DB --> RouteHistory[Route Price History]
     
-    Aggregator --> AnomalyDetector[Anomaly Engine: Z-Score & Bessel]
-    AnomalyDetector --> DB[(LibSQL / Turso Cloud / SQLite)]
+    ScrapedData --> AnomalyDetector[Anomaly Engine: Z-Score & Bessel N-1]
+    RouteHistory --> AnomalyDetector
+    AltDates --> AnomalyDetector
+    
     AnomalyDetector --> Notifier[Notification Dispatcher: NTFY + Resend Email]
 ```
 
@@ -66,23 +67,24 @@ flowchart TD
 
 ## ⚡ Core Engineering Highlights & Key Differentiators
 
-### 1. Hybrid Data Ingestion Pipeline with Fault Isolation
-- **First-Party Playwright Scraper:** Directly extracts live flight data from Google Flights using normalized IATA parameters, Brazilian localization (`hl=pt-BR`), and local currency (`curr=BRL`). Captures departure/arrival times, stops, flight numbers, operating carriers, and deep booking URLs.
-- **Aviasales / Travelpayouts Data API:** Fetches historical 30- to 120-day price trend aggregations. Leverages Next.js native fetch cache with ISR (`{ next: { revalidate: 3600 } }`), delivering sub-100ms response times for recurring route queries.
-- **Resilience via `Promise.allSettled`:** Scraper timeouts or temporary rate limits never trigger HTTP 500 errors; the system delivers cached historical trends alongside an isolated error state for live pricing.
+### 1. Robust Data Ingestion Pipeline with Fault Isolation
+- **First-Party Playwright Scraper:** Directly extracts live flight data from Google Flights using normalized IATA parameters, Brazilian localization (`hl=pt-BR`), and local currency (`curr=BRL`). Captures departure/arrival times, stops (with strict non-stop validation), flight numbers, operating carriers, total flight durations (excluding connection layovers), and deep booking URLs.
+- **Aviasales / Travelpayouts Data API:** Fetches month-long calendar price distributions and matrix aggregations for flexible dates exploration (`/api/flights/matrix`). Leverages Next.js native fetch cache with ISR (`{ next: { revalidate: 3600 } }`), delivering sub-100ms response times for recurring route queries.
+- **Affiliate Link Attribution & Drive:** Integrates Travelpayouts marker monetization and domain verification.
+- **Fallback Engine:** Scraper timeouts or layout errors are handled gracefully with detailed structured logging (`src/lib/logger.ts`) without causing HTTP 500 crashes or application hangs.
 
 ### 2. Concurrency Safety & Out-Of-Memory (OOM) Prevention
 - **In-Memory Browser Mutex (`withBrowserLock`):** On memory-constrained Linux containers (e.g., 512MB-1GB RAM on Railway), running multiple Chromium instances concurrently triggers immediate container termination by the OS OOM killer. An asynchronous semaphore queue (`Promise`) ensures **strictly one Chromium instance operates at any given time**.
 - **Chromium Footprint Optimization:** Runs without sandboxes, disables GPU rasterization, disables `/dev/shm` shared memory, disables zygote processes, and locks the viewport to 1024x600. Resources are closed cleanly in `finally` blocks, with manual `global.gc()` invocations on retry cycles.
 
 ### 3. Statistical Anomaly Detection (Z-Score + Bessel's Correction)
-Rather than relying on naive arbitrary percentage thresholds (e.g., "alert if price drops by 15%"), BipFly computes the **Z-Score** of every new quote against the route's historical price distribution:
+Rather than relying solely on naive arbitrary percentage thresholds or static user targets, BipFly's automated route scanner evaluates the **Z-Score** of every newly collected quote against the route's historical price distribution:
 
 $$\bar{x} = \frac{1}{N} \sum_{i=1}^N x_i \quad \Bigg| \quad s = \sqrt{\frac{1}{N-1} \sum_{i=1}^N (x_i - \bar{x})^2} \quad \Bigg| \quad Z = \frac{x_{\text{current}} - \bar{x}}{s}$$
 
-- **NORMAL ($Z > -1.5$):** Fare lies within expected market volatility. Persisted to history; no disruptive alert triggered.
-- **OPPORTUNITY ($-2.0 < Z \le -1.5$ with $N \ge 3$):** Drop exceeds 1.5 standard deviations below historical mean. Highlighted in UI and flagged as high-value deal.
-- **UNMISSABLE ($Z \le -2.0$ with $N \ge 3$):** Statistical anomaly (over 2 standard deviations below mean). Triggers immediate priority push notification and transactional email.
+- **NORMAL ($Z > -1.5$):** Fare lies within expected market volatility. Persisted to history; only notified if below user's static target.
+- **OPPORTUNITY ($-2.0 < Z \le -1.5$ with $N \ge 3$):** Drop exceeds 1.5 standard deviations below historical mean. Dispatches proactive alerts via Push (NTFY) and transactional email highlighting the statistical bargain.
+- **UNMISSABLE ($Z \le -2.0$ with $N \ge 3$):** Statistical anomaly (over 2 standard deviations below mean). Triggers immediate high-priority push notification and transactional HTML email with unmissable deal badge.
 - **Why Bessel's Correction ($N-1$)?** The monitoring engine evaluates a statistical **sample** of observed quotes, not the universal population of all past prices. Applying $N-1$ corrects sample variance underestimation, preventing false positive alerts during early route monitoring cycles.
 
 ### 4. Passwordless Authentication & Progressive Profiling
